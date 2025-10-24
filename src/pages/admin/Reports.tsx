@@ -36,7 +36,7 @@ type Report = {
   address: string;
   description: string;
   photo_url: string | null;
-  geo_location: { lat: number; lng: number };
+  geo_location: { lat: number; lng: number } | null;
   type: "lapor" | "aspirasi";
   status: "pending" | "in_progress" | "resolved" | "rejected";
   created_at: string;
@@ -268,10 +268,14 @@ const Reports = () => {
                 )}
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Location</p>
-                  <p className="text-base">
-                    Lat: {selectedReport.geo_location.lat.toFixed(6)}, Lng:{" "}
-                    {selectedReport.geo_location.lng.toFixed(6)}
-                  </p>
+                  {selectedReport.geo_location ? (
+                    <p className="text-base">
+                      Lat: {selectedReport.geo_location.lat.toFixed(6)}, Lng:{" "}
+                      {selectedReport.geo_location.lng.toFixed(6)}
+                    </p>
+                  ) : (
+                    <p className="text-base text-muted-foreground">No location provided</p>
+                  )}
                 </div>
               </div>
             )}
