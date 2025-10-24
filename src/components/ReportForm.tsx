@@ -41,15 +41,6 @@ const ReportForm = () => {
   };
 
   const onSubmit = async (data: ReportFormData) => {
-    if (!location) {
-      toast({
-        title: "Location required",
-        description: "Please select a location on the map",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setLoading(true);
 
     try {
@@ -80,7 +71,7 @@ const ReportForm = () => {
         description: data.description,
         type: data.type,
         photo_url: photoUrl,
-        geo_location: location,
+        geo_location: location || null,
       });
 
       if (error) throw error;
@@ -205,7 +196,7 @@ const ReportForm = () => {
           </div>
 
           <div className="space-y-2">
-            <Label>Location *</Label>
+            <Label>Location</Label>
             <Button
               type="button"
               variant="outline"

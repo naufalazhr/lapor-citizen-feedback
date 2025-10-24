@@ -43,7 +43,7 @@ export type Database = {
           address: string
           created_at: string
           description: string
-          geo_location: Json
+          geo_location: Json | null
           id: string
           phone: string
           photo_url: string | null
@@ -56,7 +56,7 @@ export type Database = {
           address: string
           created_at?: string
           description: string
-          geo_location: Json
+          geo_location?: Json | null
           id?: string
           phone: string
           photo_url?: string | null
@@ -69,7 +69,7 @@ export type Database = {
           address?: string
           created_at?: string
           description?: string
-          geo_location?: Json
+          geo_location?: Json | null
           id?: string
           phone?: string
           photo_url?: string | null
