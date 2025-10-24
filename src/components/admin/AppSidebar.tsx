@@ -13,13 +13,14 @@ import {
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Home, FileText, BarChart3, LogOut, Menu } from "lucide-react";
+import { Home, FileText, BarChart3, LogOut, Menu, Code } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
 const menuItems = [
   { title: "Reports", url: "/admin/reports", icon: FileText },
   { title: "Analytics", url: "/admin/analytics", icon: BarChart3 },
+  { title: "API Integration", url: "/admin/integration", icon: Code },
 ];
 
 export function AppSidebar() {
