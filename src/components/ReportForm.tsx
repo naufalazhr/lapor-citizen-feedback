@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,11 @@ type ReportFormData = {
 };
 
 const ReportForm = () => {
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<ReportFormData>();
+  const { register, handleSubmit, reset, control, formState: { errors } } = useForm<ReportFormData>({
+    defaultValues: {
+      type: "lapor"
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>("");
@@ -135,18 +139,25 @@ const ReportForm = () => {
 
             <div className="space-y-2">
               <Label htmlFor="type">Report Type *</Label>
-              <RadioGroup defaultValue="lapor" onValueChange={(value) => register("type").onChange({ target: { value } })}>
-                <div className="flex gap-4">
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="lapor" id="lapor" />
-                    <Label htmlFor="lapor" className="font-normal cursor-pointer">Lapor</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="aspirasi" id="aspirasi" />
-                    <Label htmlFor="aspirasi" className="font-normal cursor-pointer">Aspirasi</Label>
-                  </div>
-                </div>
-              </RadioGroup>
+              <Controller
+                name="type"
+                control={control}
+                rules={{ required: true }}
+                render={({ field }) => (
+                  <RadioGroup value={field.value} onValueChange={field.onChange}>
+                    <div className="flex gap-4">
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="lapor" id="lapor" />
+                        <Label htmlFor="lapor" className="font-normal cursor-pointer">Lapor</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="aspirasi" id="aspirasi" />
+                        <Label htmlFor="aspirasi" className="font-normal cursor-pointer">Aspirasi</Label>
+                      </div>
+                    </div>
+                  </RadioGroup>
+                )}
+              />
             </div>
           </div>
 
