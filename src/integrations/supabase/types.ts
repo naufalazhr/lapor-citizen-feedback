@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      api_keys: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          key_hash: string
+          key_name: string
+          key_prefix: string
+          last_used_at: string | null
+          notes: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          key_hash: string
+          key_name: string
+          key_prefix: string
+          last_used_at?: string | null
+          notes?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          key_hash?: string
+          key_name?: string
+          key_prefix?: string
+          last_used_at?: string | null
+          notes?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string

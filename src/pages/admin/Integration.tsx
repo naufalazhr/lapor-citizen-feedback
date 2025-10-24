@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Dashboard from "./Dashboard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ApiKeyManager } from "@/components/admin/ApiKeyManager";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -189,6 +190,16 @@ try {
             Integrate report submissions from external platforms like WhatsApp, Telegram, or your own systems
           </p>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Manage API Keys</CardTitle>
+            <CardDescription>Generate and manage API keys for secure third-party access</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ApiKeyManager />
+          </CardContent>
+        </Card>
 
         <div className="grid gap-6 md:grid-cols-2">
           <Card>

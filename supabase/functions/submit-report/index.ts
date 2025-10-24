@@ -27,10 +27,40 @@ Deno.serve(async (req) => {
   try {
     // Validate API Key
     const apiKey = req.headers.get('x-api-key')
-    const expectedApiKey = Deno.env.get('API_SECRET_KEY')
     
-    if (!apiKey || apiKey !== expectedApiKey) {
-      console.error('Invalid or missing API key')
+    if (!apiKey) {
+      console.error('Missing API key')
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Missing API key' }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
+    }
+
+    // Initialize Supabase client (use service role for API key validation)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseKey)
+
+    // Hash the provided API key
+    const encoder = new TextEncoder()
+    const keyBytes = encoder.encode(apiKey)
+    const hashBuffer = await crypto.subtle.digest('SHA-256', keyBytes)
+    const hashArray = Array.from(new Uint8Array(hashBuffer))
+    const keyHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+
+    // Validate API key against database
+    const { data: keyData, error: keyError } = await supabase
+      .from('api_keys')
+      .select('id, is_active')
+      .eq('key_hash', keyHash)
+      .eq('is_active', true)
+      .single()
+
+    if (keyError || !keyData) {
+      console.error('Invalid API key')
       return new Response(
         JSON.stringify({ error: 'Unauthorized - Invalid API key' }),
         {
@@ -39,6 +69,13 @@ Deno.serve(async (req) => {
         }
       )
     }
+
+    // Update last_used_at timestamp (fire and forget)
+    supabase
+      .from('api_keys')
+      .update({ last_used_at: new Date().toISOString() })
+      .eq('id', keyData.id)
+      .then(() => console.log('Updated last_used_at for key:', keyData.id))
 
     // Parse request body
     const payload: ReportPayload = await req.json()
@@ -74,13 +111,8 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseKey)
-
-    // Insert report into database
-    const { data, error } = await supabase
+    // Insert report into database (supabase client already initialized above)
+    const { data: reportData, error } = await supabase
       .from('reports')
       .insert({
         reporter_name: payload.reporter_name,
@@ -106,16 +138,16 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log('Report created successfully:', data.id)
+    console.log('Report created successfully:', reportData.id)
     
     return new Response(
       JSON.stringify({ 
         success: true,
         message: 'Report submitted successfully',
         data: {
-          id: data.id,
-          status: data.status,
-          created_at: data.created_at
+          id: reportData.id,
+          status: reportData.status,
+          created_at: reportData.created_at
         }
       }),
       {
