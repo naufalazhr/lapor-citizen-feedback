@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      api_field_configs: {
+        Row: {
+          created_at: string
+          description: string | null
+          field_name: string
+          field_type: string
+          id: string
+          is_required: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          field_name: string
+          field_type: string
+          id?: string
+          is_required?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          field_name?: string
+          field_type?: string
+          id?: string
+          is_required?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       api_keys: {
         Row: {
           created_at: string

@@ -80,14 +80,36 @@ Deno.serve(async (req) => {
     // Parse request body
     const payload: ReportPayload = await req.json()
     
-    // Validate required fields
-    if (!payload.reporter_name || !payload.phone || !payload.address || 
-        !payload.description || !payload.type) {
-      console.error('Missing required fields:', payload)
+    // Fetch field configuration to determine required fields
+    const { data: fieldConfigs, error: configError } = await supabase
+      .from('api_field_configs')
+      .select('field_name, is_required')
+      .eq('is_required', true)
+
+    if (configError) {
+      console.error('Error fetching field configs:', configError)
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
+          error: 'Configuration error',
+          message: 'Failed to load field requirements',
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
+    }
+
+    // Validate required fields based on configuration
+    const requiredFields = fieldConfigs?.map(config => config.field_name) || []
+    const missingFields = requiredFields.filter(field => !payload[field as keyof ReportPayload])
+    
+    if (missingFields.length > 0) {
+      console.error('Missing required fields:', missingFields)
+      return new Response(
+        JSON.stringify({
           error: 'Missing required fields',
-          required: ['reporter_name', 'phone', 'address', 'description', 'type']
+          required: missingFields,
         }),
         {
           status: 400,

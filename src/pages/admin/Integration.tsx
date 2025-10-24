@@ -2,6 +2,8 @@ import { useState } from "react";
 import Dashboard from "./Dashboard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApiKeyManager } from "@/components/admin/ApiKeyManager";
+import { FieldConfigManager } from "@/components/admin/FieldConfigManager";
+import { RequestParametersDocs } from "@/components/admin/RequestParametersDocs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -201,6 +203,16 @@ try {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>Field Configuration</CardTitle>
+            <CardDescription>Configure which fields are required or optional for API submissions</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FieldConfigManager />
+          </CardContent>
+        </Card>
+
         <div className="grid gap-6 md:grid-cols-2">
           <Card>
             <CardHeader>
@@ -256,36 +268,7 @@ try {
               <CardDescription>Required and optional fields for report submission</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3 text-sm">
-                <div className="border-l-2 border-primary pl-3">
-                  <p className="font-medium">reporter_name <span className="text-destructive">*</span></p>
-                  <p className="text-muted-foreground">String - Full name of the reporter</p>
-                </div>
-                <div className="border-l-2 border-primary pl-3">
-                  <p className="font-medium">phone <span className="text-destructive">*</span></p>
-                  <p className="text-muted-foreground">String - Phone number</p>
-                </div>
-                <div className="border-l-2 border-primary pl-3">
-                  <p className="font-medium">address <span className="text-destructive">*</span></p>
-                  <p className="text-muted-foreground">String - Address of the issue</p>
-                </div>
-                <div className="border-l-2 border-primary pl-3">
-                  <p className="font-medium">description <span className="text-destructive">*</span></p>
-                  <p className="text-muted-foreground">String - Detailed description</p>
-                </div>
-                <div className="border-l-2 border-primary pl-3">
-                  <p className="font-medium">type <span className="text-destructive">*</span></p>
-                  <p className="text-muted-foreground">String - Either "lapor" or "aspirasi"</p>
-                </div>
-                <div className="border-l-2 border-muted pl-3">
-                  <p className="font-medium">photo_url</p>
-                  <p className="text-muted-foreground">String - Optional photo URL</p>
-                </div>
-                <div className="border-l-2 border-muted pl-3">
-                  <p className="font-medium">geo_location</p>
-                  <p className="text-muted-foreground">Object - Optional {"{ lat, lng }"}</p>
-                </div>
-              </div>
+              <RequestParametersDocs />
             </CardContent>
           </Card>
         </div>
