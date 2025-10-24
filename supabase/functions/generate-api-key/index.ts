@@ -69,6 +69,16 @@ Deno.serve(async (req) => {
     // Parse request body
     const { key_name, notes } = await req.json()
 
+    if (!key_name) {
+      return new Response(
+        JSON.stringify({ error: 'key_name is required' }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
+    }
+
     // Generate API key and hash
     const { key, hash, prefix } = await generateApiKey()
 
