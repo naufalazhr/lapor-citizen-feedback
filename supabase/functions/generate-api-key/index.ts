@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Get the authorization header
+    // Get the authorization header (JWT token)
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
       return new Response(
@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Initialize Supabase client with user's JWT
+    // Initialize Supabase client with the JWT token from request
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey, {
@@ -49,10 +49,11 @@ Deno.serve(async (req) => {
       },
     })
 
-    // Verify user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      console.error('Authentication error:', authError)
+    // Get authenticated user from JWT
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    
+    if (userError || !user) {
+      console.error('Failed to get user:', userError)
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         {
@@ -61,6 +62,8 @@ Deno.serve(async (req) => {
         }
       )
     }
+
+    console.log('Authenticated user:', user.id)
 
     // Parse request body
     const { key_name, notes } = await req.json()
