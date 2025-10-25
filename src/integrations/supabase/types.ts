@@ -17,6 +17,7 @@ export type Database = {
       api_field_configs: {
         Row: {
           created_at: string
+          default_value: Json | null
           description: string | null
           field_name: string
           field_type: string
@@ -26,6 +27,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          default_value?: Json | null
           description?: string | null
           field_name: string
           field_type: string
@@ -35,6 +37,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          default_value?: Json | null
           description?: string | null
           field_name?: string
           field_type?: string

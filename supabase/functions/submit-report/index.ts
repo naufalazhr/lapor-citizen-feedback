@@ -80,11 +80,10 @@ Deno.serve(async (req) => {
     // Parse request body
     const payload: ReportPayload = await req.json()
     
-    // Fetch field configuration to determine required fields
+    // Fetch field configuration to determine required fields and defaults
     const { data: fieldConfigs, error: configError } = await supabase
       .from('api_field_configs')
-      .select('field_name, is_required')
-      .eq('is_required', true)
+      .select('field_name, is_required, default_value')
 
     if (configError) {
       console.error('Error fetching field configs:', configError)
@@ -100,9 +99,11 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Validate required fields based on configuration
-    const requiredFields = fieldConfigs?.map(config => config.field_name) || []
-    const missingFields = requiredFields.filter(field => !payload[field as keyof ReportPayload])
+    // Apply default values and validate required fields
+    const requiredConfigs = fieldConfigs?.filter(config => config.is_required) || []
+    const missingFields = requiredConfigs
+      .filter(config => !payload[config.field_name as keyof ReportPayload])
+      .map(config => config.field_name)
     
     if (missingFields.length > 0) {
       console.error('Missing required fields:', missingFields)
@@ -117,6 +118,15 @@ Deno.serve(async (req) => {
         }
       )
     }
+
+    // Apply default values for empty/missing optional fields
+    fieldConfigs?.forEach(config => {
+      const fieldName = config.field_name as keyof ReportPayload
+      if (!payload[fieldName] && config.default_value !== null) {
+        payload[fieldName] = config.default_value as any
+        console.log(`Applied default value for ${fieldName}:`, config.default_value)
+      }
+    })
 
     // Validate type
     if (payload.type !== 'lapor' && payload.type !== 'aspirasi') {
