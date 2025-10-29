@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       api_field_configs: {
@@ -82,6 +107,265 @@ export type Database = {
           notes?: string | null
         }
         Relationships: []
+      }
+      attachments: {
+        Row: {
+          base64_data: string | null
+          created_at: string
+          download_status: string
+          error_message: string | null
+          extension: string
+          file_size: number | null
+          filename: string
+          id: string
+          message_id: string
+          mime_type: string
+          original_url: string
+          processed_at: string | null
+          storage_path: string | null
+          storage_url: string | null
+          updated_at: string
+          upload_status: string
+        }
+        Insert: {
+          base64_data?: string | null
+          created_at?: string
+          download_status?: string
+          error_message?: string | null
+          extension: string
+          file_size?: number | null
+          filename: string
+          id?: string
+          message_id: string
+          mime_type: string
+          original_url: string
+          processed_at?: string | null
+          storage_path?: string | null
+          storage_url?: string | null
+          updated_at?: string
+          upload_status?: string
+        }
+        Update: {
+          base64_data?: string | null
+          created_at?: string
+          download_status?: string
+          error_message?: string | null
+          extension?: string
+          file_size?: number | null
+          filename?: string
+          id?: string
+          message_id?: string
+          mime_type?: string
+          original_url?: string
+          processed_at?: string | null
+          storage_path?: string | null
+          storage_url?: string | null
+          updated_at?: string
+          upload_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attachments_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          channel: Database["public"]["Enums"]["channel_type"]
+          completed_at: string | null
+          created_at: string
+          device_number: string | null
+          id: string
+          last_message_at: string
+          phone_number: string
+          report_id: string | null
+          sender_name: string | null
+          session_id: string
+          started_at: string
+          status: Database["public"]["Enums"]["session_status"]
+          updated_at: string
+        }
+        Insert: {
+          channel?: Database["public"]["Enums"]["channel_type"]
+          completed_at?: string | null
+          created_at?: string
+          device_number?: string | null
+          id?: string
+          last_message_at?: string
+          phone_number: string
+          report_id?: string | null
+          sender_name?: string | null
+          session_id: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["session_status"]
+          updated_at?: string
+        }
+        Update: {
+          channel?: Database["public"]["Enums"]["channel_type"]
+          completed_at?: string | null
+          created_at?: string
+          device_number?: string | null
+          id?: string
+          last_message_at?: string
+          phone_number?: string
+          report_id?: string | null
+          sender_name?: string | null
+          session_id?: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["session_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flowise_config: {
+        Row: {
+          api_key: string
+          api_url: string
+          chatflow_id: string
+          config_name: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          session_variables: Json | null
+          streaming: boolean
+          timeout_seconds: number
+          updated_at: string
+        }
+        Insert: {
+          api_key: string
+          api_url: string
+          chatflow_id: string
+          config_name?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          session_variables?: Json | null
+          streaming?: boolean
+          timeout_seconds?: number
+          updated_at?: string
+        }
+        Update: {
+          api_key?: string
+          api_url?: string
+          chatflow_id?: string
+          config_name?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          session_variables?: Json | null
+          streaming?: boolean
+          timeout_seconds?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      fonnte_config: {
+        Row: {
+          auto_reply_enabled: boolean
+          config_name: string
+          created_at: string
+          created_by: string | null
+          device_numbers: string[]
+          id: string
+          is_active: boolean
+          session_timeout_minutes: number
+          updated_at: string
+        }
+        Insert: {
+          auto_reply_enabled?: boolean
+          config_name?: string
+          created_at?: string
+          created_by?: string | null
+          device_numbers?: string[]
+          id?: string
+          is_active?: boolean
+          session_timeout_minutes?: number
+          updated_at?: string
+        }
+        Update: {
+          auto_reply_enabled?: boolean
+          config_name?: string
+          created_at?: string
+          created_by?: string | null
+          device_numbers?: string[]
+          id?: string
+          is_active?: boolean
+          session_timeout_minutes?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          attachment_filename: string | null
+          attachment_type: string | null
+          attachment_url: string | null
+          content: string
+          conversation_id: string
+          created_at: string
+          has_attachment: boolean
+          id: string
+          message_index: number
+          role: Database["public"]["Enums"]["message_role"]
+          token_count: number | null
+        }
+        Insert: {
+          attachment_filename?: string | null
+          attachment_type?: string | null
+          attachment_url?: string | null
+          content: string
+          conversation_id: string
+          created_at?: string
+          has_attachment?: boolean
+          id?: string
+          message_index: number
+          role: Database["public"]["Enums"]["message_role"]
+          token_count?: number | null
+        }
+        Update: {
+          attachment_filename?: string | null
+          attachment_type?: string | null
+          attachment_url?: string | null
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          has_attachment?: boolean
+          id?: string
+          message_index?: number
+          role?: Database["public"]["Enums"]["message_role"]
+          token_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "active_conversations_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -170,9 +454,70 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_errors: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          error_message: string
+          error_stack: string | null
+          error_type: string
+          id: string
+          payload: Json | null
+          source: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          error_message: string
+          error_stack?: string | null
+          error_type: string
+          id?: string
+          payload?: Json | null
+          source: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          error_message?: string
+          error_stack?: string | null
+          error_type?: string
+          id?: string
+          payload?: Json | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_errors_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "active_conversations_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "webhook_errors_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
-      [_ in never]: never
+      active_conversations_summary: {
+        Row: {
+          id: string | null
+          last_message_at: string | null
+          message_count: number | null
+          phone_number: string | null
+          report_status: Database["public"]["Enums"]["report_status"] | null
+          report_type: Database["public"]["Enums"]["report_type"] | null
+          sender_name: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["session_status"] | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       has_role: {
@@ -328,6 +673,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       agent_status: ["draft", "published", "archived"],

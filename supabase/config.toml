@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.generate-api-key]
 verify_jwt = true
+
+[functions.fonnte-webhook]
+verify_jwt = false
+
+[functions.get-webhook-errors]
+verify_jwt = false
