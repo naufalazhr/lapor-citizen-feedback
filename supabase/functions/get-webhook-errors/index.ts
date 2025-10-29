@@ -7,7 +7,7 @@ const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-serve(async (req) => {
+serve(async (req: Request) => {
   try {
     const { data: errors, error } = await supabase
       .from('webhook_errors')
@@ -27,8 +27,9 @@ serve(async (req) => {
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
   } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: err.message }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }

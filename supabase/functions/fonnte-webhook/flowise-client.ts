@@ -154,11 +154,12 @@ async function callFlowiseAPI(
   } catch (error) {
     clearTimeout(timeoutId);
 
-    if (error.name === 'AbortError') {
+    const err = error instanceof Error ? error : new Error(String(error));
+    if (err.name === 'AbortError') {
       throw new Error(ERROR_MESSAGES.FLOWISE_TIMEOUT);
     }
 
-    throw error;
+    throw err;
   }
 }
 
@@ -171,7 +172,7 @@ export async function callFlowiseWithRetry(
   maxRetries: number = 3
 ): Promise<{ response: FlowiseResponse; config: FlowiseConfig }> {
   const config = await getFlowiseConfig();
-  let lastError: Error;
+  let lastError: Error | undefined;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -180,18 +181,19 @@ export async function callFlowiseWithRetry(
       return { response, config };
 
     } catch (error) {
-      lastError = error;
-      console.error(`Flowise API attempt ${attempt} failed:`, error.message);
-      console.error('Full error:', error);
+      const err = error instanceof Error ? error : new Error(String(error));
+      lastError = err;
+      console.error(`Flowise API attempt ${attempt} failed:`, err.message);
+      console.error('Full error:', err);
 
       // Don't retry on 4xx errors (client errors - wrong API key, bad request, etc.)
-      if (error.message.includes('400') ||
-          error.message.includes('401') ||
-          error.message.includes('403') ||
-          error.message.includes('404')) {
+      if (err.message.includes('400') ||
+          err.message.includes('401') ||
+          err.message.includes('403') ||
+          err.message.includes('404')) {
         // Log the actual error before throwing generic message
-        console.error('4xx error from Flowise API:', error.message);
-        throw error; // Throw the actual error instead of generic message
+        console.error('4xx error from Flowise API:', err.message);
+        throw err; // Throw the actual error instead of generic message
       }
 
       // Exponential backoff for retries
@@ -206,7 +208,7 @@ export async function callFlowiseWithRetry(
   // All retries failed
   console.error(`Flowise API failed after ${maxRetries} attempts`);
   console.error('Last error:', lastError);
-  throw lastError; // Throw the actual error instead of generic message
+  throw lastError || new Error('Unknown error in Flowise API'); // Throw the actual error instead of generic message
 }
 
 // -----------------------------------------------------------------------------

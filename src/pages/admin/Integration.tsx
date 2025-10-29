@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ApiKeyManager } from "@/components/admin/ApiKeyManager";
 import { FieldConfigManager } from "@/components/admin/FieldConfigManager";
 import { RequestParametersDocs } from "@/components/admin/RequestParametersDocs";
+import { FlowiseConfigManager } from "@/components/admin/FlowiseConfigManager";
+import { FonnteConfigManager } from "@/components/admin/FonnteConfigManager";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -210,6 +212,26 @@ try {
           </CardHeader>
           <CardContent>
             <FieldConfigManager />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Flowise Configuration</CardTitle>
+            <CardDescription>Configure AI agent settings for WhatsApp integration</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FlowiseConfigManager />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Fonnte Configuration</CardTitle>
+            <CardDescription>Configure WhatsApp gateway settings and webhook</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FonnteConfigManager />
           </CardContent>
         </Card>
 

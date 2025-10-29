@@ -34,7 +34,7 @@ console.log('Fonnte Webhook Function Started');
 // -----------------------------------------------------------------------------
 // Main Webhook Handler
 // -----------------------------------------------------------------------------
-serve(async (req) => {
+serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -120,7 +120,7 @@ serve(async (req) => {
         }
       } catch (error) {
         console.error('Attachment processing error:', error);
-        attachmentError = error.message;
+        attachmentError = error instanceof Error ? error.message : String(error);
         // Continue without attachment - will be logged
       }
     }
@@ -197,12 +197,15 @@ serve(async (req) => {
   } catch (error) {
     console.error('Webhook processing error:', error);
 
+    // Type-safe error handling
+    const err = error instanceof Error ? error : new Error(String(error));
+
     // Log error to database
     await logWebhookError({
       source: 'fonnte-webhook',
-      error_type: error.name || 'UnknownError',
-      error_message: error.message,
-      error_stack: error.stack,
+      error_type: err.name || 'UnknownError',
+      error_message: err.message,
+      error_stack: err.stack,
       payload: payload ? {
         ...payload,
         // Redact sensitive data
@@ -214,13 +217,13 @@ serve(async (req) => {
     // Determine user-friendly error message
     let userMessage = ERROR_MESSAGES.GENERAL_ERROR;
 
-    if (error.message.includes('No active Flowise configuration')) {
+    if (err.message.includes('No active Flowise configuration')) {
       userMessage = ERROR_MESSAGES.NO_FLOWISE_CONFIG;
-    } else if (error.message === ERROR_MESSAGES.FLOWISE_TIMEOUT) {
+    } else if (err.message === ERROR_MESSAGES.FLOWISE_TIMEOUT) {
       userMessage = ERROR_MESSAGES.FLOWISE_TIMEOUT;
-    } else if (error.message === ERROR_MESSAGES.FILE_TOO_LARGE) {
+    } else if (err.message === ERROR_MESSAGES.FILE_TOO_LARGE) {
       userMessage = ERROR_MESSAGES.FILE_TOO_LARGE;
-    } else if (error.message === ERROR_MESSAGES.UNSUPPORTED_FILE_TYPE) {
+    } else if (err.message === ERROR_MESSAGES.UNSUPPORTED_FILE_TYPE) {
       userMessage = ERROR_MESSAGES.UNSUPPORTED_FILE_TYPE;
     }
 

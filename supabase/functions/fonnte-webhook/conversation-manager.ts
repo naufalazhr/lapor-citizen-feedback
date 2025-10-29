@@ -175,7 +175,7 @@ export async function saveMessage(params: {
 // -----------------------------------------------------------------------------
 export async function getConversationHistory(
   conversationId: string
-): Promise<Array<{ role: string; content: string }>> {
+): Promise<Array<{ role: 'userMessage' | 'apiMessage'; content: string }>> {
   const { data, error } = await supabase
     .from('messages')
     .select('role, content, message_index')
@@ -194,7 +194,7 @@ export async function getConversationHistory(
   return data
     .filter(msg => msg.role !== 'system') // Exclude system messages from history
     .map(msg => ({
-      role: msg.role === 'user' ? 'userMessage' : 'apiMessage',
+      role: (msg.role === 'user' ? 'userMessage' : 'apiMessage') as 'userMessage' | 'apiMessage',
       content: msg.content
     }));
 }

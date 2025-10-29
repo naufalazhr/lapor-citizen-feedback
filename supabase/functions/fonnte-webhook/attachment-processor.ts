@@ -78,7 +78,8 @@ async function downloadAttachment(url: string): Promise<{
 
     return { data, contentType };
   } catch (error) {
-    throw new Error(`Failed to download attachment: ${error.message}`);
+    const err = error instanceof Error ? error : new Error(String(error));
+    throw new Error(`Failed to download attachment: ${err.message}`);
   }
 }
 
@@ -249,15 +250,16 @@ export async function processAttachment(
     };
   } catch (error) {
     // Log failed attachment
+    const err = error instanceof Error ? error : new Error(String(error));
     await logFailedAttachment({
       message_id: messageId,
       original_url: fonnteUrl,
       filename,
       extension: extension.replace('.', ''),
-      error_message: error.message
+      error_message: err.message
     });
 
-    throw error;
+    throw err;
   }
 }
 
