@@ -13,15 +13,16 @@ import {
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { FileText, BarChart3, LogOut, Menu, Code, MessageSquare } from "lucide-react";
+import { LayoutDashboard, FileText, BarChart3, LogOut, Code, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
 const menuItems = [
-  { title: "Reports", url: "/admin/reports", icon: FileText },
-  { title: "Analytics", url: "/admin/analytics", icon: BarChart3 },
-  { title: "Conversations", url: "/admin/conversations", icon: MessageSquare },
-  { title: "API Integration", url: "/admin/integration", icon: Code },
+  { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
+  { title: "Laporan", url: "/admin/reports", icon: FileText },
+  { title: "Analitik", url: "/admin/analytics", icon: BarChart3 },
+  { title: "Percakapan", url: "/admin/conversations", icon: MessageSquare },
+  { title: "Integrasi", url: "/admin/integration", icon: Code },
 ];
 
 export function AppSidebar() {
@@ -33,7 +34,8 @@ export function AppSidebar() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     toast({
-      title: "Logged out successfully",
+      title: "Berhasil keluar",
+      description: "Anda telah keluar dari sistem",
     });
     navigate("/auth");
   };
@@ -44,15 +46,18 @@ export function AppSidebar() {
     <Sidebar className={state === "collapsed" ? "w-16" : "w-64"}>
       <SidebarHeader className="border-b border-border p-4">
         {state !== "collapsed" && (
-          <h2 className="text-xl font-bold bg-gradient-to-r from-primary to-primary-light bg-clip-text text-transparent">
-            Lapor Admin
-          </h2>
+          <div>
+            <h2 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
+              Portal Lapor
+            </h2>
+            <p className="text-xs text-muted-foreground">Sistem Pemantauan</p>
+          </div>
         )}
       </SidebarHeader>
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel>Menu Utama</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => (
@@ -78,7 +83,7 @@ export function AppSidebar() {
           className="w-full justify-start"
         >
           <LogOut className="h-4 w-4" />
-          {state !== "collapsed" && <span className="ml-2">Logout</span>}
+          {state !== "collapsed" && <span className="ml-2">Keluar</span>}
         </Button>
       </SidebarFooter>
     </Sidebar>

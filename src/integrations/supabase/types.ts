@@ -347,27 +347,80 @@ export type Database = {
       }
       profiles: {
         Row: {
+          approval_status: string | null
           created_at: string
+          department: string | null
           email: string | null
           full_name: string | null
           id: string
+          last_login_at: string | null
+          organization: string | null
+          position: string | null
           updated_at: string
         }
         Insert: {
+          approval_status?: string | null
           created_at?: string
+          department?: string | null
           email?: string | null
           full_name?: string | null
           id: string
+          last_login_at?: string | null
+          organization?: string | null
+          position?: string | null
           updated_at?: string
         }
         Update: {
+          approval_status?: string | null
           created_at?: string
+          department?: string | null
           email?: string | null
           full_name?: string | null
           id?: string
+          last_login_at?: string | null
+          organization?: string | null
+          position?: string | null
           updated_at?: string
         }
         Relationships: []
+      }
+      report_comments: {
+        Row: {
+          comment: string
+          created_at: string
+          id: string
+          is_internal: boolean
+          report_id: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          comment: string
+          created_at?: string
+          id?: string
+          is_internal?: boolean
+          report_id: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          comment?: string
+          created_at?: string
+          id?: string
+          is_internal?: boolean
+          report_id?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_comments_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "reports"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       reports: {
         Row: {
@@ -380,6 +433,7 @@ export type Database = {
           photo_url: string | null
           reporter_name: string
           status: Database["public"]["Enums"]["report_status"]
+          ticket_id: string | null
           type: Database["public"]["Enums"]["report_type"]
           updated_at: string
         }
@@ -393,6 +447,7 @@ export type Database = {
           photo_url?: string | null
           reporter_name: string
           status?: Database["public"]["Enums"]["report_status"]
+          ticket_id?: string | null
           type: Database["public"]["Enums"]["report_type"]
           updated_at?: string
         }
@@ -406,8 +461,57 @@ export type Database = {
           photo_url?: string | null
           reporter_name?: string
           status?: Database["public"]["Enums"]["report_status"]
+          ticket_id?: string | null
           type?: Database["public"]["Enums"]["report_type"]
           updated_at?: string
+        }
+        Relationships: []
+      }
+      user_approvals: {
+        Row: {
+          created_at: string
+          department: string | null
+          id: string
+          organization: string | null
+          position: string | null
+          rejection_reason: string | null
+          requested_at: string
+          requested_role: Database["public"]["Enums"]["app_role"]
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          department?: string | null
+          id?: string
+          organization?: string | null
+          position?: string | null
+          rejection_reason?: string | null
+          requested_at?: string
+          requested_role: Database["public"]["Enums"]["app_role"]
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          department?: string | null
+          id?: string
+          organization?: string | null
+          position?: string | null
+          rejection_reason?: string | null
+          requested_at?: string
+          requested_role?: Database["public"]["Enums"]["app_role"]
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -498,6 +602,7 @@ export type Database = {
       }
     }
     Functions: {
+      generate_ticket_id: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
