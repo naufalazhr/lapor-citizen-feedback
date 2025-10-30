@@ -359,7 +359,9 @@ const ReportDetail = () => {
                 <CardTitle>Lokasi</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {report.geo_location ? (
+                {report.geo_location && 
+                 report.geo_location.lat !== null && 
+                 report.geo_location.lng !== null ? (
                   <>
                     <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
                       <div>
