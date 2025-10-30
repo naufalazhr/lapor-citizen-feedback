@@ -43,21 +43,11 @@ export function AppSidebar() {
   return (
     <Sidebar className={state === "collapsed" ? "w-16" : "w-64"}>
       <SidebarHeader className="border-b border-border p-4">
-        <div className="flex items-center justify-between">
-          {state !== "collapsed" && (
-            <h2 className="text-xl font-bold bg-gradient-to-r from-primary to-primary-light bg-clip-text text-transparent">
-              Lapor Admin
-            </h2>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleSidebar}
-            className={state === "collapsed" ? "mx-auto" : "ml-auto"}
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-        </div>
+        {state !== "collapsed" && (
+          <h2 className="text-xl font-bold bg-gradient-to-r from-primary to-primary-light bg-clip-text text-transparent">
+            Lapor Admin
+          </h2>
+        )}
       </SidebarHeader>
 
       <SidebarContent>

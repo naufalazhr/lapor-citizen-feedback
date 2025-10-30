@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/admin/AppSidebar";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
@@ -75,11 +75,19 @@ const Dashboard = ({ children }: DashboardProps) => {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full">
-        <AppSidebar />
-        <main className="flex-1 p-6 bg-background">
-          {children}
-        </main>
+      <div className="flex min-h-screen w-full flex-col">
+        <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="flex h-14 items-center px-4">
+            <SidebarTrigger className="mr-4" />
+            <h1 className="text-lg font-semibold">Admin Dashboard</h1>
+          </div>
+        </header>
+        <div className="flex flex-1">
+          <AppSidebar />
+          <main className="flex-1 p-6 bg-background">
+            {children}
+          </main>
+        </div>
       </div>
     </SidebarProvider>
   );
