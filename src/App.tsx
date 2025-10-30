@@ -7,7 +7,6 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import DashboardOverview from "./pages/admin/DashboardOverview";
 import Reports from "./pages/admin/Reports";
-import Analytics from "./pages/admin/Analytics";
 import Conversations from "./pages/admin/Conversations";
 import Integration from "./pages/admin/Integration";
 import NotFound from "./pages/NotFound";
@@ -25,7 +24,6 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/admin/dashboard" element={<DashboardOverview />} />
           <Route path="/admin/reports" element={<Reports />} />
-          <Route path="/admin/analytics" element={<Analytics />} />
           <Route path="/admin/conversations" element={<Conversations />} />
           <Route path="/admin/integration" element={<Integration />} />
           <Route path="/admin" element={<DashboardOverview />} />

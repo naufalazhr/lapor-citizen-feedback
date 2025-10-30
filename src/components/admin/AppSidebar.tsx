@@ -13,14 +13,13 @@ import {
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, FileText, BarChart3, LogOut, Code, MessageSquare } from "lucide-react";
+import { LayoutDashboard, FileText, LogOut, Code, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
 const menuItems = [
   { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
   { title: "Laporan", url: "/admin/reports", icon: FileText },
-  { title: "Analitik", url: "/admin/analytics", icon: BarChart3 },
   { title: "Percakapan", url: "/admin/conversations", icon: MessageSquare },
   { title: "Integrasi", url: "/admin/integration", icon: Code },
 ];

@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 type DashboardStats = {
   total_reports: number;
@@ -97,6 +98,38 @@ const DashboardOverview = () => {
       setLoading(false);
     }
   };
+
+  const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "hsl(var(--success))", "hsl(var(--destructive))"];
+
+  const typeDataForChart = [
+    {
+      name: "Lapor",
+      value: stats?.lapor_count || 0,
+    },
+    {
+      name: "Aspirasi",
+      value: stats?.aspirasi_count || 0,
+    },
+  ];
+
+  const statusDataForChart = [
+    {
+      name: "Pending",
+      count: stats?.pending_reports || 0,
+    },
+    {
+      name: "Proses",
+      count: stats?.in_progress_reports || 0,
+    },
+    {
+      name: "Selesai",
+      count: stats?.resolved_reports || 0,
+    },
+    {
+      name: "Ditolak",
+      count: stats?.rejected_reports || 0,
+    },
+  ];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -253,11 +286,61 @@ const DashboardOverview = () => {
           </CardContent>
         </Card>
 
-        {/* Status Distribution */}
+        {/* Analytics Charts */}
         <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>Distribusi Status</CardTitle>
+              <CardTitle>Laporan Berdasarkan Jenis</CardTitle>
+              <CardDescription>Distribusi Lapor vs Aspirasi</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={typeDataForChart}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="hsl(var(--primary))"
+                    dataKey="value"
+                  >
+                    {typeDataForChart.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Laporan Berdasarkan Status</CardTitle>
+              <CardDescription>Status terkini dari semua laporan</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={statusDataForChart}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="name" className="text-muted-foreground" />
+                  <YAxis className="text-muted-foreground" />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="count" fill="hsl(var(--primary))" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Status Distribution Details */}
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Detail Distribusi Status</CardTitle>
               <CardDescription>Pembagian laporan berdasarkan status</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
