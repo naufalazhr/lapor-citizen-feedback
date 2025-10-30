@@ -9,6 +9,7 @@ import { FieldConfigManager } from "@/components/admin/FieldConfigManager";
 import { RequestParametersDocs } from "@/components/admin/RequestParametersDocs";
 import { FlowiseConfigManager } from "@/components/admin/FlowiseConfigManager";
 import { FonnteConfigManager } from "@/components/admin/FonnteConfigManager";
+import { LoginConfigManager } from "@/components/admin/LoginConfigManager";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -56,6 +57,7 @@ const Integration = () => {
     setLoading(false);
   };
   const [copied, setCopied] = useState<string | null>(null);
+  const [loginConfigOpen, setLoginConfigOpen] = useState(true);
   const [configOpen, setConfigOpen] = useState(true);
   const [fieldConfigOpen, setFieldConfigOpen] = useState(true);
   const [docsOpen, setDocsOpen] = useState(true);
@@ -250,11 +252,35 @@ try {
     <Dashboard>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">API Integration</h1>
+          <h1 className="text-3xl font-bold">Pengaturan & Integrasi</h1>
           <p className="text-muted-foreground">
-            Integrate report submissions from external platforms like WhatsApp, Telegram, or your own systems
+            Kelola pengaturan aplikasi dan integrasi dengan platform eksternal
           </p>
         </div>
+
+        <Collapsible open={loginConfigOpen} onOpenChange={setLoginConfigOpen}>
+          <Card>
+            <CollapsibleTrigger className="w-full">
+              <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    <div className="text-left">
+                      <CardTitle>Konfigurasi Login</CardTitle>
+                      <CardDescription>Personalisasi halaman login aplikasi</CardDescription>
+                    </div>
+                  </div>
+                  <ChevronDown className={`h-5 w-5 transition-transform ${loginConfigOpen ? "rotate-180" : ""}`} />
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-6">
+                <LoginConfigManager />
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
 
         <Collapsible open={configOpen} onOpenChange={setConfigOpen}>
           <Card>

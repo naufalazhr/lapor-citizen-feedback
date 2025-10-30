@@ -18,10 +18,28 @@ const Auth = () => {
   const [position, setPosition] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [loginTitle, setLoginTitle] = useState("Portal Lapor");
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
+    // Fetch login configuration
+    const fetchLoginConfig = async () => {
+      const { data } = await supabase
+        .from("login_config")
+        .select("*")
+        .limit(1)
+        .maybeSingle();
+
+      if (data) {
+        setLoginTitle(data.login_title || "Portal Lapor");
+        setLogoUrl(data.logo_url);
+      }
+    };
+
+    fetchLoginConfig();
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         navigate("/admin");
@@ -148,9 +166,13 @@ const Auth = () => {
       <div className="hidden lg:flex lg:w-2/5 bg-gradient-to-br from-primary via-primary/90 to-primary/80 p-12 flex-col justify-between text-white">
         <div>
           <div className="flex items-center gap-3 mb-8">
-            <Building2 className="h-10 w-10" />
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo" className="h-10 w-10 object-contain" />
+            ) : (
+              <Building2 className="h-10 w-10" />
+            )}
             <div>
-              <h1 className="text-3xl font-bold">Portal Lapor</h1>
+              <h1 className="text-3xl font-bold">{loginTitle}</h1>
               <p className="text-sm text-white/80">Sistem Pemantauan Laporan & Aspirasi</p>
             </div>
           </div>
@@ -194,9 +216,13 @@ const Auth = () => {
         <Card className="w-full max-w-md shadow-2xl border-border">
           <CardHeader className="space-y-1">
             <div className="flex items-center gap-2 lg:hidden mb-4">
-              <Building2 className="h-8 w-8 text-primary" />
+              {logoUrl ? (
+                <img src={logoUrl} alt="Logo" className="h-8 w-8 object-contain" />
+              ) : (
+                <Building2 className="h-8 w-8 text-primary" />
+              )}
               <div>
-                <CardTitle className="text-2xl">Portal Lapor</CardTitle>
+                <CardTitle className="text-2xl">{loginTitle}</CardTitle>
                 <CardDescription className="text-xs">Sistem Pemantauan Laporan</CardDescription>
               </div>
             </div>

@@ -288,6 +288,33 @@ export type Database = {
         }
         Relationships: []
       }
+      login_config: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          login_title: string
+          logo_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          login_title?: string
+          logo_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          login_title?: string
+          logo_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           attachment_filename: string | null
