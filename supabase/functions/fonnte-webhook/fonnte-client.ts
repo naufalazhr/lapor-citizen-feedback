@@ -87,7 +87,7 @@ export async function sendFonnteMessage(params: {
   } catch (error) {
     clearTimeout(timeoutId);
 
-    if (error.name === 'AbortError') {
+    if (error instanceof Error && error.name === 'AbortError') {
       console.error('Fonnte send API timeout');
       return {
         status: false,

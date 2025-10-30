@@ -22,7 +22,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 // Validate File Extension
 // -----------------------------------------------------------------------------
 export function validateFileExtension(extension: string): boolean {
-  const ext = extension.toLowerCase().replace('.', '');
+  const ext = extension.toLowerCase().replace('.', '') as any;
   const allExtensions = [
     ...ALLOWED_FILE_EXTENSIONS.image,
     ...ALLOWED_FILE_EXTENSIONS.video,
@@ -45,7 +45,7 @@ export function getMimeType(extension: string): string {
 // Get Attachment Type Category
 // -----------------------------------------------------------------------------
 export function getAttachmentType(extension: string): 'image' | 'video' | 'document' | 'audio' {
-  const ext = extension.toLowerCase().replace('.', '');
+  const ext = extension.toLowerCase().replace('.', '') as any;
 
   if (ALLOWED_FILE_EXTENSIONS.image.includes(ext)) return 'image';
   if (ALLOWED_FILE_EXTENSIONS.video.includes(ext)) return 'video';

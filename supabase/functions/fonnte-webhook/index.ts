@@ -267,7 +267,7 @@ serve(async (req: Request) => {
     });
 
     // Determine user-friendly error message
-    let userMessage = ERROR_MESSAGES.GENERAL_ERROR;
+    let userMessage: string = ERROR_MESSAGES.GENERAL_ERROR;
 
     if (err.message.includes('No active Flowise configuration')) {
       userMessage = ERROR_MESSAGES.NO_FLOWISE_CONFIG;
