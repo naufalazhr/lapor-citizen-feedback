@@ -197,13 +197,23 @@ const Auth = () => {
         <div className="relative">
           <div className="absolute inset-0 bg-white/5 backdrop-blur-sm rounded-2xl"></div>
           <div className="relative p-8 flex items-center justify-center">
-            <div className="w-64 h-64 bg-white/10 rounded-full flex items-center justify-center">
-              {logoUrl ? (
-                <img src={logoUrl} alt="Logo" className="max-w-[200px] max-h-[200px] object-contain" />
-              ) : (
+            {logoUrl ? (
+              <div className="w-full max-w-sm">
+                <div className="relative rounded-xl overflow-hidden shadow-2xl border-2 border-white/20 bg-white/5 backdrop-blur-sm">
+                  <div className="aspect-[4/3] w-full">
+                    <img 
+                      src={logoUrl} 
+                      alt="Logo" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="w-64 h-64 bg-white/10 rounded-full flex items-center justify-center">
                 <Building2 className="h-32 w-32 text-white/30" />
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
