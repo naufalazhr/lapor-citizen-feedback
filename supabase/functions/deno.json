@@ -17,7 +17,6 @@
     "lib": ["deno.window", "esnext"],
     "types": ["https://deno.land/x/types/index.d.ts"]
   },
-  "importMap": "./import_map.json",
   "tasks": {
     "dev": "deno run --watch --allow-all index.ts"
   },
