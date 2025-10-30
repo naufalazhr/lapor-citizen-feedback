@@ -14,9 +14,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { GoogleMap, LoadScript, Marker } from "@react-google-maps/api";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import L from "leaflet";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+
+// Fix for default marker icon in Leaflet
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+});
 
 type Report = {
   id: string;
@@ -33,17 +43,11 @@ type Report = {
   updated_at: string;
 };
 
-const mapContainerStyle = {
-  width: "100%",
-  height: "400px",
-};
-
 const ReportDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
-  const [apiKey, setApiKey] = useState("");
   const [internalNote, setInternalNote] = useState("");
   const { toast } = useToast();
 
@@ -376,42 +380,25 @@ const ReportDetail = () => {
                       </div>
                     </div>
                     
-                    {apiKey ? (
-                      <LoadScript googleMapsApiKey={apiKey}>
-                        <GoogleMap
-                          mapContainerStyle={mapContainerStyle}
-                          center={report.geo_location}
-                          zoom={15}
-                        >
-                          <Marker position={report.geo_location} />
-                        </GoogleMap>
-                      </LoadScript>
-                    ) : (
-                      <div className="space-y-2">
-                        <Label htmlFor="maps-api-key">Google Maps API Key</Label>
-                        <div className="flex gap-2">
-                          <input
-                            id="maps-api-key"
-                            type="text"
-                            placeholder="Masukkan Google Maps API Key"
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            value={apiKey}
-                            onChange={(e) => setApiKey(e.target.value)}
-                          />
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Masukkan API key untuk menampilkan peta. Dapatkan di{" "}
-                          <a
-                            href="https://console.cloud.google.com/apis/credentials"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline"
-                          >
-                            Google Cloud Console
-                          </a>
-                        </p>
-                      </div>
-                    )}
+                    <div className="rounded-lg overflow-hidden border">
+                      <MapContainer
+                        center={[report.geo_location.lat, report.geo_location.lng]}
+                        zoom={15}
+                        style={{ height: "400px", width: "100%" }}
+                        scrollWheelZoom={false}
+                      >
+                        <TileLayer
+                          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        />
+                        <Marker position={[report.geo_location.lat, report.geo_location.lng]}>
+                          <Popup>
+                            Lokasi Laporan<br />
+                            {report.geo_location.lat.toFixed(6)}, {report.geo_location.lng.toFixed(6)}
+                          </Popup>
+                        </Marker>
+                      </MapContainer>
+                    </div>
                   </>
                 ) : (
                   <p className="text-center text-muted-foreground py-8">
