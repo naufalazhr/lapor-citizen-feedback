@@ -165,16 +165,9 @@ const Auth = () => {
       {/* Left Side - Branding */}
       <div className="hidden lg:flex lg:w-2/5 bg-gradient-to-br from-primary via-primary/90 to-primary/80 p-12 flex-col justify-between text-white">
         <div>
-          <div className="flex items-center gap-3 mb-8">
-            {logoUrl ? (
-              <img src={logoUrl} alt="Logo" className="h-10 w-10 object-contain" />
-            ) : (
-              <Building2 className="h-10 w-10" />
-            )}
-            <div>
-              <h1 className="text-3xl font-bold">{loginTitle}</h1>
-              <p className="text-sm text-white/80">Sistem Pemantauan Laporan & Aspirasi</p>
-            </div>
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold">{loginTitle}</h1>
+            <p className="text-sm text-white/80">Sistem Pemantauan Laporan & Aspirasi</p>
           </div>
 
           <div className="space-y-8 mt-16">
@@ -205,7 +198,11 @@ const Auth = () => {
           <div className="absolute inset-0 bg-white/5 backdrop-blur-sm rounded-2xl"></div>
           <div className="relative p-8 flex items-center justify-center">
             <div className="w-64 h-64 bg-white/10 rounded-full flex items-center justify-center">
-              <Building2 className="h-32 w-32 text-white/30" />
+              {logoUrl ? (
+                <img src={logoUrl} alt="Logo" className="max-w-[200px] max-h-[200px] object-contain" />
+              ) : (
+                <Building2 className="h-32 w-32 text-white/30" />
+              )}
             </div>
           </div>
         </div>
@@ -215,16 +212,9 @@ const Auth = () => {
       <div className="flex-1 flex items-center justify-center p-8 bg-background">
         <Card className="w-full max-w-md shadow-2xl border-border">
           <CardHeader className="space-y-1">
-            <div className="flex items-center gap-2 lg:hidden mb-4">
-              {logoUrl ? (
-                <img src={logoUrl} alt="Logo" className="h-8 w-8 object-contain" />
-              ) : (
-                <Building2 className="h-8 w-8 text-primary" />
-              )}
-              <div>
-                <CardTitle className="text-2xl">{loginTitle}</CardTitle>
-                <CardDescription className="text-xs">Sistem Pemantauan Laporan</CardDescription>
-              </div>
+            <div className="lg:hidden mb-4">
+              <CardTitle className="text-2xl">{loginTitle}</CardTitle>
+              <CardDescription className="text-xs">Sistem Pemantauan Laporan</CardDescription>
             </div>
             <CardTitle className="text-2xl lg:text-3xl">Selamat Datang</CardTitle>
             <CardDescription>
