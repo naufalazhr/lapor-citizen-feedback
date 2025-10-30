@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Dashboard from "./Dashboard";
 import {
@@ -21,13 +22,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Trash2, Eye, RefreshCw, Copy, Search, ChevronLeft, ChevronRight } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Pagination,
@@ -54,10 +48,10 @@ type Report = {
 };
 
 const Reports = () => {
+  const navigate = useNavigate();
   const [reports, setReports] = useState<Report[]>([]);
   const [filteredReports, setFilteredReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -335,7 +329,7 @@ const Reports = () => {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => setSelectedReport(report)}
+                              onClick={() => navigate(`/admin/reports/${report.id}`)}
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
@@ -416,92 +410,6 @@ const Reports = () => {
             )}
           </CardContent>
         </Card>
-
-        <Dialog open={!!selectedReport} onOpenChange={() => setSelectedReport(null)}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Detail Laporan</DialogTitle>
-              <DialogDescription>Informasi lengkap tentang laporan ini</DialogDescription>
-            </DialogHeader>
-            {selectedReport && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-                  <code className="text-lg font-mono font-bold">{selectedReport.ticket_id}</code>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8"
-                    onClick={() => copyToClipboard(selectedReport.ticket_id)}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Nama Pelapor</p>
-                    <p className="text-base">{selectedReport.reporter_name}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Telepon</p>
-                    <p className="text-base">{selectedReport.phone}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Jenis</p>
-                    <Badge className={getTypeColor(selectedReport.type)} variant="outline">
-                      {selectedReport.type}
-                    </Badge>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Status</p>
-                    <Badge className={getStatusColor(selectedReport.status)}>
-                      {selectedReport.status}
-                    </Badge>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Alamat</p>
-                  <p className="text-base">{selectedReport.address}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Deskripsi</p>
-                  <p className="text-base">{selectedReport.description}</p>
-                </div>
-                {selectedReport.photo_url && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground mb-2">Foto</p>
-                    <img
-                      src={selectedReport.photo_url}
-                      alt="Report"
-                      className="w-full max-h-96 object-contain rounded-lg border"
-                    />
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Lokasi</p>
-                  {selectedReport.geo_location ? (
-                    <p className="text-base">
-                      Lat: {selectedReport.geo_location.lat.toFixed(6)}, Lng:{" "}
-                      {selectedReport.geo_location.lng.toFixed(6)}
-                    </p>
-                  ) : (
-                    <p className="text-base text-muted-foreground">Tidak ada lokasi</p>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Dibuat</p>
-                    <p className="text-base">{new Date(selectedReport.created_at).toLocaleString("id-ID")}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Terakhir Diperbarui</p>
-                    <p className="text-base">{new Date(selectedReport.updated_at).toLocaleString("id-ID")}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
       </div>
     </Dashboard>
   );
