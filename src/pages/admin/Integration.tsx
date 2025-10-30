@@ -17,9 +17,12 @@ import { useToast } from "@/hooks/use-toast";
 const Integration = () => {
   const [copied, setCopied] = useState<string | null>(null);
   const [configOpen, setConfigOpen] = useState(true);
+  const [fieldConfigOpen, setFieldConfigOpen] = useState(true);
   const [docsOpen, setDocsOpen] = useState(true);
   const [samplesOpen, setSamplesOpen] = useState(false);
   const [responsesOpen, setResponsesOpen] = useState(false);
+  const [flowiseOpen, setFlowiseOpen] = useState(false);
+  const [fonnteOpen, setFonnteOpen] = useState(false);
   const { toast } = useToast();
 
   const apiEndpoint = "https://ykaawgnggvwleiyzvilf.supabase.co/functions/v1/submit-report";
@@ -224,7 +227,7 @@ try {
           </Card>
         </Collapsible>
 
-        <Collapsible open={true}>
+        <Collapsible open={fieldConfigOpen} onOpenChange={setFieldConfigOpen}>
           <Card>
             <CollapsibleTrigger className="w-full">
               <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
@@ -236,61 +239,13 @@ try {
                       <CardDescription>Configure which fields are required or optional for API submissions</CardDescription>
                     </div>
                   </div>
-                  <ChevronDown className="h-5 w-5 transition-transform" />
+                  <ChevronDown className={`h-5 w-5 transition-transform ${fieldConfigOpen ? "rotate-180" : ""}`} />
                 </div>
               </CardHeader>
             </CollapsibleTrigger>
             <CollapsibleContent>
               <CardContent className="pt-6">
                 <FieldConfigManager />
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
-
-        <Collapsible open={true}>
-          <Card>
-            <CollapsibleTrigger className="w-full">
-              <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="h-5 w-5" />
-                    <div className="text-left">
-                      <CardTitle>Flowise Configuration</CardTitle>
-                      <CardDescription>Configure AI agent settings for WhatsApp integration</CardDescription>
-                    </div>
-                  </div>
-                  <ChevronDown className="h-5 w-5 transition-transform" />
-                </div>
-              </CardHeader>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <CardContent className="pt-6">
-                <FlowiseConfigManager />
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
-
-        <Collapsible open={true}>
-          <Card>
-            <CollapsibleTrigger className="w-full">
-              <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="h-5 w-5" />
-                    <div className="text-left">
-                      <CardTitle>Fonnte Configuration</CardTitle>
-                      <CardDescription>Configure WhatsApp gateway settings and webhook</CardDescription>
-                    </div>
-                  </div>
-                  <ChevronDown className="h-5 w-5 transition-transform" />
-                </div>
-              </CardHeader>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <CardContent className="pt-6">
-                <FonnteConfigManager />
               </CardContent>
             </CollapsibleContent>
           </Card>
@@ -560,6 +515,54 @@ try {
                     </div>
                   </CardContent>
                 </Card>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+
+        <Collapsible open={flowiseOpen} onOpenChange={setFlowiseOpen}>
+          <Card>
+            <CollapsibleTrigger className="w-full">
+              <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5" />
+                    <div className="text-left">
+                      <CardTitle>Flowise Configuration</CardTitle>
+                      <CardDescription>Configure AI agent settings for WhatsApp integration</CardDescription>
+                    </div>
+                  </div>
+                  <ChevronDown className={`h-5 w-5 transition-transform ${flowiseOpen ? "rotate-180" : ""}`} />
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-6">
+                <FlowiseConfigManager />
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+
+        <Collapsible open={fonnteOpen} onOpenChange={setFonnteOpen}>
+          <Card>
+            <CollapsibleTrigger className="w-full">
+              <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5" />
+                    <div className="text-left">
+                      <CardTitle>Fonnte Configuration</CardTitle>
+                      <CardDescription>Configure WhatsApp gateway settings and webhook</CardDescription>
+                    </div>
+                  </div>
+                  <ChevronDown className={`h-5 w-5 transition-transform ${fonnteOpen ? "rotate-180" : ""}`} />
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-6">
+                <FonnteConfigManager />
               </CardContent>
             </CollapsibleContent>
           </Card>
