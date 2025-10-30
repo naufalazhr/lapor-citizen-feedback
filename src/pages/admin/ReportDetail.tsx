@@ -14,19 +14,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
-import L from "leaflet";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { lazy, Suspense } from "react";
 
-// Fix for default marker icon in Leaflet
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
-  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
-});
+const LeafletMap = lazy(() => import("@/components/LeafletMap"));
 
 type Report = {
   id: string;
@@ -380,25 +372,16 @@ const ReportDetail = () => {
                       </div>
                     </div>
                     
-                    <div className="rounded-lg overflow-hidden border">
-                      <MapContainer
-                        center={[report.geo_location.lat, report.geo_location.lng]}
-                        zoom={15}
-                        style={{ height: "400px", width: "100%" }}
-                        scrollWheelZoom={false}
-                      >
-                        <TileLayer
-                          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                        />
-                        <Marker position={[report.geo_location.lat, report.geo_location.lng]}>
-                          <Popup>
-                            Lokasi Laporan<br />
-                            {report.geo_location.lat.toFixed(6)}, {report.geo_location.lng.toFixed(6)}
-                          </Popup>
-                        </Marker>
-                      </MapContainer>
-                    </div>
+                    <Suspense fallback={
+                      <div className="rounded-lg overflow-hidden border h-[400px] flex items-center justify-center bg-muted">
+                        <p className="text-muted-foreground">Loading map...</p>
+                      </div>
+                    }>
+                      <LeafletMap 
+                        latitude={report.geo_location.lat} 
+                        longitude={report.geo_location.lng} 
+                      />
+                    </Suspense>
                   </>
                 ) : (
                   <p className="text-center text-muted-foreground py-8">
