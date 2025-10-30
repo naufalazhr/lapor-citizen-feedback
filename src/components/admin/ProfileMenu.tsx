@@ -50,29 +50,21 @@ export function ProfileMenu() {
 
   const handleLogout = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      
-      if (error) {
-        console.error('Logout error:', error);
-        throw error;
-      }
-
+      await supabase.auth.signOut();
       toast({
         title: "Berhasil keluar",
         description: "Anda telah keluar dari sistem",
       });
-      
-      // Clear any local storage
-      localStorage.clear();
-      
-      // Navigate to auth page
-      navigate("/auth", { replace: true });
     } catch (error: any) {
+      console.error('Logout error:', error);
       toast({
-        title: "Gagal keluar",
-        description: error.message || "Terjadi kesalahan saat keluar",
-        variant: "destructive",
+        title: "Berhasil keluar",
+        description: "Anda telah keluar dari sistem",
       });
+    } finally {
+      // Always clear localStorage and navigate, regardless of API result
+      localStorage.clear();
+      navigate("/auth", { replace: true });
     }
   };
 
