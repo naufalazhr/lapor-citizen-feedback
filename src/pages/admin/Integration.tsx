@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Copy, Check, Code, Key, BookOpen, ChevronDown, Settings, FileCode } from "lucide-react";
+import { Copy, Check, Code, Key, BookOpen, ChevronDown, Settings, FileCode, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const Integration = () => {
@@ -206,10 +206,10 @@ try {
               <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Settings className="h-5 w-5" />
+                    <Key className="h-5 w-5" />
                     <div className="text-left">
-                      <CardTitle>Configuration Management</CardTitle>
-                      <CardDescription>Manage API keys, field configurations, and integration settings</CardDescription>
+                      <CardTitle>API Key Management</CardTitle>
+                      <CardDescription>Generate and manage API keys for secure third-party access</CardDescription>
                     </div>
                   </div>
                   <ChevronDown className={`h-5 w-5 transition-transform ${configOpen ? "rotate-180" : ""}`} />
@@ -217,32 +217,80 @@ try {
               </CardHeader>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <CardContent className="space-y-6 pt-6">
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-lg font-semibold mb-2">Manage API Keys</h3>
-                    <p className="text-sm text-muted-foreground mb-4">Generate and manage API keys for secure third-party access</p>
-                    <ApiKeyManager />
-                  </div>
+              <CardContent className="pt-6">
+                <ApiKeyManager />
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
 
-                  <div className="border-t pt-4">
-                    <h3 className="text-lg font-semibold mb-2">Field Configuration</h3>
-                    <p className="text-sm text-muted-foreground mb-4">Configure which fields are required or optional for API submissions</p>
-                    <FieldConfigManager />
+        <Collapsible open={true}>
+          <Card>
+            <CollapsibleTrigger className="w-full">
+              <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    <div className="text-left">
+                      <CardTitle>Field Configuration</CardTitle>
+                      <CardDescription>Configure which fields are required or optional for API submissions</CardDescription>
+                    </div>
                   </div>
-
-                  <div className="border-t pt-4">
-                    <h3 className="text-lg font-semibold mb-2">Flowise Configuration</h3>
-                    <p className="text-sm text-muted-foreground mb-4">Configure AI agent settings for WhatsApp integration</p>
-                    <FlowiseConfigManager />
-                  </div>
-
-                  <div className="border-t pt-4">
-                    <h3 className="text-lg font-semibold mb-2">Fonnte Configuration</h3>
-                    <p className="text-sm text-muted-foreground mb-4">Configure WhatsApp gateway settings and webhook</p>
-                    <FonnteConfigManager />
-                  </div>
+                  <ChevronDown className="h-5 w-5 transition-transform" />
                 </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-6">
+                <FieldConfigManager />
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+
+        <Collapsible open={true}>
+          <Card>
+            <CollapsibleTrigger className="w-full">
+              <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5" />
+                    <div className="text-left">
+                      <CardTitle>Flowise Configuration</CardTitle>
+                      <CardDescription>Configure AI agent settings for WhatsApp integration</CardDescription>
+                    </div>
+                  </div>
+                  <ChevronDown className="h-5 w-5 transition-transform" />
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-6">
+                <FlowiseConfigManager />
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+
+        <Collapsible open={true}>
+          <Card>
+            <CollapsibleTrigger className="w-full">
+              <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5" />
+                    <div className="text-left">
+                      <CardTitle>Fonnte Configuration</CardTitle>
+                      <CardDescription>Configure WhatsApp gateway settings and webhook</CardDescription>
+                    </div>
+                  </div>
+                  <ChevronDown className="h-5 w-5 transition-transform" />
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-6">
+                <FonnteConfigManager />
               </CardContent>
             </CollapsibleContent>
           </Card>

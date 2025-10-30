@@ -58,9 +58,13 @@ export const FonnteConfigManager = () => {
       }
 
       if (data) {
-        setConfig(data);
+        const configData = {
+          ...data,
+          api_token: (data as any).api_token || null
+        };
+        setConfig(configData);
         setFormData({
-          api_token: data.api_token || "",
+          api_token: (data as any).api_token || "",
           device_numbers: data.device_numbers.join(", "),
           auto_reply_enabled: data.auto_reply_enabled,
           session_timeout_minutes: data.session_timeout_minutes,

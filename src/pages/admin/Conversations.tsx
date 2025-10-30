@@ -37,8 +37,9 @@ interface Conversation {
   phone_number: string;
   sender_name: string | null;
   status: 'active' | 'completed' | 'abandoned';
-  channel: 'whatsapp' | 'telegram' | 'web';
+  channel: 'whatsapp' | 'telegram' | 'web' | 'api';
   device_number: string | null;
+  report_id: string | null;
   last_message_at: string;
   started_at: string;
   completed_at: string | null;
@@ -77,11 +78,11 @@ const Conversations = () => {
 
       // Apply filters
       if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
+        query = query.eq('status', statusFilter as 'active' | 'completed' | 'abandoned');
       }
 
       if (channelFilter !== 'all') {
-        query = query.eq('channel', channelFilter);
+        query = query.eq('channel', channelFilter as 'whatsapp' | 'telegram' | 'web' | 'api');
       }
 
       if (searchQuery) {
@@ -247,6 +248,7 @@ const Conversations = () => {
                     <SelectItem value="whatsapp">WhatsApp</SelectItem>
                     <SelectItem value="telegram">Telegram</SelectItem>
                     <SelectItem value="web">Web</SelectItem>
+                    <SelectItem value="api">API</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

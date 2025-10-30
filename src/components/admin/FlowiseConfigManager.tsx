@@ -58,7 +58,11 @@ export const FlowiseConfigManager = () => {
       }
 
       if (data) {
-        setConfig(data);
+        const configData = {
+          ...data,
+          session_variables: data.session_variables as Record<string, any> | null
+        };
+        setConfig(configData);
         setFormData({
           api_url: data.api_url,
           api_key: data.api_key,
