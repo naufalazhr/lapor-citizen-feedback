@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       api_field_configs: {
@@ -276,6 +251,7 @@ export type Database = {
       }
       fonnte_config: {
         Row: {
+          api_token: string | null
           auto_reply_enabled: boolean
           config_name: string
           created_at: string
@@ -287,6 +263,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          api_token?: string | null
           auto_reply_enabled?: boolean
           config_name?: string
           created_at?: string
@@ -298,6 +275,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          api_token?: string | null
           auto_reply_enabled?: boolean
           config_name?: string
           created_at?: string
@@ -530,7 +508,7 @@ export type Database = {
     }
     Enums: {
       agent_status: "draft" | "published" | "archived"
-      app_role: "owner" | "admin" | "member"
+      app_role: "owner" | "admin" | "member" | "viewer"
       channel_type: "web" | "api" | "whatsapp" | "telegram"
       field_type:
         | "string"
@@ -673,13 +651,10 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       agent_status: ["draft", "published", "archived"],
-      app_role: ["owner", "admin", "member"],
+      app_role: ["owner", "admin", "member", "viewer"],
       channel_type: ["web", "api", "whatsapp", "telegram"],
       field_type: [
         "string",
