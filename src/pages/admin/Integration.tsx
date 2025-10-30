@@ -10,11 +10,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Copy, Check, Code, Key, BookOpen } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Copy, Check, Code, Key, BookOpen, ChevronDown, Settings, FileCode } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const Integration = () => {
   const [copied, setCopied] = useState<string | null>(null);
+  const [configOpen, setConfigOpen] = useState(true);
+  const [docsOpen, setDocsOpen] = useState(true);
+  const [samplesOpen, setSamplesOpen] = useState(false);
+  const [responsesOpen, setResponsesOpen] = useState(false);
   const { toast } = useToast();
 
   const apiEndpoint = "https://ykaawgnggvwleiyzvilf.supabase.co/functions/v1/submit-report";
@@ -195,216 +200,273 @@ try {
           </p>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Manage API Keys</CardTitle>
-            <CardDescription>Generate and manage API keys for secure third-party access</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ApiKeyManager />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Field Configuration</CardTitle>
-            <CardDescription>Configure which fields are required or optional for API submissions</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <FieldConfigManager />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Flowise Configuration</CardTitle>
-            <CardDescription>Configure AI agent settings for WhatsApp integration</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <FlowiseConfigManager />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Fonnte Configuration</CardTitle>
-            <CardDescription>Configure WhatsApp gateway settings and webhook</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <FonnteConfigManager />
-          </CardContent>
-        </Card>
-
-        <div className="grid gap-6 md:grid-cols-2">
+        <Collapsible open={configOpen} onOpenChange={setConfigOpen}>
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Key className="h-5 w-5" />
-                API Endpoint
-              </CardTitle>
-              <CardDescription>Use this endpoint to submit reports programmatically</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Endpoint URL</Label>
-                <div className="flex gap-2">
-                  <Input 
-                    value={apiEndpoint} 
-                    readOnly 
-                    className="font-mono text-sm"
-                  />
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    onClick={() => copyToClipboard(apiEndpoint, "Endpoint")}
-                  >
-                    {copied === "Endpoint" ? (
-                      <Check className="h-4 w-4" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
+            <CollapsibleTrigger className="w-full">
+              <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    <div className="text-left">
+                      <CardTitle>Configuration Management</CardTitle>
+                      <CardDescription>Manage API keys, field configurations, and integration settings</CardDescription>
+                    </div>
+                  </div>
+                  <ChevronDown className={`h-5 w-5 transition-transform ${configOpen ? "rotate-180" : ""}`} />
                 </div>
-              </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="space-y-6 pt-6">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-2">Manage API Keys</h3>
+                    <p className="text-sm text-muted-foreground mb-4">Generate and manage API keys for secure third-party access</p>
+                    <ApiKeyManager />
+                  </div>
 
-              <div className="space-y-2">
-                <Label>Method</Label>
-                <Input value="POST" readOnly className="font-mono" />
-              </div>
+                  <div className="border-t pt-4">
+                    <h3 className="text-lg font-semibold mb-2">Field Configuration</h3>
+                    <p className="text-sm text-muted-foreground mb-4">Configure which fields are required or optional for API submissions</p>
+                    <FieldConfigManager />
+                  </div>
 
-              <div className="space-y-2">
-                <Label>Authentication</Label>
-                <p className="text-sm text-muted-foreground">
-                  Include your API key in the request headers as <code className="bg-muted px-1 py-0.5 rounded">x-api-key</code>
-                </p>
-              </div>
-            </CardContent>
+                  <div className="border-t pt-4">
+                    <h3 className="text-lg font-semibold mb-2">Flowise Configuration</h3>
+                    <p className="text-sm text-muted-foreground mb-4">Configure AI agent settings for WhatsApp integration</p>
+                    <FlowiseConfigManager />
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <h3 className="text-lg font-semibold mb-2">Fonnte Configuration</h3>
+                    <p className="text-sm text-muted-foreground mb-4">Configure WhatsApp gateway settings and webhook</p>
+                    <FonnteConfigManager />
+                  </div>
+                </div>
+              </CardContent>
+            </CollapsibleContent>
           </Card>
+        </Collapsible>
 
+        <Collapsible open={docsOpen} onOpenChange={setDocsOpen}>
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BookOpen className="h-5 w-5" />
-                Request Parameters
-              </CardTitle>
-              <CardDescription>Required and optional fields for report submission</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <RequestParametersDocs />
-            </CardContent>
+            <CollapsibleTrigger className="w-full">
+              <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="h-5 w-5" />
+                    <div className="text-left">
+                      <CardTitle>API Documentation</CardTitle>
+                      <CardDescription>Endpoint information and request parameters</CardDescription>
+                    </div>
+                  </div>
+                  <ChevronDown className={`h-5 w-5 transition-transform ${docsOpen ? "rotate-180" : ""}`} />
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-6">
+                <div className="grid gap-6 md:grid-cols-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Key className="h-5 w-5" />
+                        API Endpoint
+                      </CardTitle>
+                      <CardDescription>Use this endpoint to submit reports programmatically</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Endpoint URL</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            value={apiEndpoint}
+                            readOnly
+                            className="font-mono text-sm"
+                          />
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            onClick={() => copyToClipboard(apiEndpoint, "Endpoint")}
+                          >
+                            {copied === "Endpoint" ? (
+                              <Check className="h-4 w-4" />
+                            ) : (
+                              <Copy className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Method</Label>
+                        <Input value="POST" readOnly className="font-mono" />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Authentication</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Include your API key in the request headers as <code className="bg-muted px-1 py-0.5 rounded">x-api-key</code>
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BookOpen className="h-5 w-5" />
+                        Request Parameters
+                      </CardTitle>
+                      <CardDescription>Required and optional fields for report submission</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <RequestParametersDocs />
+                    </CardContent>
+                  </Card>
+                </div>
+              </CardContent>
+            </CollapsibleContent>
           </Card>
-        </div>
+        </Collapsible>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Code className="h-5 w-5" />
-              Sample Code
-            </CardTitle>
-            <CardDescription>
-              Integration examples in multiple programming languages
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="curl" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="curl">cURL</TabsTrigger>
-                <TabsTrigger value="javascript">JavaScript</TabsTrigger>
-                <TabsTrigger value="python">Python</TabsTrigger>
-                <TabsTrigger value="php">PHP</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="curl" className="space-y-4">
-                <div className="relative">
-                  <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                    <code>{curlExample}</code>
-                  </pre>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="absolute top-2 right-2"
-                    onClick={() => copyToClipboard(curlExample, "cURL code")}
-                  >
-                    {copied === "cURL code" ? (
-                      <Check className="h-4 w-4" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
+        <Collapsible open={samplesOpen} onOpenChange={setSamplesOpen}>
+          <Card>
+            <CollapsibleTrigger className="w-full">
+              <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileCode className="h-5 w-5" />
+                    <div className="text-left">
+                      <CardTitle>Sample Code</CardTitle>
+                      <CardDescription>Integration examples in multiple programming languages</CardDescription>
+                    </div>
+                  </div>
+                  <ChevronDown className={`h-5 w-5 transition-transform ${samplesOpen ? "rotate-180" : ""}`} />
                 </div>
-              </TabsContent>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-6">
+                <Tabs defaultValue="curl" className="w-full">
+                  <TabsList className="grid w-full grid-cols-4">
+                    <TabsTrigger value="curl">cURL</TabsTrigger>
+                    <TabsTrigger value="javascript">JavaScript</TabsTrigger>
+                    <TabsTrigger value="python">Python</TabsTrigger>
+                    <TabsTrigger value="php">PHP</TabsTrigger>
+                  </TabsList>
 
-              <TabsContent value="javascript" className="space-y-4">
-                <div className="relative">
-                  <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                    <code>{javascriptExample}</code>
-                  </pre>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="absolute top-2 right-2"
-                    onClick={() => copyToClipboard(javascriptExample, "JavaScript code")}
-                  >
-                    {copied === "JavaScript code" ? (
-                      <Check className="h-4 w-4" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
+                  <TabsContent value="curl" className="space-y-4">
+                    <div className="relative">
+                      <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                        <code>{curlExample}</code>
+                      </pre>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="absolute top-2 right-2"
+                        onClick={() => copyToClipboard(curlExample, "cURL code")}
+                      >
+                        {copied === "cURL code" ? (
+                          <Check className="h-4 w-4" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="javascript" className="space-y-4">
+                    <div className="relative">
+                      <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                        <code>{javascriptExample}</code>
+                      </pre>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="absolute top-2 right-2"
+                        onClick={() => copyToClipboard(javascriptExample, "JavaScript code")}
+                      >
+                        {copied === "JavaScript code" ? (
+                          <Check className="h-4 w-4" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="python" className="space-y-4">
+                    <div className="relative">
+                      <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                        <code>{pythonExample}</code>
+                      </pre>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="absolute top-2 right-2"
+                        onClick={() => copyToClipboard(pythonExample, "Python code")}
+                      >
+                        {copied === "Python code" ? (
+                          <Check className="h-4 w-4" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="php" className="space-y-4">
+                    <div className="relative">
+                      <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                        <code>{phpExample}</code>
+                      </pre>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="absolute top-2 right-2"
+                        onClick={() => copyToClipboard(phpExample, "PHP code")}
+                      >
+                        {copied === "PHP code" ? (
+                          <Check className="h-4 w-4" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+
+        <Collapsible open={responsesOpen} onOpenChange={setResponsesOpen}>
+          <Card>
+            <CollapsibleTrigger className="w-full">
+              <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Code className="h-5 w-5" />
+                    <div className="text-left">
+                      <CardTitle>Response & Error Handling</CardTitle>
+                      <CardDescription>Response formats and error troubleshooting</CardDescription>
+                    </div>
+                  </div>
+                  <ChevronDown className={`h-5 w-5 transition-transform ${responsesOpen ? "rotate-180" : ""}`} />
                 </div>
-              </TabsContent>
-
-              <TabsContent value="python" className="space-y-4">
-                <div className="relative">
-                  <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                    <code>{pythonExample}</code>
-                  </pre>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="absolute top-2 right-2"
-                    onClick={() => copyToClipboard(pythonExample, "Python code")}
-                  >
-                    {copied === "Python code" ? (
-                      <Check className="h-4 w-4" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="php" className="space-y-4">
-                <div className="relative">
-                  <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-                    <code>{phpExample}</code>
-                  </pre>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="absolute top-2 right-2"
-                    onClick={() => copyToClipboard(phpExample, "PHP code")}
-                  >
-                    {copied === "PHP code" ? (
-                      <Check className="h-4 w-4" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-
-        <Card className="border-primary/50">
-          <CardHeader>
-            <CardTitle>Response Format</CardTitle>
-            <CardDescription>Successful response example</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-              <code>{`{
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-6 space-y-6">
+                <Card className="border-primary/50">
+                  <CardHeader>
+                    <CardTitle>Response Format</CardTitle>
+                    <CardDescription>Successful response example</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+                      <code>{`{
   "success": true,
   "message": "Report submitted successfully",
   "data": {
@@ -413,43 +475,47 @@ try {
     "created_at": "2025-10-24T10:30:00.000Z"
   }
 }`}</code>
-            </pre>
-          </CardContent>
-        </Card>
+                    </pre>
+                  </CardContent>
+                </Card>
 
-        <Card className="border-destructive/50">
-          <CardHeader>
-            <CardTitle>Error Handling</CardTitle>
-            <CardDescription>Common error responses and troubleshooting</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-3 text-sm">
-              <div>
-                <p className="font-medium">401 Unauthorized</p>
-                <pre className="bg-muted p-2 rounded mt-1 text-xs overflow-x-auto">
-                  <code>{"{ \"error\": \"Unauthorized - Invalid API key\" }"}</code>
-                </pre>
-                <p className="text-muted-foreground mt-1">Check that your API key is correct and included in the x-api-key header</p>
-              </div>
-              
-              <div>
-                <p className="font-medium">400 Bad Request</p>
-                <pre className="bg-muted p-2 rounded mt-1 text-xs overflow-x-auto">
-                  <code>{"{ \"error\": \"Missing required fields\", \"required\": [...] }"}</code>
-                </pre>
-                <p className="text-muted-foreground mt-1">Ensure all required fields are included in your request</p>
-              </div>
+                <Card className="border-destructive/50">
+                  <CardHeader>
+                    <CardTitle>Error Handling</CardTitle>
+                    <CardDescription>Common error responses and troubleshooting</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-3 text-sm">
+                      <div>
+                        <p className="font-medium">401 Unauthorized</p>
+                        <pre className="bg-muted p-2 rounded mt-1 text-xs overflow-x-auto">
+                          <code>{"{ \"error\": \"Unauthorized - Invalid API key\" }"}</code>
+                        </pre>
+                        <p className="text-muted-foreground mt-1">Check that your API key is correct and included in the x-api-key header</p>
+                      </div>
 
-              <div>
-                <p className="font-medium">500 Internal Server Error</p>
-                <pre className="bg-muted p-2 rounded mt-1 text-xs overflow-x-auto">
-                  <code>{"{ \"error\": \"Internal server error\", \"message\": \"...\" }"}</code>
-                </pre>
-                <p className="text-muted-foreground mt-1">Contact support if this persists</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                      <div>
+                        <p className="font-medium">400 Bad Request</p>
+                        <pre className="bg-muted p-2 rounded mt-1 text-xs overflow-x-auto">
+                          <code>{"{ \"error\": \"Missing required fields\", \"required\": [...] }"}</code>
+                        </pre>
+                        <p className="text-muted-foreground mt-1">Ensure all required fields are included in your request</p>
+                      </div>
+
+                      <div>
+                        <p className="font-medium">500 Internal Server Error</p>
+                        <pre className="bg-muted p-2 rounded mt-1 text-xs overflow-x-auto">
+                          <code>{"{ \"error\": \"Internal server error\", \"message\": \"...\" }"}</code>
+                        </pre>
+                        <p className="text-muted-foreground mt-1">Contact support if this persists</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
       </div>
     </Dashboard>
   );

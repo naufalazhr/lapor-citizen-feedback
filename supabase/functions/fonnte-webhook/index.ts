@@ -15,7 +15,8 @@ import {
   saveMessage,
   getConversationHistory,
   updateConversationSessionId,
-  logWebhookError
+  logWebhookError,
+  getFonnteConfig
 } from './conversation-manager.ts';
 
 import {
@@ -28,6 +29,10 @@ import {
   extractSessionId,
   extractResponseText
 } from './flowise-client.ts';
+
+import {
+  sendFonnteMessageWithRetry
+} from './fonnte-client.ts';
 
 console.log('Fonnte Webhook Function Started');
 
@@ -179,11 +184,58 @@ serve(async (req: Request) => {
       finalResponseText = `${responseText}\n\n_Catatan: ${attachmentError}_`;
     }
 
-    // 14. Return response to Fonnte (will be sent back to WhatsApp)
+    // 14. Send response to WhatsApp via Fonnte API
+    console.log('Sending message to WhatsApp via Fonnte...');
+
+    try {
+      const fonnteConfig = await getFonnteConfig();
+
+      if (!fonnteConfig.api_token) {
+        throw new Error('Fonnte API token not configured');
+      }
+
+      const sendResult = await sendFonnteMessageWithRetry({
+        target: payload.sender,
+        message: finalResponseText,
+        token: fonnteConfig.api_token
+      });
+
+      if (!sendResult.status) {
+        console.error('Failed to send message to WhatsApp:', sendResult.error);
+
+        // Log error but don't throw - message is already saved in DB
+        await logWebhookError({
+          source: 'fonnte-send',
+          error_type: 'FonnteSendError',
+          error_message: sendResult.error || 'Failed to send message to WhatsApp',
+          payload: {
+            target: '***' + payload.sender.slice(-4),
+            messageLength: finalResponseText.length
+          },
+          conversation_id: conversationId
+        });
+      } else {
+        console.log('Message sent to WhatsApp successfully');
+      }
+    } catch (sendError) {
+      console.error('Error sending message to WhatsApp:', sendError);
+
+      // Log error but don't crash webhook
+      await logWebhookError({
+        source: 'fonnte-send',
+        error_type: 'FonnteSendException',
+        error_message: sendError instanceof Error ? sendError.message : 'Unknown error',
+        error_stack: sendError instanceof Error ? sendError.stack : undefined,
+        payload: { target: '***' + payload.sender.slice(-4) },
+        conversation_id: conversationId
+      });
+    }
+
+    // 15. Return webhook acknowledgment
     return new Response(
       JSON.stringify({
         success: true,
-        message: finalResponseText
+        message: 'Webhook processed successfully'
       }),
       {
         status: 200,

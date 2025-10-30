@@ -13,7 +13,7 @@ import {
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Home, FileText, BarChart3, LogOut, Menu, Code, MessageSquare } from "lucide-react";
+import { FileText, BarChart3, LogOut, Menu, Code, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
@@ -53,7 +53,7 @@ export function AppSidebar() {
             variant="ghost"
             size="icon"
             onClick={toggleSidebar}
-            className="ml-auto"
+            className={state === "collapsed" ? "mx-auto" : "ml-auto"}
           >
             <Menu className="h-5 w-5" />
           </Button>

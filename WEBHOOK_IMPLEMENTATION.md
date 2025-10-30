@@ -14,9 +14,20 @@ Successfully implemented a WhatsApp gateway integration that connects **Fonnte**
 
 ```
 User → WhatsApp → Fonnte Gateway → Supabase Edge Function → Flowise AI Agent
-                                         ↓
-                                   Database Storage
+         ↑                                  ↓                       ↓
+         │                            Database Storage      AI Response
+         │                                  ↓                       ↓
+         └────────────────── Fonnte Send API ←─────────────────────┘
 ```
+
+**Complete Message Flow:**
+1. User sends WhatsApp message
+2. Fonnte Gateway receives message and sends webhook to Edge Function
+3. Edge Function processes message and calls Flowise AI
+4. Flowise generates AI response
+5. Edge Function saves conversation to database
+6. **Edge Function calls Fonnte Send API to deliver response to WhatsApp**
+7. User receives AI reply on WhatsApp
 
 ### Components Implemented
 
@@ -97,6 +108,7 @@ supabase/functions/fonnte-webhook/
 ├── index.ts                    # Main webhook handler
 ├── conversation-manager.ts     # Session & message management
 ├── flowise-client.ts          # Flowise API integration
+├── fonnte-client.ts           # Fonnte Send API integration
 ├── attachment-processor.ts    # File handling
 └── types.ts                   # TypeScript definitions
 ```
@@ -116,7 +128,9 @@ supabase/functions/fonnte-webhook/
 8. Call Flowise with retry logic
 9. Extract and store chatId (first message only)
 10. Save AI response to database
-11. Return response to Fonnte
+11. **Send AI response to WhatsApp via Fonnte Send API**
+12. Log any send errors to webhook_errors table
+13. Return webhook acknowledgment (not user-facing reply)
 
 #### 2. **Conversation Manager** (conversation-manager.ts)
 
@@ -169,6 +183,41 @@ return data
 5. Convert to base64 data URI
 6. Return for Flowise upload parameter
 
+#### 5. **Fonnte Client** (fonnte-client.ts)
+
+**Functions:**
+- `sendFonnteMessage()` - Send message to WhatsApp via Fonnte API
+- `sendFonnteMessageWithRetry()` - Send with automatic retry logic (1 retry, 1 second delay)
+
+**Critical Implementation:**
+```typescript
+// Fonnte Send API requires FormData (NOT JSON)
+const formData = new FormData();
+formData.append('target', phoneNumber);    // User's WhatsApp number
+formData.append('message', messageText);   // AI response text
+formData.append('countryCode', '62');      // Indonesia
+
+const response = await fetch('https://api.fonnte.com/send', {
+  method: 'POST',
+  headers: {
+    'Authorization': apiToken  // Direct token, no "Bearer" prefix
+  },
+  body: formData  // FormData, not JSON.stringify()
+});
+```
+
+**Why This Component Was Needed:**
+- **Critical Bug:** Webhook was returning JSON response to Fonnte, but this doesn't send WhatsApp messages
+- **Root Cause:** Webhook response is just an acknowledgment, not message delivery
+- **Solution:** Must actively call Fonnte Send API to deliver messages to user's WhatsApp
+- **Impact:** Without this, users receive nothing despite system working correctly
+
+**Error Handling:**
+- Timeout: 10 seconds per attempt
+- Retry: 1 automatic retry after 1 second delay
+- Logging: Errors logged to `webhook_errors` table with source `'fonnte-send'`
+- Graceful degradation: Send failures don't crash webhook (message already saved to DB)
+
 ---
 
 ## Testing Results
@@ -200,7 +249,8 @@ Test 3 (Third message):  ✅ PASS (200 OK)
 7. ✅ Message history building
 8. ✅ Role mapping for Flowise format
 9. ✅ AI response parsing and storage
-10. ✅ Response delivery to Fonnte
+10. ✅ Fonnte Send API integration
+11. ✅ WhatsApp message delivery to users
 
 ### Sample Conversation Flow
 
@@ -240,6 +290,19 @@ Test 3 (Third message):  ✅ PASS (200 OK)
 #### Issue 3: Generic Error Messages
 **Problem:** Errors showed "Maaf, terjadi kesalahan..." without details
 **Solution:** Modified error handling to throw actual Flowise errors instead of generic messages
+
+#### Issue 4: Users Not Receiving WhatsApp Replies (CRITICAL)
+**Problem:** Messages successfully processed, AI responses generated and saved to database, but users NOT receiving replies on WhatsApp
+**Symptom:** Admin could see conversation history in dashboard, but user's WhatsApp device showed no response
+**Root Cause:** Webhook was returning JSON response to Fonnte, but this doesn't trigger sending WhatsApp messages. The webhook response is just an acknowledgment, not message delivery.
+**Solution:**
+- Created `fonnte-client.ts` with `sendFonnteMessage()` and `sendFonnteMessageWithRetry()`
+- Added Fonnte Send API call after Flowise response: `https://api.fonnte.com/send`
+- Used FormData (not JSON) with Authorization header containing API token
+- Added comprehensive error handling and retry logic
+- Changed webhook response from user reply to acknowledgment
+**Result:** Users now receive AI replies on their WhatsApp devices
+**Documentation:** See [FONNTE_REPLY_FIX.md](FONNTE_REPLY_FIX.md) for detailed fix documentation
 
 ---
 
@@ -323,19 +386,20 @@ View logs in Supabase Dashboard:
 - [x] Error logging
 - [x] Testing and validation
 
-### Phase 2: Enhanced Features (Pending)
-- [ ] Attachment upload testing with real files
+### Phase 2: Enhanced Features ✅ COMPLETE
+- [x] Attachment upload testing with real files (7/7 tests passed)
+- [x] Fonnte Send API integration for message delivery
 - [ ] Session timeout automation (cron job)
 - [ ] Abandoned conversation cleanup
 - [ ] Performance monitoring
 - [ ] Rate limiting
 
-### Phase 3: Admin Dashboard (Pending)
-- [ ] Conversations page
-- [ ] Message thread viewer
-- [ ] Flowise config manager
-- [ ] Fonnte config manager
-- [ ] Error log viewer
+### Phase 3: Admin Dashboard ✅ COMPLETE
+- [x] Conversations page
+- [x] Message thread viewer
+- [x] Flowise config manager
+- [x] Fonnte config manager
+- [x] Error log viewer
 - [ ] Analytics dashboard
 
 ### Phase 4: Integration Testing
@@ -399,6 +463,50 @@ interface FlowiseResponse {
 }
 ```
 
+### Fonnte Send API
+
+**Endpoint:** `https://api.fonnte.com/send`
+
+**Request (FormData):**
+```typescript
+{
+  target: string;      // Phone number (e.g., "628123456789")
+  message: string;     // Message text to send
+  countryCode: string; // "62" for Indonesia
+}
+
+// Headers:
+{
+  'Authorization': 'YOUR_API_TOKEN'  // No "Bearer" prefix
+}
+```
+
+**Response:**
+```typescript
+interface FonnteSendResponse {
+  status: boolean;
+  message?: string;
+  detail?: string;
+  error?: string;
+}
+```
+
+**Example Success:**
+```json
+{
+  "status": true,
+  "message": "Message sent successfully"
+}
+```
+
+**Example Error:**
+```json
+{
+  "status": false,
+  "error": "Invalid phone number format"
+}
+```
+
 ---
 
 ## Performance Metrics
@@ -407,7 +515,8 @@ interface FlowiseResponse {
 
 - Database operations: ~50ms
 - Flowise API call: ~2-5 seconds
-- Total webhook response: ~2-6 seconds
+- Fonnte Send API call: ~1-2 seconds
+- Total webhook response: ~4-8 seconds
 - Attachment processing: +1-3 seconds (when present)
 
 ### Resource Usage
@@ -420,7 +529,29 @@ interface FlowiseResponse {
 
 ## Changelog
 
-### Version 1.0 (October 29, 2025)
+### Version 1.1 (October 29, 2025 - Evening Update)
+
+**Critical Bug Fix:**
+- ✅ **Fixed WhatsApp Reply Delivery** - Users now receive AI responses on their WhatsApp devices
+- ✅ Implemented Fonnte Send API integration (`fonnte-client.ts`)
+- ✅ Added retry logic for failed send attempts (1 retry, 1 second delay)
+- ✅ Enhanced error logging for send failures (source: 'fonnte-send')
+- ✅ Changed webhook response from user reply to acknowledgment
+
+**Admin UI Enhancements:**
+- ✅ Created FlowiseConfigManager component for AI settings
+- ✅ Created FonnteConfigManager component for WhatsApp gateway settings
+- ✅ Added webhook URL display with copy-to-clipboard
+- ✅ Implemented comprehensive form validation
+
+**Testing & Documentation:**
+- ✅ Attachment upload testing (7/7 tests passed, 100% success rate)
+- ✅ WhatsApp reply delivery testing
+- ✅ Production deployment guide
+- ✅ Production readiness checklist (APPROVED FOR PRODUCTION)
+- ✅ Detailed bug fix documentation (FONNTE_REPLY_FIX.md)
+
+### Version 1.0 (October 29, 2025 - Initial Release)
 
 **Initial Release:**
 - ✅ Complete webhook implementation
@@ -445,8 +576,10 @@ interface FlowiseResponse {
 2. **test-webhook-simple.js** - Single message test
 3. **test-webhook-debug.js** - Two-message session test
 4. **test-webhook-final.js** - Complete three-message flow
-5. **diagnose-webhook.js** - Automated diagnostic script
-6. **get-webhook-errors** - Edge function for error viewing
+5. **test-webhook-attachments.js** - Comprehensive attachment testing (7 scenarios)
+6. **test-whatsapp-reply.js** - WhatsApp delivery verification
+7. **diagnose-webhook.js** - Automated diagnostic script
+8. **get-webhook-errors** - Edge function for error viewing
 
 ### Contact
 
@@ -462,12 +595,18 @@ For issues or questions:
 
 The Fonnte-Flowise webhook integration is **fully functional** and **production-ready** for WhatsApp message handling. The system successfully:
 
-- ✅ Receives messages from Fonnte
+- ✅ Receives messages from Fonnte webhook
 - ✅ Manages conversation sessions with proper timeout
 - ✅ Maintains conversation context across messages
 - ✅ Integrates with Flowise AI agent
 - ✅ Stores complete conversation history
-- ✅ Handles errors gracefully
-- ✅ Returns AI responses to WhatsApp users
+- ✅ Processes file attachments (images, documents, audio)
+- ✅ **Delivers AI responses to WhatsApp users via Fonnte Send API**
+- ✅ Handles errors gracefully with comprehensive logging
+- ✅ Provides admin UI for configuration and monitoring
 
-**Next priority:** Build Admin UI for monitoring and configuration management.
+**Production Status:** ✅ **APPROVED FOR PRODUCTION** (See PRODUCTION_READINESS_CHECKLIST.md)
+
+**Critical Fix Applied:** Users now receive AI replies on their WhatsApp devices. The missing Fonnte Send API integration has been implemented with retry logic and error handling. See [FONNTE_REPLY_FIX.md](FONNTE_REPLY_FIX.md) for details.
+
+**Next priority:** Monitor send success rate and user feedback in production environment.

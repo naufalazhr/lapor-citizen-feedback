@@ -80,9 +80,20 @@ export interface FonnteConfig {
   id: string;
   config_name: string;
   is_active: boolean;
+  api_token: string | null;
   device_numbers: string[];
   auto_reply_enabled: boolean;
   session_timeout_minutes: number;
+}
+
+// -----------------------------------------------------------------------------
+// Fonnte Send API Response
+// -----------------------------------------------------------------------------
+export interface FonnteSendResponse {
+  status: boolean;
+  message?: string;
+  detail?: string;
+  error?: string;
 }
 
 // -----------------------------------------------------------------------------
