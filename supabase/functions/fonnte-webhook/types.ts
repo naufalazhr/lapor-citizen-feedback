@@ -4,24 +4,50 @@
 
 // -----------------------------------------------------------------------------
 // Fonnte Webhook Payload
-// Based on Fonnte webhook documentation
+// Based on Fonnte webhook documentation and actual webhook data
+// NOTE: Fonnte sends different field names based on language/mode
 // -----------------------------------------------------------------------------
 export interface FonnteWebhookPayload {
+  // Basic fields
   submission?: string;      // Submission name
   sender: string;           // Phone number (e.g., "628123456789")
+  pengirim?: string;        // Alternative sender field (Indonesian)
+  senderlid?: string;       // Sender LID
   name?: string;            // Sender's name
-  list?: string;            // Form submission data
   device: string;           // Device number
-  message: string;          // Message text
-  text?: string;            // Button text
+
+  // Message fields (Fonnte sends multiple variations)
+  message?: string;         // Message text (English field)
+  pesan?: string;           // Message text (Indonesian field)
+  text?: string;            // Alternative message text field
+  quick?: string;           // Quick reply
+
+  // Group/member fields
+  list?: string;            // Form submission data
   member?: string;          // Group member
-  location?: {              // Location data
+  mode?: string;            // Message mode
+  isgroup?: boolean;        // Is group message
+
+  // Location data
+  location?: {
     latitude: number;
     longitude: number;
   };
+
+  // Attachment fields
   url?: string;             // Attachment URL
-  filename?: string;        // Attachment filename
+  filename?: string;        // Attachment filename (may be empty)
   extension?: string;       // File extension
+  type?: string;            // Attachment type (image/video/document/audio)
+
+  // Poll fields
+  pollname?: string;        // Poll name
+  choices?: string;         // Poll choices
+
+  // Metadata
+  inboxid?: string;         // Inbox ID
+  isforwarded?: boolean;    // Is forwarded message
+  timestamp?: number;       // Message timestamp
 }
 
 // -----------------------------------------------------------------------------
@@ -43,7 +69,7 @@ export interface FlowiseRequest {
   uploads?: Array<{         // File uploads
     type: 'file';
     name: string;
-    data: string;           // Base64 data URI (e.g., "data:image/jpeg;base64,...")
+    data: string;           // Image URL (e.g., "https://xxx.supabase.co/storage/...") or Base64 data URI
     mime: string;
   }>;
 }
@@ -213,3 +239,49 @@ export const ERROR_MESSAGES = {
   NO_FLOWISE_CONFIG: 'Maaf, sistem belum dikonfigurasi. Silakan hubungi administrator.',
   SESSION_ERROR: 'Maaf, terjadi kesalahan pada sesi percakapan. Mari kita mulai lagi.'
 } as const;
+
+// -----------------------------------------------------------------------------
+// Helper Functions for Fonnte Payload Normalization
+// -----------------------------------------------------------------------------
+
+/**
+ * Normalize Fonnte payload to handle different field name variations
+ * Fonnte sends different field names (pesan vs message, pengirim vs sender)
+ */
+export function normalizeFonntePayload(payload: FonnteWebhookPayload): {
+  sender: string;
+  device: string;
+  message: string;
+  name?: string;
+  url?: string;
+  filename?: string;
+  extension?: string;
+  hasAttachment: boolean;
+} {
+  // Get message text from multiple possible fields
+  const messageText = payload.message || payload.pesan || payload.text || '';
+
+  // Get sender from multiple possible fields
+  const senderPhone = payload.sender || payload.pengirim || '';
+
+  // Generate filename from URL if not provided by Fonnte
+  let finalFilename = payload.filename;
+  if (!finalFilename && payload.url) {
+    // Extract filename from URL
+    // Example: "https://api.fonnte.com/t/webhook-089654126493-1761811231662968657.jpeg"
+    const urlParts = payload.url.split('/');
+    const urlFilename = urlParts[urlParts.length - 1];
+    finalFilename = urlFilename || `attachment_${Date.now()}.${payload.extension || 'file'}`;
+  }
+
+  return {
+    sender: senderPhone,
+    device: payload.device,
+    message: messageText,
+    name: payload.name,
+    url: payload.url,
+    filename: finalFilename,
+    extension: payload.extension,
+    hasAttachment: !!(payload.url && payload.extension)
+  };
+}

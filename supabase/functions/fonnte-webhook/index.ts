@@ -6,7 +6,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 import type { FonnteWebhookPayload } from './types.ts';
-import { ERROR_MESSAGES } from './types.ts';
+import { ERROR_MESSAGES, normalizeFonntePayload } from './types.ts';
 
 // Import helper modules
 import {
@@ -50,24 +50,46 @@ serve(async (req: Request) => {
 
   try {
     // 1. Parse request payload
-    payload = await req.json() as FonnteWebhookPayload;
+    const rawPayload = await req.json() as FonnteWebhookPayload;
+
+    // 2. Normalize Fonnte payload (handles different field name variations)
+    const normalized = normalizeFonntePayload(rawPayload);
+    payload = rawPayload; // Keep original for error logging
+
     console.log('Received webhook from Fonnte:', {
-      sender: payload.sender,
-      device: payload.device,
-      hasAttachment: !!payload.url,
-      messageLength: payload.message?.length || 0
+      sender: normalized.sender,
+      device: normalized.device,
+      hasAttachment: normalized.hasAttachment,
+      messageLength: normalized.message.length,
+      // DIAGNOSTIC: Log all attachment-related fields
+      attachmentUrl: normalized.url || 'NOT_PROVIDED',
+      attachmentFilename: normalized.filename || 'NOT_PROVIDED',
+      attachmentExtension: normalized.extension || 'NOT_PROVIDED',
+      allPayloadFields: Object.keys(rawPayload)
     });
 
-    // 2. Validate required fields
-    if (!payload.sender || !payload.message || !payload.device) {
-      throw new Error('Missing required fields: sender, message, or device');
+    // 3. Validate required fields
+    // IMPORTANT: Allow empty message if there's an attachment (image-only messages)
+    if (!normalized.sender || !normalized.device) {
+      throw new Error('Missing required fields: sender or device');
     }
 
-    // 3. Find or create conversation
+    if (!normalized.message && !normalized.hasAttachment) {
+      throw new Error('Message must contain either text or attachment');
+    }
+
+    console.log('✓ Payload validation passed:', {
+      hasSender: !!normalized.sender,
+      hasDevice: !!normalized.device,
+      hasMessage: !!normalized.message,
+      hasAttachment: normalized.hasAttachment
+    });
+
+    // 4. Find or create conversation
     const conversation = await findOrCreateConversation(
-      payload.sender,
-      payload.device,
-      payload.name
+      normalized.sender,
+      normalized.device,
+      normalized.name
     );
     conversationId = conversation.id;
 
@@ -77,16 +99,22 @@ serve(async (req: Request) => {
       isNew: conversation.session_id.startsWith('temp_')
     });
 
-    // 4. Get next message index
+    // 5. Get next message index
     const messageIndex = await getNextMessageIndex(conversation.id);
 
-    // 5. Save user message (without attachment details yet)
+    // 6. Prepare message content
+    // For image-only messages, use placeholder for database storage
+    // The actual image URL will be appended in buildFlowiseRequest
+    const messageContent = normalized.message ||
+      (normalized.hasAttachment ? '[Gambar]' : '');
+
+    // 7. Save user message (without attachment details yet)
     const userMessage = await saveMessage({
       conversation_id: conversation.id,
       role: 'user',
-      content: payload.message,
+      content: messageContent,
       message_index: messageIndex,
-      has_attachment: !!payload.url
+      has_attachment: normalized.hasAttachment
     });
 
     console.log('User message saved:', {
@@ -94,79 +122,120 @@ serve(async (req: Request) => {
       index: messageIndex
     });
 
-    // 6. Process attachment if present
+    // 8. Process attachment if present
     let attachmentResult = null;
     let attachmentError = null;
 
-    if (payload.url && payload.filename && payload.extension) {
-      console.log('Processing attachment:', {
-        filename: payload.filename,
-        extension: payload.extension
+    // DIAGNOSTIC: Log why attachment processing might be skipped
+    console.log('Attachment check:', {
+      hasUrl: !!normalized.url,
+      hasFilename: !!normalized.filename,
+      hasExtension: !!normalized.extension,
+      willProcess: !!(normalized.url && normalized.filename && normalized.extension)
+    });
+
+    if (normalized.url && normalized.filename && normalized.extension) {
+      console.log('✓ Starting attachment processing:', {
+        filename: normalized.filename,
+        extension: normalized.extension,
+        url: normalized.url.substring(0, 50) + '...' // Log first 50 chars of URL
       });
 
       try {
         attachmentResult = await processAttachmentSafe(
-          payload.url,
-          payload.filename,
-          payload.extension,
+          normalized.url,
+          normalized.filename,
+          normalized.extension,
           userMessage.id
         );
 
         if (attachmentResult) {
-          // Update message with attachment details
-          await saveMessage({
-            conversation_id: conversation.id,
-            role: 'system',
-            content: `Attachment processed: ${attachmentResult.filename}`,
-            message_index: messageIndex + 0.5, // Between user message and assistant response
-            has_attachment: false
+          // Log attachment processing success (don't save system message to avoid index conflicts)
+          console.log('✓ Attachment processed successfully:', {
+            attachmentId: attachmentResult.id,
+            storageUrl: attachmentResult.storageUrl,
+            method: 'URL in question field',  // URL will be appended to question
+            note: 'Flowise will automatically detect and process URL as image'
           });
-          console.log('Attachment processed successfully');
+        } else {
+          // processAttachmentSafe returned null = silent failure
+          console.error('✗ Attachment processing returned null (failed silently)');
+          attachmentError = 'Attachment processing failed - check Edge Function logs for details';
+
+          // Log this specific case to database
+          await logWebhookError({
+            source: 'attachment-processing',
+            error_type: 'AttachmentSilentFailure',
+            error_message: 'processAttachmentSafe returned null - check attachment-processor logs',
+            payload: {
+              url: normalized.url,
+              filename: normalized.filename,
+              extension: normalized.extension
+            },
+            conversation_id: conversationId
+          });
         }
       } catch (error) {
-        console.error('Attachment processing error:', error);
+        console.error('✗ Attachment processing error:', error);
         attachmentError = error instanceof Error ? error.message : String(error);
-        // Continue without attachment - will be logged
+
+        // Log detailed error to database
+        await logWebhookError({
+          source: 'attachment-processing',
+          error_type: 'AttachmentProcessingError',
+          error_message: attachmentError,
+          error_stack: error instanceof Error ? error.stack : undefined,
+          payload: {
+            url: normalized.url,
+            filename: normalized.filename,
+            extension: normalized.extension
+          },
+          conversation_id: conversationId
+        });
       }
+    } else {
+      // Attachment fields missing - this is the most likely issue!
+      console.warn('✗ Skipping attachment processing - missing required fields');
     }
 
-    // 7. Get conversation history (excluding the just-saved user message)
+    // 9. Get conversation history (excluding the just-saved user message)
     const history = await getConversationHistory(conversation.id);
     // Remove the last message (current user message) from history for Flowise
     const historyForFlowise = history.slice(0, -1);
 
-    // 8. Build Flowise request
+    // 10. Build Flowise request
     const flowiseRequest = buildFlowiseRequest({
-      userMessage: payload.message,
+      userMessage: messageContent, // Use prepared message content (handles image-only messages)
       conversation,
       conversationHistory: historyForFlowise,
       attachment: attachmentResult,
-      senderName: payload.name,
-      phoneNumber: payload.sender
+      senderName: normalized.name,
+      phoneNumber: normalized.sender
     });
 
     console.log('Calling Flowise API...', {
       hasHistory: historyForFlowise.length > 0,
       hasAttachment: !!attachmentResult,
-      hasSessionId: !!flowiseRequest.overrideConfig?.sessionId
+      hasSessionId: !!flowiseRequest.overrideConfig?.sessionId,
+      messageContent: messageContent.substring(0, 100) // Show first 100 chars
     });
 
-    // 9. Call Flowise API with retry
+    // 11. Call Flowise API with retry
     const { response: flowiseResponse } = await callFlowiseWithRetry(flowiseRequest);
 
     console.log('Flowise API response received');
 
-    // 10. Extract session ID (CRITICAL for first message)
+    // 12. Extract session ID (CRITICAL for first message)
     const flowiseSessionId = extractSessionId(flowiseResponse);
     if (flowiseSessionId && conversation.session_id.startsWith('temp_')) {
       console.log('Updating conversation with Flowise sessionId:', flowiseSessionId);
       await updateConversationSessionId(conversation.id, flowiseSessionId);
     }
 
-    // 11. Extract response text
+    // 13. Extract response text
     const responseText = extractResponseText(flowiseResponse);
 
-    // 12. Save assistant response
+    // 14. Save assistant response
     await saveMessage({
       conversation_id: conversation.id,
       role: 'assistant',
@@ -176,7 +245,7 @@ serve(async (req: Request) => {
 
     console.log('Assistant response saved');
 
-    // 13. Prepare response message
+    // 15. Prepare response message
     let finalResponseText = responseText;
 
     // Add attachment error message if applicable
@@ -184,7 +253,7 @@ serve(async (req: Request) => {
       finalResponseText = `${responseText}\n\n_Catatan: ${attachmentError}_`;
     }
 
-    // 14. Send response to WhatsApp via Fonnte API
+    // 16. Send response to WhatsApp via Fonnte API
     console.log('Sending message to WhatsApp via Fonnte...');
 
     try {
@@ -195,7 +264,7 @@ serve(async (req: Request) => {
       }
 
       const sendResult = await sendFonnteMessageWithRetry({
-        target: payload.sender,
+        target: normalized.sender,
         message: finalResponseText,
         token: fonnteConfig.api_token
       });
@@ -209,7 +278,7 @@ serve(async (req: Request) => {
           error_type: 'FonnteSendError',
           error_message: sendResult.error || 'Failed to send message to WhatsApp',
           payload: {
-            target: '***' + payload.sender.slice(-4),
+            target: '***' + normalized.sender.slice(-4),
             messageLength: finalResponseText.length
           },
           conversation_id: conversationId
@@ -226,12 +295,12 @@ serve(async (req: Request) => {
         error_type: 'FonnteSendException',
         error_message: sendError instanceof Error ? sendError.message : 'Unknown error',
         error_stack: sendError instanceof Error ? sendError.stack : undefined,
-        payload: { target: '***' + payload.sender.slice(-4) },
+        payload: { target: '***' + normalized.sender.slice(-4) },
         conversation_id: conversationId
       });
     }
 
-    // 15. Return webhook acknowledgment
+    // 17. Return webhook acknowledgment
     return new Response(
       JSON.stringify({
         success: true,

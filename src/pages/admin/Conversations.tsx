@@ -30,6 +30,7 @@ import { MessageSquare, Search, RefreshCw, Phone, Calendar, Filter } from "lucid
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
+import AttachmentDisplay from "@/components/AttachmentDisplay";
 
 interface Conversation {
   id: string;
@@ -47,6 +48,19 @@ interface Conversation {
   message_count?: number;
 }
 
+interface Attachment {
+  id: string;
+  filename: string;
+  extension: string;
+  mime_type: string;
+  file_size: number | null;
+  storage_url: string;
+  storage_path: string;
+  download_status: string;
+  upload_status: string;
+  error_message: string | null;
+}
+
 interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -54,6 +68,7 @@ interface Message {
   message_index: number;
   has_attachment: boolean;
   created_at: string;
+  attachments?: Attachment[];
 }
 
 const Conversations = () => {
@@ -122,15 +137,41 @@ const Conversations = () => {
     try {
       setLoadingMessages(true);
 
-      const { data, error } = await supabase
+      // First, fetch messages
+      const { data: messagesData, error: messagesError } = await supabase
         .from('messages')
         .select('*')
         .eq('conversation_id', conversationId)
         .order('message_index', { ascending: true });
 
-      if (error) throw error;
+      if (messagesError) throw messagesError;
 
-      setMessages(data || []);
+      // Then, fetch attachments for messages that have them
+      const messageIds = (messagesData || [])
+        .filter(m => m.has_attachment)
+        .map(m => m.id);
+
+      let attachmentsData: Attachment[] = [];
+      if (messageIds.length > 0) {
+        const { data, error: attachmentsError } = await supabase
+          .from('attachments')
+          .select('*')
+          .in('message_id', messageIds);
+
+        if (attachmentsError) {
+          console.error('Error fetching attachments:', attachmentsError);
+        } else {
+          attachmentsData = data || [];
+        }
+      }
+
+      // Combine messages with their attachments
+      const messagesWithAttachments = (messagesData || []).map(message => ({
+        ...message,
+        attachments: attachmentsData.filter((att: any) => att.message_id === message.id)
+      }));
+
+      setMessages(messagesWithAttachments);
     } catch (error: any) {
       console.error('Error fetching messages:', error);
       toast({
@@ -386,10 +427,15 @@ const Conversations = () => {
                         </span>
                       </div>
                       <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                      {message.has_attachment && (
-                        <Badge variant="outline" className="mt-2">
-                          Has Attachment
-                        </Badge>
+                      {message.attachments && message.attachments.length > 0 && (
+                        <div className="mt-2 space-y-2">
+                          {message.attachments.map((attachment) => (
+                            <AttachmentDisplay
+                              key={attachment.id}
+                              attachment={attachment}
+                            />
+                          ))}
+                        </div>
                       )}
                     </div>
                   </div>

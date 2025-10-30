@@ -82,20 +82,25 @@ export function buildFlowiseRequest(params: {
     overrideConfig.sessionId = conversation.session_id;
   }
 
-  // Build uploads array if attachment exists
-  const uploads = attachment ? [{
-    type: 'file' as const,
-    name: attachment.filename,
-    data: attachment.base64DataUri,
-    mime: attachment.mimeType
-  }] : undefined;
+  // Build question with image URL included directly
+  // Flowise automatically detects URLs in question field and processes them as images
+  let finalQuestion = userMessage;
+
+  if (attachment) {
+    // If there's text, append image URL after text
+    // If no text (image-only), just use the URL as the question
+    if (userMessage && userMessage.trim()) {
+      finalQuestion = `${userMessage}\n\n${attachment.storageUrl}`;
+    } else {
+      finalQuestion = attachment.storageUrl;
+    }
+  }
 
   return {
-    question: userMessage,
+    question: finalQuestion,  // Image URL included directly in question
     streaming: false, // Will be overridden by config
     overrideConfig,
-    history: conversationHistory.length > 0 ? conversationHistory : undefined,
-    uploads
+    history: conversationHistory.length > 0 ? conversationHistory : undefined
   };
 }
 
@@ -124,8 +129,17 @@ async function callFlowiseAPI(
     url,
     hasSessionId: !!mergedOverrideConfig.sessionId,
     hasHistory: !!request.history,
-    hasUploads: !!request.uploads
+    questionPreview: request.question.substring(0, 200) + (request.question.length > 200 ? '...' : '')
   });
+
+  // DIAGNOSTIC: Log if question contains image URL
+  if (request.question.includes('https://') && request.question.includes('supabase.co/storage/')) {
+    console.log('🖼️ Image URL detected in question:', {
+      method: 'URL in question field',
+      note: 'Flowise will automatically detect and process the URL as an image',
+      urlDetected: true
+    });
+  }
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), config.timeout_seconds * 1000);
@@ -149,6 +163,16 @@ async function callFlowiseAPI(
     }
 
     const data = await response.json();
+
+    // DIAGNOSTIC: Log Flowise response
+    console.log('📥 Flowise API Response:', {
+      hasText: !!data.text,
+      hasResponse: !!data.response,
+      hasChatId: !!data.chatId,
+      textPreview: (data.text || data.response || '').substring(0, 200),
+      allFields: Object.keys(data)
+    });
+
     return data as FlowiseResponse;
 
   } catch (error) {

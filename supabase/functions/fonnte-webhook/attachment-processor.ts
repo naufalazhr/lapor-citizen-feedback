@@ -60,15 +60,18 @@ async function downloadAttachment(url: string): Promise<{
   data: Uint8Array;
   contentType: string;
 }> {
+  console.log('[Attachment] Step 1: Downloading from Fonnte URL...');
   try {
     const response = await fetch(url, {
       method: 'GET',
       headers: {
         'User-Agent': 'Supabase-Edge-Function/1.0'
-      }
+      },
+      signal: AbortSignal.timeout(30000) // 30 second timeout
     });
 
     if (!response.ok) {
+      console.error(`[Attachment] Download failed: HTTP ${response.status}: ${response.statusText}`);
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
@@ -76,9 +79,11 @@ async function downloadAttachment(url: string): Promise<{
     const data = new Uint8Array(arrayBuffer);
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
 
+    console.log(`[Attachment] ✓ Downloaded ${data.length} bytes, type: ${contentType}`);
     return { data, contentType };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
+    console.error('[Attachment] ✗ Download error:', err.message);
     throw new Error(`Failed to download attachment: ${err.message}`);
   }
 }
@@ -95,6 +100,11 @@ async function uploadToStorage(
   const sanitizedFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
   const storagePath = `whatsapp-attachments/${timestamp}_${sanitizedFilename}`;
 
+  console.log(`[Attachment] Step 2: Uploading to Supabase Storage...`);
+  console.log(`[Attachment] - Bucket: report-photos`);
+  console.log(`[Attachment] - Path: ${storagePath}`);
+  console.log(`[Attachment] - Size: ${data.length} bytes`);
+
   const { data: uploadData, error: uploadError } = await supabase
     .storage
     .from('report-photos')
@@ -104,6 +114,8 @@ async function uploadToStorage(
     });
 
   if (uploadError) {
+    console.error('[Attachment] ✗ Upload failed:', uploadError.message);
+    console.error('[Attachment] Error details:', JSON.stringify(uploadError, null, 2));
     throw new Error(`Failed to upload to storage: ${uploadError.message}`);
   }
 
@@ -112,6 +124,9 @@ async function uploadToStorage(
     .storage
     .from('report-photos')
     .getPublicUrl(storagePath);
+
+  console.log(`[Attachment] ✓ Uploaded successfully`);
+  console.log(`[Attachment] ✓ Public URL: ${urlData.publicUrl}`);
 
   return {
     storagePath,
@@ -204,30 +219,46 @@ export async function processAttachment(
   extension: string,
   messageId: string
 ): Promise<AttachmentResult> {
+  console.log('═══════════════════════════════════════════════════');
+  console.log('[Attachment] Starting attachment processing pipeline');
+  console.log('[Attachment] File:', filename);
+  console.log('[Attachment] Extension:', extension);
+  console.log('[Attachment] URL:', fonnteUrl.substring(0, 100) + '...');
+  console.log('═══════════════════════════════════════════════════');
+
   // 1. Validate file extension
+  console.log('[Attachment] Step 0: Validating file extension...');
   if (!validateFileExtension(extension)) {
+    console.error(`[Attachment] ✗ Unsupported file type: ${extension}`);
     throw new Error(ERROR_MESSAGES.UNSUPPORTED_FILE_TYPE);
   }
 
   const mimeType = getMimeType(extension);
   const attachmentType = getAttachmentType(extension);
+  console.log(`[Attachment] ✓ Valid file type: ${attachmentType} (${mimeType})`);
 
   try {
     // 2. Download from Fonnte
     const { data, contentType } = await downloadAttachment(fonnteUrl);
 
     // 3. Validate file size
+    console.log(`[Attachment] Step 1.5: Validating file size (${data.length} bytes)...`);
     if (data.length > MAX_FILE_SIZE) {
+      console.error(`[Attachment] ✗ File too large: ${data.length} > ${MAX_FILE_SIZE}`);
       throw new Error(ERROR_MESSAGES.FILE_TOO_LARGE);
     }
+    console.log(`[Attachment] ✓ File size OK`);
 
     // 4. Upload to Supabase Storage
     const { storagePath, storageUrl } = await uploadToStorage(data, filename, mimeType);
 
     // 5. Convert to base64 for Flowise
+    console.log('[Attachment] Step 3: Converting to base64 for Flowise...');
     const base64DataUri = convertToBase64DataUri(data, mimeType);
+    console.log(`[Attachment] ✓ Converted to base64 (${base64DataUri.length} chars)`);
 
     // 6. Save metadata
+    console.log('[Attachment] Step 4: Saving metadata to database...');
     const attachmentId = await saveAttachmentMetadata({
       message_id: messageId,
       original_url: fonnteUrl,
@@ -239,6 +270,11 @@ export async function processAttachment(
       storage_url: storageUrl,
       base64_data: base64DataUri
     });
+    console.log(`[Attachment] ✓ Metadata saved (ID: ${attachmentId})`);
+
+    console.log('═══════════════════════════════════════════════════');
+    console.log('[Attachment] ✓✓✓ ATTACHMENT PROCESSING COMPLETE ✓✓✓');
+    console.log('═══════════════════════════════════════════════════');
 
     return {
       attachmentId,
@@ -251,6 +287,12 @@ export async function processAttachment(
   } catch (error) {
     // Log failed attachment
     const err = error instanceof Error ? error : new Error(String(error));
+    console.error('═══════════════════════════════════════════════════');
+    console.error('[Attachment] ✗✗✗ ATTACHMENT PROCESSING FAILED ✗✗✗');
+    console.error('[Attachment] Error:', err.message);
+    console.error('[Attachment] Stack:', err.stack);
+    console.error('═══════════════════════════════════════════════════');
+
     await logFailedAttachment({
       message_id: messageId,
       original_url: fonnteUrl,
