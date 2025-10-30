@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -44,10 +44,15 @@ export const UserRoleManager = ({
   onRoleAssigned,
 }: UserRoleManagerProps) => {
   const { toast } = useToast();
-  const [selectedRole, setSelectedRole] = useState<"admin" | "member" | "viewer">(
-    (user.role as "admin" | "member" | "viewer") || "member"
-  );
+  const [selectedRole, setSelectedRole] = useState<"admin" | "member" | "viewer">("member");
   const [loading, setLoading] = useState(false);
+
+  // Update selected role when user prop changes or dialog opens
+  useEffect(() => {
+    if (open && user.role) {
+      setSelectedRole(user.role as "admin" | "member" | "viewer");
+    }
+  }, [open, user.role]);
 
   const handleAssignRole = async () => {
     if (!selectedRole) {

@@ -86,20 +86,32 @@ const Users = () => {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+        console.error("Error fetching profiles:", profilesError);
+        throw profilesError;
+      }
 
       const { data: roles, error: rolesError } = await supabase
         .from('user_roles')
         .select('user_id, role');
 
-      if (rolesError) throw rolesError;
+      if (rolesError) {
+        console.error("Error fetching roles:", rolesError);
+        throw rolesError;
+      }
+
+      console.log("Fetched roles:", roles);
+      console.log("Fetched profiles:", profiles);
 
       const roleMap = new Map(roles?.map(r => [r.user_id, r.role]) || []);
+      console.log("Role map:", Array.from(roleMap.entries()));
 
       const usersWithRoles = profiles?.map(profile => ({
         ...profile,
         role: roleMap.get(profile.id) || null,
       })) || [];
+
+      console.log("Users with roles:", usersWithRoles);
 
       setUsers(usersWithRoles);
       setFilteredUsers(usersWithRoles);
