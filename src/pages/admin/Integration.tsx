@@ -1,5 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import Dashboard from "./Dashboard";
+import { useToast as useToastHook } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApiKeyManager } from "@/components/admin/ApiKeyManager";
 import { FieldConfigManager } from "@/components/admin/FieldConfigManager";
@@ -15,6 +18,43 @@ import { Copy, Check, Code, Key, BookOpen, ChevronDown, Settings, FileCode, Mess
 import { useToast } from "@/hooks/use-toast";
 
 const Integration = () => {
+  const navigate = useNavigate();
+  const { toast } = useToastHook();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    checkAccess();
+  }, []);
+
+  const checkAccess = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      navigate('/auth');
+      return;
+    }
+
+    const { data: roleData } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', session.user.id)
+      .in('role', ['admin', 'owner'])
+      .single();
+
+    if (!roleData) {
+      toast({
+        title: "Akses Ditolak",
+        description: "Hanya admin yang dapat mengakses pengaturan integrasi.",
+        variant: "destructive",
+      });
+      navigate('/admin/dashboard');
+      return;
+    }
+
+    setIsAdmin(true);
+    setLoading(false);
+  };
   const [copied, setCopied] = useState<string | null>(null);
   const [configOpen, setConfigOpen] = useState(true);
   const [fieldConfigOpen, setFieldConfigOpen] = useState(true);
@@ -23,7 +63,6 @@ const Integration = () => {
   const [responsesOpen, setResponsesOpen] = useState(false);
   const [flowiseOpen, setFlowiseOpen] = useState(false);
   const [fonnteOpen, setFonnteOpen] = useState(false);
-  const { toast } = useToast();
 
   const apiEndpoint = "https://ykaawgnggvwleiyzvilf.supabase.co/functions/v1/submit-report";
   
@@ -192,6 +231,20 @@ try {
     echo "Error: " . $e->getMessage();
 }
 ?>`;
+
+  if (loading) {
+    return (
+      <Dashboard>
+        <div className="flex items-center justify-center h-full">
+          <div className="text-lg">Memuat...</div>
+        </div>
+      </Dashboard>
+    );
+  }
+
+  if (!isAdmin) {
+    return null;
+  }
 
   return (
     <Dashboard>

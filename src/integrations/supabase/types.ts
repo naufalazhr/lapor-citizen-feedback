@@ -602,6 +602,13 @@ export type Database = {
       }
     }
     Functions: {
+      assign_user_role: {
+        Args: {
+          new_role: Database["public"]["Enums"]["app_role"]
+          target_user_id: string
+        }
+        Returns: Json
+      }
       generate_ticket_id: { Args: never; Returns: string }
       has_role: {
         Args: {

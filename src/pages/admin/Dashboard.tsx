@@ -13,7 +13,7 @@ interface DashboardProps {
 
 const Dashboard = ({ children }: DashboardProps) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [hasRole, setHasRole] = useState(false);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -25,7 +25,7 @@ const Dashboard = ({ children }: DashboardProps) => {
         navigate("/auth");
       } else {
         setUser(session.user);
-        checkAdminRole(session.user.id);
+        checkUserRole(session.user.id);
       }
     });
 
@@ -41,23 +41,22 @@ const Dashboard = ({ children }: DashboardProps) => {
     }
 
     setUser(session.user);
-    await checkAdminRole(session.user.id);
+    await checkUserRole(session.user.id);
     setLoading(false);
   };
 
-  const checkAdminRole = async (userId: string) => {
+  const checkUserRole = async (userId: string) => {
     const { data, error } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
-      .eq("role", "admin")
       .single();
 
     if (error || !data) {
-      setIsAdmin(false);
-      navigate("/");
+      setHasRole(false);
+      navigate("/auth");
     } else {
-      setIsAdmin(true);
+      setHasRole(true);
     }
   };
 
@@ -69,7 +68,7 @@ const Dashboard = ({ children }: DashboardProps) => {
     );
   }
 
-  if (!isAdmin) {
+  if (!hasRole) {
     return null;
   }
 
