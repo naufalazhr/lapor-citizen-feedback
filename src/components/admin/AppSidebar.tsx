@@ -53,12 +53,31 @@ export function AppSidebar() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    toast({
-      title: "Berhasil keluar",
-      description: "Anda telah keluar dari sistem",
-    });
-    navigate("/auth");
+    try {
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error('Logout error:', error);
+        throw error;
+      }
+
+      toast({
+        title: "Berhasil keluar",
+        description: "Anda telah keluar dari sistem",
+      });
+      
+      // Clear any local storage
+      localStorage.clear();
+      
+      // Navigate to auth page
+      navigate("/auth", { replace: true });
+    } catch (error: any) {
+      toast({
+        title: "Gagal keluar",
+        description: error.message || "Terjadi kesalahan saat keluar",
+        variant: "destructive",
+      });
+    }
   };
 
   const isActive = (path: string) => location.pathname === path;
