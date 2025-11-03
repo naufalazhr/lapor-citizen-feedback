@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Dashboard from "./Dashboard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { MessageSquare, Search, RefreshCw, Phone, Calendar, Filter } from "lucide-react";
+import { MessageSquare, Search, RefreshCw, Phone, Calendar, Filter, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
@@ -82,6 +83,7 @@ const Conversations = () => {
   const [channelFilter, setChannelFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const fetchConversations = async () => {
     try {
@@ -188,6 +190,10 @@ const Conversations = () => {
     setSelectedConversation(conversation);
     setDialogOpen(true);
     fetchMessages(conversation.id);
+  };
+
+  const handleViewReport = (reportId: string) => {
+    navigate(`/admin/reports/${reportId}`);
   };
 
   useEffect(() => {
@@ -358,13 +364,26 @@ const Conversations = () => {
                           {new Date(conversation.started_at).toLocaleDateString()}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleViewConversation(conversation)}
-                          >
-                            View Messages
-                          </Button>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleViewConversation(conversation)}
+                            >
+                              <MessageSquare className="h-4 w-4 mr-2" />
+                              View Messages
+                            </Button>
+                            {conversation.report_id && (
+                              <Button
+                                size="sm"
+                                variant="default"
+                                onClick={() => handleViewReport(conversation.report_id!)}
+                              >
+                                <FileText className="h-4 w-4 mr-2" />
+                                View Report
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
