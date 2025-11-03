@@ -91,7 +91,8 @@ const Integration = () => {
     "geo_location": {
       "lat": -6.2088,
       "lng": 106.8456
-    }
+    },
+    "session_id": "uuid-from-flowise"
   }'`;
 
   const javascriptExample = `// Using fetch API
@@ -110,7 +111,8 @@ const submitReport = async (reportData) => {
         description: reportData.description,
         type: 'lapor', // or 'aspirasi'
         photo_url: reportData.photoUrl || null,
-        geo_location: reportData.location || null
+        geo_location: reportData.location || null,
+        session_id: reportData.sessionId || null  // Optional, recommended for exact matching
       })
     });
 
@@ -157,7 +159,8 @@ def submit_report(report_data):
         'description': report_data['description'],
         'type': 'lapor',  # or 'aspirasi'
         'photo_url': report_data.get('photo_url'),
-        'geo_location': report_data.get('location')
+        'geo_location': report_data.get('location'),
+        'session_id': report_data.get('session_id')  # Optional, recommended
     }
     
     try:
@@ -194,7 +197,8 @@ function submitReport($reportData) {
         'description' => $reportData['description'],
         'type' => 'lapor', // or 'aspirasi'
         'photo_url' => $reportData['photo_url'] ?? null,
-        'geo_location' => $reportData['location'] ?? null
+        'geo_location' => $reportData['location'] ?? null,
+        'session_id' => $reportData['session_id'] ?? null  // Optional, recommended
     );
     
     $options = array(

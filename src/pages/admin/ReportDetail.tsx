@@ -43,31 +43,63 @@ const ReportDetail = () => {
   const [internalNote, setInternalNote] = useState("");
   const { toast } = useToast();
 
+  console.log("🎨 ReportDetail render - ID:", id, "Loading:", loading, "Report:", report ? "exists" : "null");
+
   useEffect(() => {
+    console.log("🚀 ReportDetail component mounted/updated. ID:", id);
     if (id) {
       fetchReport();
+    } else {
+      console.error("❌ No ID provided in URL params");
     }
   }, [id]);
 
   const fetchReport = async () => {
+    console.log("🔍 Fetching report with ID:", id);
     setLoading(true);
-    const { data, error } = await supabase
-      .from("reports")
-      .select("*")
-      .eq("id", id)
-      .single();
 
-    if (error) {
+    try {
+      const { data, error } = await supabase
+        .from("reports")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      console.log("📊 Query result:", { data, error });
+
+      if (error) {
+        console.error("❌ Error fetching report:", error);
+        toast({
+          title: "Gagal mengambil data laporan",
+          description: error.message,
+          variant: "destructive",
+        });
+        setReport(null);
+        setLoading(false);
+        // Don't navigate away immediately, show error state
+        return;
+      }
+
+      if (!data) {
+        console.warn("⚠️ No data returned for report ID:", id);
+        setReport(null);
+        setLoading(false);
+        return;
+      }
+
+      console.log("✅ Report fetched successfully:", data);
+      setReport(data as unknown as Report);
+    } catch (error) {
+      console.error("💥 Unexpected error in fetchReport:", error);
       toast({
-        title: "Gagal mengambil data laporan",
-        description: error.message,
+        title: "Terjadi kesalahan",
+        description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
-      navigate("/admin/reports");
-    } else {
-      setReport(data as unknown as Report);
+      setReport(null);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const updateStatus = async (status: "pending" | "in_progress" | "resolved" | "rejected") => {
@@ -182,10 +214,18 @@ const ReportDetail = () => {
   }
 
   if (!report) {
+    console.log("⚠️ Rendering 'not found' state. Report is null. ID:", id);
     return (
       <Dashboard>
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Laporan tidak ditemukan</p>
+        <div className="text-center py-12 space-y-4">
+          <p className="text-xl font-semibold text-muted-foreground">Laporan tidak ditemukan</p>
+          <p className="text-sm text-muted-foreground">ID: {id}</p>
+          <div className="text-xs text-muted-foreground bg-muted p-4 rounded-lg max-w-md mx-auto">
+            <p className="font-mono">Silakan periksa console browser (F12) untuk detail error</p>
+          </div>
+          <Button onClick={() => navigate("/admin/reports")} variant="outline">
+            Kembali ke Daftar Laporan
+          </Button>
         </div>
       </Dashboard>
     );

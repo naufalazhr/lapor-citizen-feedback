@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(sed:*)",
-      "Bash(git -C \"c:\\Users\\yugie\\lapor ai\\lapor-citizen-feedback\" diff supabase/migrations/20251029191633_create_conversation_system.sql)"
+      "Bash(git -C \"c:\\Users\\yugie\\lapor ai\\lapor-citizen-feedback\" diff supabase/migrations/20251029191633_create_conversation_system.sql)",
+      "Bash(mv:*)"
     ],
     "deny": [],
     "ask": []

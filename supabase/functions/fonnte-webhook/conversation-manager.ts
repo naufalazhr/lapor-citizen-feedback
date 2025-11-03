@@ -70,6 +70,43 @@ export async function findOrCreateConversation(
     return updated as Conversation;
   }
 
+  // CONDITION 1: No active conversation found within timeout
+  // Before creating new session, mark any old active conversations as ABANDONED
+  // This handles conversations that timed out without creating a report
+  try {
+    const { data: oldConversations, error: oldError } = await supabase
+      .from('conversations')
+      .select('id, report_id')
+      .eq('phone_number', phoneNumber)
+      .eq('status', 'active')
+      .lt('last_message_at', cutoffTime); // Older than timeout
+
+    if (oldConversations && oldConversations.length > 0 && !oldError) {
+      for (const oldConv of oldConversations) {
+        // If it has a report, it should be completed (defensive check)
+        // Otherwise, it's abandoned
+        const newStatus = oldConv.report_id ? 'completed' : 'abandoned';
+
+        const { error: updateError } = await supabase
+          .from('conversations')
+          .update({
+            status: newStatus,
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', oldConv.id);
+
+        if (updateError) {
+          console.error(`Failed to mark conversation as ${newStatus}:`, updateError);
+        } else {
+          console.log(`✓ Marked old conversation as '${newStatus}':`, oldConv.id);
+        }
+      }
+    }
+  } catch (cleanupError) {
+    // Don't fail the webhook if cleanup fails
+    console.error('Error during conversation cleanup:', cleanupError);
+  }
+
   // Create new session
   // Initial session_id is temporary - will be replaced with Flowise's sessionId after first API call
   const temporarySessionId = `temp_${phoneNumber}_${Date.now()}`;
