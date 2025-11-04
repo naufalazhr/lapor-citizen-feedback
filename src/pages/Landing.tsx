@@ -10,24 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import heroIllustration from "@/assets/hero-reporting-illustration.png";
 
 const Landing = () => {
-  const [loginConfig, setLoginConfig] = useState<{ login_title: string; logo_url: string | null } | null>(null);
-
-  useEffect(() => {
-    const fetchLoginConfig = async () => {
-      const { data } = await supabase
-        .from("login_config")
-        .select("login_title, logo_url")
-        .limit(1)
-        .maybeSingle();
-      
-      if (data) {
-        setLoginConfig(data);
-      }
-    };
-    fetchLoginConfig();
-  }, []);
-
-  const platformName = loginConfig?.login_title || "Portal Lapor";
+  const platformName = "Portal Lapor";
 
   return (
     <div className="min-h-screen bg-background">
@@ -35,13 +18,6 @@ const Landing = () => {
       <nav className="border-b border-border bg-card/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {loginConfig?.logo_url && (
-              <img 
-                src={loginConfig.logo_url} 
-                alt="Logo" 
-                className="h-8 w-8 object-contain"
-              />
-            )}
             <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-primary to-primary-light bg-clip-text text-transparent">
               {platformName}
             </h1>
@@ -95,7 +71,7 @@ const Landing = () => {
                   </Button>
                 </Link>
                 <Link to="/auth">
-                  <Button size="lg" variant="outline" className="w-full sm:w-auto border-primary-foreground/20 hover:bg-primary-foreground/10 text-primary-foreground">
+                  <Button size="lg" variant="outline" className="w-full sm:w-auto bg-transparent border-2 border-primary-foreground text-primary-foreground hover:bg-primary-foreground hover:text-primary">
                     <BarChart3 className="h-5 w-5 mr-2" />
                     Live Dashboard
                   </Button>
@@ -406,13 +382,6 @@ const Landing = () => {
             {/* Brand */}
             <div className="md:col-span-2">
               <div className="flex items-center gap-3 mb-4">
-                {loginConfig?.logo_url && (
-                  <img 
-                    src={loginConfig.logo_url} 
-                    alt="Logo" 
-                    className="h-8 w-8 object-contain"
-                  />
-                )}
                 <h3 className="text-xl font-bold bg-gradient-to-r from-primary to-primary-light bg-clip-text text-transparent">
                   {platformName}
                 </h3>
