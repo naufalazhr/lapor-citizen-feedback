@@ -2,9 +2,21 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { 
-  Shield, MessageSquare, BarChart3, Clock, CheckCircle2, Users, 
-  Smartphone, TrendingUp, Bell, XCircle, Zap, Eye, FileText, MapPin
+import {
+  Shield,
+  MessageSquare,
+  BarChart3,
+  Clock,
+  CheckCircle2,
+  Users,
+  Smartphone,
+  TrendingUp,
+  Bell,
+  XCircle,
+  Zap,
+  Eye,
+  FileText,
+  MapPin,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import heroIllustration from "@/assets/hero-reporting-illustration.png";
@@ -51,27 +63,33 @@ const Landing = () => {
                   🇮🇩 Platform Laporan & Aspirasi Warga
                 </span>
               </div>
-              
+
               <h2 className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold leading-tight">
                 Revolusi Sistem
-                <span className="block text-secondary mt-2">
-                  Pelaporan Warga
-                </span>
+                <span className="block text-secondary mt-2">Pelaporan Warga</span>
               </h2>
-              
+
               <p className="text-lg md:text-xl text-primary-foreground/80 max-w-xl leading-relaxed">
-                Asisten AI menghubungkan pekerja lapangan dengan pengambil keputusan melalui sistem pelaporan otomatis 24/7
+                Asisten AI menghubungkan pekerja lapangan dengan pengambil keputusan melalui sistem pelaporan otomatis
+                24/7
               </p>
-              
+
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 pt-2">
                 <Link to="/lapor">
-                  <Button size="lg" className="w-full sm:w-auto bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg hover:shadow-xl transition-all">
+                  <Button
+                    size="lg"
+                    className="w-full sm:w-auto bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg hover:shadow-xl transition-all"
+                  >
                     <Smartphone className="h-5 w-5 mr-2" />
                     Coba AI Assistant
                   </Button>
                 </Link>
                 <Link to="/auth">
-                  <Button size="lg" variant="outline" className="w-full sm:w-auto bg-transparent border-2 border-primary-foreground text-primary-foreground hover:bg-primary-foreground hover:text-primary">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="w-full sm:w-auto bg-transparent border-2 border-primary-foreground text-primary-foreground hover:bg-primary-foreground hover:text-primary"
+                  >
                     <BarChart3 className="h-5 w-5 mr-2" />
                     Live Dashboard
                   </Button>
@@ -98,9 +116,9 @@ const Landing = () => {
             {/* Right Column - Illustration */}
             <div className="relative animate-fade-in lg:block hidden">
               <div className="relative z-10">
-                <img 
-                  src={heroIllustration} 
-                  alt="Citizen Reporting Platform" 
+                <img
+                  src={heroIllustration}
+                  alt="Citizen Reporting Platform"
                   className="w-full h-auto drop-shadow-2xl"
                 />
               </div>
@@ -114,12 +132,8 @@ const Landing = () => {
       <section className="container mx-auto px-4 py-16 md:py-20">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <h3 className="text-3xl md:text-4xl font-bold mb-4">
-              Lihat Dampak Nyata Sistem Pelaporan Cerdas
-            </h3>
-            <p className="text-muted-foreground text-lg">
-              Transformasi dari proses manual ke otomasi yang efisien
-            </p>
+            <h3 className="text-3xl md:text-4xl font-bold mb-4">Lihat Dampak Nyata Sistem Pelaporan Cerdas</h3>
+            <p className="text-muted-foreground text-lg">Transformasi dari proses manual ke otomasi yang efisien</p>
           </div>
 
           <div className="grid md:grid-cols-2 gap-6 md:gap-8">
@@ -137,21 +151,27 @@ const Landing = () => {
                     <XCircle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
                     <div>
                       <div className="font-semibold text-foreground">Form Kertas Manual</div>
-                      <div className="text-sm text-muted-foreground">Proses pelaporan memakan waktu dan rentan kesalahan</div>
+                      <div className="text-sm text-muted-foreground">
+                        Proses pelaporan memakan waktu dan rentan kesalahan
+                      </div>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
                     <XCircle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
                     <div>
                       <div className="font-semibold text-foreground">Respons Tertunda</div>
-                      <div className="text-sm text-muted-foreground">Masalah tereskalasi sebelum mencapai pengambil keputusan</div>
+                      <div className="text-sm text-muted-foreground">
+                        Masalah tereskalasi sebelum mencapai pengambil keputusan
+                      </div>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
                     <XCircle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
                     <div>
                       <div className="font-semibold text-foreground">Pengawasan Terbatas</div>
-                      <div className="text-sm text-muted-foreground">Tidak ada visibilitas real-time terhadap operasi lapangan</div>
+                      <div className="text-sm text-muted-foreground">
+                        Tidak ada visibilitas real-time terhadap operasi lapangan
+                      </div>
                     </div>
                   </li>
                 </ul>
@@ -172,7 +192,9 @@ const Landing = () => {
                     <CheckCircle2 className="h-5 w-5 text-success mt-0.5 flex-shrink-0" />
                     <div>
                       <div className="font-semibold text-foreground">Laporan Digital Instan</div>
-                      <div className="text-sm text-muted-foreground">WhatsApp-native dengan ekstraksi data AI otomatis</div>
+                      <div className="text-sm text-muted-foreground">
+                        WhatsApp-native dengan ekstraksi data AI otomatis
+                      </div>
                     </div>
                   </li>
                   <li className="flex items-start gap-3">
@@ -186,7 +208,9 @@ const Landing = () => {
                     <CheckCircle2 className="h-5 w-5 text-success mt-0.5 flex-shrink-0" />
                     <div>
                       <div className="font-semibold text-foreground">Transparansi Penuh</div>
-                      <div className="text-sm text-muted-foreground">Dashboard tingkat gubernur dengan bukti yang dapat diverifikasi</div>
+                      <div className="text-sm text-muted-foreground">
+                        Dashboard tingkat gubernur dengan bukti yang dapat diverifikasi
+                      </div>
                     </div>
                   </li>
                 </ul>
@@ -202,9 +226,7 @@ const Landing = () => {
           <div className="max-w-6xl mx-auto">
             <div className="text-center mb-12">
               <h3 className="text-3xl md:text-4xl font-bold mb-4">Fitur Unggulan</h3>
-              <p className="text-muted-foreground text-lg">
-                Solusi lengkap untuk manajemen laporan dan aspirasi warga
-              </p>
+              <p className="text-muted-foreground text-lg">Solusi lengkap untuk manajemen laporan dan aspirasi warga</p>
             </div>
 
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -289,9 +311,7 @@ const Landing = () => {
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
             <h3 className="text-3xl md:text-4xl font-bold mb-4">Kategori Pelaporan</h3>
-            <p className="text-muted-foreground text-lg">
-              Sistem kami mendukung berbagai jenis laporan warga
-            </p>
+            <p className="text-muted-foreground text-lg">Sistem kami mendukung berbagai jenis laporan warga</p>
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -301,9 +321,7 @@ const Landing = () => {
                   <MapPin className="h-8 w-8 text-primary" />
                 </div>
                 <h4 className="font-semibold text-lg mb-2">Kondisi Real-Time</h4>
-                <p className="text-sm text-muted-foreground">
-                  Laporan kondisi infrastruktur dan fasilitas publik
-                </p>
+                <p className="text-sm text-muted-foreground">Laporan kondisi infrastruktur dan fasilitas publik</p>
               </CardContent>
             </Card>
 
@@ -313,9 +331,7 @@ const Landing = () => {
                   <TrendingUp className="h-8 w-8 text-primary" />
                 </div>
                 <h4 className="font-semibold text-lg mb-2">Analisis Trend</h4>
-                <p className="text-sm text-muted-foreground">
-                  Identifikasi pola dan tren masalah yang berulang
-                </p>
+                <p className="text-sm text-muted-foreground">Identifikasi pola dan tren masalah yang berulang</p>
               </CardContent>
             </Card>
 
@@ -337,9 +353,7 @@ const Landing = () => {
                   <FileText className="h-8 w-8 text-primary" />
                 </div>
                 <h4 className="font-semibold text-lg mb-2">Dokumentasi</h4>
-                <p className="text-sm text-muted-foreground">
-                  Arsip lengkap dengan foto dan lokasi GPS
-                </p>
+                <p className="text-sm text-muted-foreground">Arsip lengkap dengan foto dan lokasi GPS</p>
               </CardContent>
             </Card>
           </div>
@@ -351,22 +365,28 @@ const Landing = () => {
         <div className="absolute inset-0 bg-grid-white/[0.05] bg-[size:60px_60px]" />
         <div className="container mx-auto px-4 relative">
           <div className="max-w-4xl mx-auto text-center space-y-6">
-            <h3 className="text-3xl md:text-4xl lg:text-5xl font-bold">
-              Siap Melayani Warga Lebih Baik?
-            </h3>
+            <h3 className="text-3xl md:text-4xl lg:text-5xl font-bold">Siap Melayani Warga Lebih Baik?</h3>
             <p className="text-lg md:text-xl text-primary-foreground/80 max-w-2xl mx-auto leading-relaxed">
-              Bergabunglah dengan institusi pemerintah dan organisasi lainnya yang telah menggunakan platform kami untuk meningkatkan layanan publik
+              Bergabunglah dengan institusi pemerintah dan organisasi lainnya yang telah menggunakan platform kami untuk
+              meningkatkan layanan publik
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
               <Link to="/lapor">
-                <Button size="lg" className="w-full sm:w-auto bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg">
+                <Button
+                  size="lg"
+                  className="w-full sm:w-auto bg-secondary hover:bg-secondary/90 text-secondary-foreground shadow-lg"
+                >
                   <MessageSquare className="h-5 w-5 mr-2" />
                   Buat Laporan Sekarang
                 </Button>
               </Link>
               <Link to="/auth">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto border-primary-foreground/20 hover:bg-primary-foreground/10 text-primary-foreground">
-                  <Shield className="h-5 w-5 mr-2" />
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="w-full sm:w-auto bg-transparent border-2 border-primary-foreground text-primary-foreground hover:bg-primary-foreground hover:text-primary"
+                >
+                  <BarChart3 className="h-5 w-5 mr-2" />
                   Login sebagai Admin
                 </Button>
               </Link>
