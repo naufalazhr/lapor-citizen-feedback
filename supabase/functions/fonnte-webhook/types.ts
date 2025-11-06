@@ -29,7 +29,9 @@ export interface FonnteWebhookPayload {
   isgroup?: boolean;        // Is group message
 
   // Location data
-  location?: {
+  // Fonnte sends as STRING: "-6.123456,107.123456"
+  // Or potentially as object: { latitude: number, longitude: number }
+  location?: string | {
     latitude: number;
     longitude: number;
   };
@@ -257,6 +259,10 @@ export function normalizeFonntePayload(payload: FonnteWebhookPayload): {
   filename?: string;
   extension?: string;
   hasAttachment: boolean;
+  location?: {
+    lat: number;
+    lng: number;
+  };
 } {
   // Get message text from multiple possible fields
   const messageText = payload.message || payload.pesan || payload.text || '';
@@ -274,6 +280,40 @@ export function normalizeFonntePayload(payload: FonnteWebhookPayload): {
     finalFilename = urlFilename || `attachment_${Date.now()}.${payload.extension || 'file'}`;
   }
 
+  // Extract and convert location data from Fonnte format to database format
+  // Fonnte sends: STRING "-6.123456,107.123456" OR OBJECT { latitude, longitude }
+  // Database expects: { lat, lng }
+  let geoLocation: { lat: number; lng: number } | undefined;
+
+  if (payload.location) {
+    if (typeof payload.location === 'string') {
+      // Parse string format: "lat,lng"
+      // Example: "-6.932582378387451,107.66425323486328"
+      const parts = payload.location.split(',');
+      if (parts.length === 2) {
+        const lat = parseFloat(parts[0].trim());
+        const lng = parseFloat(parts[1].trim());
+
+        // Validate parsed numbers
+        if (!isNaN(lat) && !isNaN(lng)) {
+          geoLocation = { lat, lng };
+        } else {
+          console.warn('⚠️ Failed to parse location string - invalid numbers:', payload.location);
+        }
+      } else {
+        console.warn('⚠️ Failed to parse location string - wrong format:', payload.location);
+      }
+    } else if (typeof payload.location === 'object' && 'latitude' in payload.location && 'longitude' in payload.location) {
+      // Support object format (if Fonnte changes format in future)
+      const lat = parseFloat(String(payload.location.latitude));
+      const lng = parseFloat(String(payload.location.longitude));
+
+      if (!isNaN(lat) && !isNaN(lng)) {
+        geoLocation = { lat, lng };
+      }
+    }
+  }
+
   return {
     sender: senderPhone,
     device: payload.device,
@@ -282,6 +322,7 @@ export function normalizeFonntePayload(payload: FonnteWebhookPayload): {
     url: payload.url,
     filename: finalFilename,
     extension: payload.extension,
-    hasAttachment: !!(payload.url && payload.extension)
+    hasAttachment: !!(payload.url && payload.extension),
+    location: geoLocation
   };
 }

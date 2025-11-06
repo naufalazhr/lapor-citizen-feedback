@@ -60,6 +60,7 @@ export function buildFlowiseRequest(params: {
   attachment?: AttachmentResult | null;
   senderName?: string;
   phoneNumber: string;
+  location?: { lat: number; lng: number };
 }): FlowiseRequest {
   const {
     userMessage,
@@ -67,7 +68,8 @@ export function buildFlowiseRequest(params: {
     conversationHistory,
     attachment,
     senderName,
-    phoneNumber
+    phoneNumber,
+    location
   } = params;
 
   // Build overrideConfig
@@ -82,10 +84,22 @@ export function buildFlowiseRequest(params: {
     overrideConfig.sessionId = conversation.session_id;
   }
 
-  // Build question with image URL included directly
+  // DEBUG: Log what buildFlowiseRequest received
+  console.log('🔍 DEBUG buildFlowiseRequest RECEIVED:', {
+    hasLocation: !!location,
+    locationValue: location,
+    locationIsObject: location ? typeof location === 'object' : null,
+    locationKeys: location ? Object.keys(location) : null,
+    userMessage,
+    userMessageLength: userMessage.length,
+    hasAttachment: !!attachment
+  });
+
+  // Build question with image URL and location included as text
   // Flowise automatically detects URLs in question field and processes them as images
   let finalQuestion = userMessage;
 
+  // Add attachment URL if present
   if (attachment) {
     // If there's text, append image URL after text
     // If no text (image-only), just use the URL as the question
@@ -95,6 +109,49 @@ export function buildFlowiseRequest(params: {
       finalQuestion = attachment.storageUrl;
     }
   }
+
+  // Add location data as TEXT INPUT (not overrideConfig)
+  // Flowise can read this from the question field
+  // Format: "lat, lng" that Flowise geo_location input can parse
+  if (location) {
+    const locationText = `${location.lat}, ${location.lng}`;
+
+    // If there's existing content (message or attachment), append location with label
+    // If location-only message, send just the coordinates
+    if (finalQuestion && finalQuestion.trim()) {
+      finalQuestion = `${finalQuestion}\n\nLocation: ${locationText}`;
+    } else {
+      finalQuestion = locationText;
+    }
+
+    console.log('📍 Adding location to question text:', {
+      lat: location.lat,
+      lng: location.lng,
+      latType: typeof location.lat,
+      lngType: typeof location.lng,
+      locationTextGenerated: locationText,
+      locationTextLength: locationText.length,
+      finalQuestionPreview: finalQuestion.substring(0, 200),
+      finalQuestionFull: finalQuestion,
+      method: 'Text input (not overrideConfig)',
+      // CRITICAL: Check if decimals are preserved in string
+      precisionCheck: {
+        latHasDecimals: location.lat % 1 !== 0,
+        lngHasDecimals: location.lng % 1 !== 0,
+        textContainsDecimals: locationText.includes('.')
+      }
+    });
+  } else {
+    console.log('⚠️ NO LOCATION to add - location parameter is undefined/null');
+  }
+
+  // DEBUG: Log final question before returning
+  console.log('🔍 DEBUG FINAL QUESTION:', {
+    finalQuestion,
+    finalQuestionLength: finalQuestion.length,
+    containsLocationLabel: finalQuestion.includes('Location:'),
+    containsCoordinates: /(-?\d+\.?\d*),\s*(-?\d+\.?\d*)/.test(finalQuestion)
+  });
 
   return {
     question: finalQuestion,  // Image URL included directly in question
@@ -129,6 +186,7 @@ async function callFlowiseAPI(
     url,
     hasSessionId: !!mergedOverrideConfig.sessionId,
     hasHistory: !!request.history,
+    hasLocation: request.question.includes('Location:') || /^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(request.question.trim()),
     questionPreview: request.question.substring(0, 200) + (request.question.length > 200 ? '...' : '')
   });
 
@@ -140,6 +198,9 @@ async function callFlowiseAPI(
       urlDetected: true
     });
   }
+
+  // DIAGNOSTIC: Log the complete request body being sent to Flowise
+  console.log('📤 FLOWISE REQUEST BODY:', JSON.stringify(requestBody, null, 2));
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), config.timeout_seconds * 1000);

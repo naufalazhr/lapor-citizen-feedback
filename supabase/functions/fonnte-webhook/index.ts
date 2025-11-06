@@ -52,7 +52,28 @@ serve(async (req: Request) => {
     // 1. Parse request payload
     const rawPayload = await req.json() as FonnteWebhookPayload;
 
-    // 2. Normalize Fonnte payload (handles different field name variations)
+    // 2. Log RAW payload from Fonnte to check precision
+    console.log('🔍 RAW FONNTE PAYLOAD:', JSON.stringify(rawPayload, null, 2));
+
+    // Check location precision in raw payload
+    if (rawPayload.location) {
+      if (typeof rawPayload.location === 'string') {
+        console.log('🔍 RAW LOCATION FROM FONNTE (STRING):', {
+          locationString: rawPayload.location,
+          stringLength: rawPayload.location.length,
+          containsComma: rawPayload.location.includes(',')
+        });
+      } else {
+        console.log('🔍 RAW LOCATION FROM FONNTE (OBJECT):', {
+          latitude: rawPayload.location.latitude,
+          longitude: rawPayload.location.longitude,
+          latitudeType: typeof rawPayload.location.latitude,
+          longitudeType: typeof rawPayload.location.longitude
+        });
+      }
+    }
+
+    // 3. Normalize Fonnte payload (handles different field name variations)
     const normalized = normalizeFonntePayload(rawPayload);
     payload = rawPayload; // Keep original for error logging
 
@@ -60,13 +81,36 @@ serve(async (req: Request) => {
       sender: normalized.sender,
       device: normalized.device,
       hasAttachment: normalized.hasAttachment,
+      hasLocation: !!normalized.location,
       messageLength: normalized.message.length,
       // DIAGNOSTIC: Log all attachment-related fields
       attachmentUrl: normalized.url || 'NOT_PROVIDED',
       attachmentFilename: normalized.filename || 'NOT_PROVIDED',
       attachmentExtension: normalized.extension || 'NOT_PROVIDED',
+      // DIAGNOSTIC: Log location data if present
+      locationData: normalized.location ?
+        `${normalized.location.lat}, ${normalized.location.lng}` :
+        'NOT_PROVIDED',
       allPayloadFields: Object.keys(rawPayload)
     });
+
+    // Log location data separately for better visibility
+    if (normalized.location) {
+      console.log('📍 Location data AFTER NORMALIZATION:', {
+        lat: normalized.location.lat,
+        lng: normalized.location.lng,
+        latType: typeof normalized.location.lat,
+        lngType: typeof normalized.location.lng,
+        latAsString: String(normalized.location.lat),
+        lngAsString: String(normalized.location.lng),
+        formatted: `${normalized.location.lat}, ${normalized.location.lng}`,
+        // Check if precision is preserved
+        hasPrecision: {
+          lat: normalized.location.lat % 1 !== 0,
+          lng: normalized.location.lng % 1 !== 0
+        }
+      });
+    }
 
     // 3. Validate required fields
     // IMPORTANT: Allow empty message if there's an attachment (image-only messages)
@@ -74,8 +118,9 @@ serve(async (req: Request) => {
       throw new Error('Missing required fields: sender or device');
     }
 
-    if (!normalized.message && !normalized.hasAttachment) {
-      throw new Error('Message must contain either text or attachment');
+    // Allow messages with: text OR attachment OR location
+    if (!normalized.message && !normalized.hasAttachment && !normalized.location) {
+      throw new Error('Message must contain either text, attachment, or location');
     }
 
     console.log('✓ Payload validation passed:', {
@@ -204,13 +249,25 @@ serve(async (req: Request) => {
     const historyForFlowise = history.slice(0, -1);
 
     // 10. Build Flowise request
+    // DEBUG: Log location status before building request
+    console.log('🔍 DEBUG BEFORE buildFlowiseRequest:', {
+      hasLocation: !!normalized.location,
+      locationValue: normalized.location,
+      locationIsObject: typeof normalized.location === 'object',
+      locationKeys: normalized.location ? Object.keys(normalized.location) : null,
+      messageContent,
+      messageIsNonText: messageContent === 'non-text message',
+      messageLength: messageContent.length
+    });
+
     const flowiseRequest = buildFlowiseRequest({
       userMessage: messageContent, // Use prepared message content (handles image-only messages)
       conversation,
       conversationHistory: historyForFlowise,
       attachment: attachmentResult,
       senderName: normalized.name,
-      phoneNumber: normalized.sender
+      phoneNumber: normalized.sender,
+      location: normalized.location // Pass location data to Flowise
     });
 
     console.log('Calling Flowise API...', {
