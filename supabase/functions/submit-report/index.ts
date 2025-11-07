@@ -7,7 +7,7 @@ const corsHeaders = {
 
 interface ReportPayload {
   reporter_name: string
-  phone: string
+  phone?: string  // Optional: Default value will be applied via api_field_configs
   address: string
   description: string
   type: 'lapor' | 'aspirasi'

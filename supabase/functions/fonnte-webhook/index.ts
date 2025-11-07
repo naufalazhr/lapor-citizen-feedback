@@ -34,6 +34,16 @@ import {
   sendFonnteMessageWithRetry
 } from './fonnte-client.ts';
 
+// =============================================================================
+// Debug Utility
+// =============================================================================
+const isDebugMode = () => Deno.env.get('DEBUG') === 'true';
+const debugLog = (...args: any[]) => {
+  if (isDebugMode()) {
+    console.log(...args);
+  }
+};
+
 console.log('Fonnte Webhook Function Started');
 
 // -----------------------------------------------------------------------------
@@ -52,26 +62,8 @@ serve(async (req: Request) => {
     // 1. Parse request payload
     const rawPayload = await req.json() as FonnteWebhookPayload;
 
-    // 2. Log RAW payload from Fonnte to check precision
-    console.log('🔍 RAW FONNTE PAYLOAD:', JSON.stringify(rawPayload, null, 2));
-
-    // Check location precision in raw payload
-    if (rawPayload.location) {
-      if (typeof rawPayload.location === 'string') {
-        console.log('🔍 RAW LOCATION FROM FONNTE (STRING):', {
-          locationString: rawPayload.location,
-          stringLength: rawPayload.location.length,
-          containsComma: rawPayload.location.includes(',')
-        });
-      } else {
-        console.log('🔍 RAW LOCATION FROM FONNTE (OBJECT):', {
-          latitude: rawPayload.location.latitude,
-          longitude: rawPayload.location.longitude,
-          latitudeType: typeof rawPayload.location.latitude,
-          longitudeType: typeof rawPayload.location.longitude
-        });
-      }
-    }
+    // 2. Debug: Log raw payload (only in DEBUG mode)
+    debugLog('🔍 RAW FONNTE PAYLOAD:', JSON.stringify(rawPayload, null, 2));
 
     // 3. Normalize Fonnte payload (handles different field name variations)
     const normalized = normalizeFonntePayload(rawPayload);
@@ -82,33 +74,21 @@ serve(async (req: Request) => {
       device: normalized.device,
       hasAttachment: normalized.hasAttachment,
       hasLocation: !!normalized.location,
-      messageLength: normalized.message.length,
-      // DIAGNOSTIC: Log all attachment-related fields
-      attachmentUrl: normalized.url || 'NOT_PROVIDED',
-      attachmentFilename: normalized.filename || 'NOT_PROVIDED',
-      attachmentExtension: normalized.extension || 'NOT_PROVIDED',
-      // DIAGNOSTIC: Log location data if present
-      locationData: normalized.location ?
-        `${normalized.location.lat}, ${normalized.location.lng}` :
-        'NOT_PROVIDED',
-      allPayloadFields: Object.keys(rawPayload)
+      messageLength: normalized.message.length
     });
 
-    // Log location data separately for better visibility
+    // Debug: Log detailed attachment and location data (only in DEBUG mode)
+    debugLog('Attachment fields:', {
+      url: normalized.url,
+      filename: normalized.filename,
+      extension: normalized.extension
+    });
+
     if (normalized.location) {
-      console.log('📍 Location data AFTER NORMALIZATION:', {
+      debugLog('📍 Location data:', {
         lat: normalized.location.lat,
         lng: normalized.location.lng,
-        latType: typeof normalized.location.lat,
-        lngType: typeof normalized.location.lng,
-        latAsString: String(normalized.location.lat),
-        lngAsString: String(normalized.location.lng),
-        formatted: `${normalized.location.lat}, ${normalized.location.lng}`,
-        // Check if precision is preserved
-        hasPrecision: {
-          lat: normalized.location.lat % 1 !== 0,
-          lng: normalized.location.lng % 1 !== 0
-        }
+        formatted: `${normalized.location.lat}, ${normalized.location.lng}`
       });
     }
 
@@ -122,13 +102,6 @@ serve(async (req: Request) => {
     if (!normalized.message && !normalized.hasAttachment && !normalized.location) {
       throw new Error('Message must contain either text, attachment, or location');
     }
-
-    console.log('✓ Payload validation passed:', {
-      hasSender: !!normalized.sender,
-      hasDevice: !!normalized.device,
-      hasMessage: !!normalized.message,
-      hasAttachment: normalized.hasAttachment
-    });
 
     // 4. Find or create conversation
     const conversation = await findOrCreateConversation(
@@ -171,20 +144,8 @@ serve(async (req: Request) => {
     let attachmentResult = null;
     let attachmentError = null;
 
-    // DIAGNOSTIC: Log why attachment processing might be skipped
-    console.log('Attachment check:', {
-      hasUrl: !!normalized.url,
-      hasFilename: !!normalized.filename,
-      hasExtension: !!normalized.extension,
-      willProcess: !!(normalized.url && normalized.filename && normalized.extension)
-    });
-
     if (normalized.url && normalized.filename && normalized.extension) {
-      console.log('✓ Starting attachment processing:', {
-        filename: normalized.filename,
-        extension: normalized.extension,
-        url: normalized.url.substring(0, 50) + '...' // Log first 50 chars of URL
-      });
+      console.log('✓ Starting attachment processing:', normalized.filename);
 
       try {
         attachmentResult = await processAttachmentSafe(
@@ -195,13 +156,7 @@ serve(async (req: Request) => {
         );
 
         if (attachmentResult) {
-          // Log attachment processing success (don't save system message to avoid index conflicts)
-          console.log('✓ Attachment processed successfully:', {
-            attachmentId: attachmentResult.id,
-            storageUrl: attachmentResult.storageUrl,
-            method: 'URL in question field',  // URL will be appended to question
-            note: 'Flowise will automatically detect and process URL as image'
-          });
+          console.log('✓ Attachment processed successfully:', attachmentResult.id);
         } else {
           // processAttachmentSafe returned null = silent failure
           console.error('✗ Attachment processing returned null (failed silently)');
@@ -249,17 +204,6 @@ serve(async (req: Request) => {
     const historyForFlowise = history.slice(0, -1);
 
     // 10. Build Flowise request
-    // DEBUG: Log location status before building request
-    console.log('🔍 DEBUG BEFORE buildFlowiseRequest:', {
-      hasLocation: !!normalized.location,
-      locationValue: normalized.location,
-      locationIsObject: typeof normalized.location === 'object',
-      locationKeys: normalized.location ? Object.keys(normalized.location) : null,
-      messageContent,
-      messageIsNonText: messageContent === 'non-text message',
-      messageLength: messageContent.length
-    });
-
     const flowiseRequest = buildFlowiseRequest({
       userMessage: messageContent, // Use prepared message content (handles image-only messages)
       conversation,
@@ -272,9 +216,7 @@ serve(async (req: Request) => {
 
     console.log('Calling Flowise API...', {
       hasHistory: historyForFlowise.length > 0,
-      hasAttachment: !!attachmentResult,
-      hasSessionId: !!flowiseRequest.overrideConfig?.sessionId,
-      messageContent: messageContent.substring(0, 100) // Show first 100 chars
+      hasAttachment: !!attachmentResult
     });
 
     // 11. Call Flowise API with retry

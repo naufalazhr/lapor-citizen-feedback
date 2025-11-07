@@ -8,6 +8,13 @@ import type { FonnteSendResponse } from './types.ts';
 const FONNTE_SEND_API = 'https://api.fonnte.com/send';
 const SEND_TIMEOUT = 10000; // 10 seconds
 
+// Debug utility
+const debugLog = (...args: any[]) => {
+  if (Deno.env.get('DEBUG') === 'true') {
+    console.log(...args);
+  }
+};
+
 // -----------------------------------------------------------------------------
 // Send Message to WhatsApp via Fonnte
 // -----------------------------------------------------------------------------
@@ -18,10 +25,9 @@ export async function sendFonnteMessage(params: {
 }): Promise<FonnteSendResponse> {
   const { target, message, token } = params;
 
-  console.log('Sending message to WhatsApp:', {
-    target: '***' + target.slice(-4), // Redact phone number for security
-    messageLength: message.length,
-    hasToken: !!token
+  debugLog('Sending message to WhatsApp:', {
+    target: '***' + target.slice(-4),
+    messageLength: message.length
   });
 
   // Validate inputs
@@ -56,11 +62,7 @@ export async function sendFonnteMessage(params: {
 
     // Parse response
     const responseText = await response.text();
-    console.log('Fonnte send API response:', {
-      status: response.status,
-      statusText: response.statusText,
-      response: responseText.substring(0, 200) // Truncate for logging
-    });
+    debugLog('Fonnte send API response:', response.status, responseText.substring(0, 100));
 
     let responseData: any;
     try {
@@ -116,12 +118,11 @@ export async function sendFonnteMessageWithRetry(params: {
   const firstAttempt = await sendFonnteMessage(params);
 
   if (firstAttempt.status) {
-    console.log('Fonnte send succeeded on first attempt');
     return firstAttempt;
   }
 
   // If first attempt failed, retry once
-  console.log('Fonnte send failed, retrying...', firstAttempt.error);
+  console.log('Fonnte send failed, retrying...');
   await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
 
   const secondAttempt = await sendFonnteMessage(params);

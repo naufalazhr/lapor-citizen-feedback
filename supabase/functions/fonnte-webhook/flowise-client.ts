@@ -19,6 +19,13 @@ const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 // Create Supabase client with service role
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// Debug utility
+const debugLog = (...args: any[]) => {
+  if (Deno.env.get('DEBUG') === 'true') {
+    console.log(...args);
+  }
+};
+
 // -----------------------------------------------------------------------------
 // Get Active Flowise Configuration
 // -----------------------------------------------------------------------------
@@ -84,17 +91,6 @@ export function buildFlowiseRequest(params: {
     overrideConfig.sessionId = conversation.session_id;
   }
 
-  // DEBUG: Log what buildFlowiseRequest received
-  console.log('🔍 DEBUG buildFlowiseRequest RECEIVED:', {
-    hasLocation: !!location,
-    locationValue: location,
-    locationIsObject: location ? typeof location === 'object' : null,
-    locationKeys: location ? Object.keys(location) : null,
-    userMessage,
-    userMessageLength: userMessage.length,
-    hasAttachment: !!attachment
-  });
-
   // Build question with image URL and location included as text
   // Flowise automatically detects URLs in question field and processes them as images
   let finalQuestion = userMessage;
@@ -124,34 +120,8 @@ export function buildFlowiseRequest(params: {
       finalQuestion = locationText;
     }
 
-    console.log('📍 Adding location to question text:', {
-      lat: location.lat,
-      lng: location.lng,
-      latType: typeof location.lat,
-      lngType: typeof location.lng,
-      locationTextGenerated: locationText,
-      locationTextLength: locationText.length,
-      finalQuestionPreview: finalQuestion.substring(0, 200),
-      finalQuestionFull: finalQuestion,
-      method: 'Text input (not overrideConfig)',
-      // CRITICAL: Check if decimals are preserved in string
-      precisionCheck: {
-        latHasDecimals: location.lat % 1 !== 0,
-        lngHasDecimals: location.lng % 1 !== 0,
-        textContainsDecimals: locationText.includes('.')
-      }
-    });
-  } else {
-    console.log('⚠️ NO LOCATION to add - location parameter is undefined/null');
+    debugLog('📍 Adding location to question:', locationText);
   }
-
-  // DEBUG: Log final question before returning
-  console.log('🔍 DEBUG FINAL QUESTION:', {
-    finalQuestion,
-    finalQuestionLength: finalQuestion.length,
-    containsLocationLabel: finalQuestion.includes('Location:'),
-    containsCoordinates: /(-?\d+\.?\d*),\s*(-?\d+\.?\d*)/.test(finalQuestion)
-  });
 
   return {
     question: finalQuestion,  // Image URL included directly in question
@@ -182,25 +152,14 @@ async function callFlowiseAPI(
     overrideConfig: mergedOverrideConfig
   };
 
-  console.log('Calling Flowise API:', {
-    url,
+  debugLog('Flowise API request:', {
     hasSessionId: !!mergedOverrideConfig.sessionId,
     hasHistory: !!request.history,
-    hasLocation: request.question.includes('Location:') || /^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(request.question.trim()),
-    questionPreview: request.question.substring(0, 200) + (request.question.length > 200 ? '...' : '')
+    questionLength: request.question.length
   });
 
-  // DIAGNOSTIC: Log if question contains image URL
-  if (request.question.includes('https://') && request.question.includes('supabase.co/storage/')) {
-    console.log('🖼️ Image URL detected in question:', {
-      method: 'URL in question field',
-      note: 'Flowise will automatically detect and process the URL as an image',
-      urlDetected: true
-    });
-  }
-
-  // DIAGNOSTIC: Log the complete request body being sent to Flowise
-  console.log('📤 FLOWISE REQUEST BODY:', JSON.stringify(requestBody, null, 2));
+  // Debug: Log full request body only in DEBUG mode
+  debugLog('📤 FLOWISE REQUEST BODY:', JSON.stringify(requestBody, null, 2));
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), config.timeout_seconds * 1000);
@@ -262,37 +221,36 @@ export async function callFlowiseWithRetry(
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const response = await callFlowiseAPI(request, config);
-      console.log('Flowise API success on attempt', attempt);
+      if (attempt > 1) {
+        console.log('Flowise API success on retry attempt', attempt);
+      }
       return { response, config };
 
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       lastError = err;
       console.error(`Flowise API attempt ${attempt} failed:`, err.message);
-      console.error('Full error:', err);
 
       // Don't retry on 4xx errors (client errors - wrong API key, bad request, etc.)
       if (err.message.includes('400') ||
           err.message.includes('401') ||
           err.message.includes('403') ||
           err.message.includes('404')) {
-        // Log the actual error before throwing generic message
-        console.error('4xx error from Flowise API:', err.message);
-        throw err; // Throw the actual error instead of generic message
+        console.error('4xx error from Flowise API - not retrying');
+        throw err;
       }
 
       // Exponential backoff for retries
       if (attempt < maxRetries) {
         const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-        console.log(`Retrying in ${delay}ms...`);
+        debugLog(`Retrying in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
   }
 
   // All retries failed
-  console.error(`Flowise API failed after ${maxRetries} attempts`);
-  console.error('Last error:', lastError);
+  console.error(`Flowise API failed after ${maxRetries} attempts:`, lastError?.message);
   throw lastError || new Error('Unknown error in Flowise API'); // Throw the actual error instead of generic message
 }
 
