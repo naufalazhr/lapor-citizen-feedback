@@ -33,12 +33,19 @@ type Report = {
   status: "pending" | "in_progress" | "resolved" | "rejected";
   created_at: string;
   updated_at: string;
+  session_id: string | null;
+};
+
+type Conversation = {
+  phone_number: string | null; // WhatsApp device number
+  device_number: string | null; // User's actual phone number
 };
 
 const ReportDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [report, setReport] = useState<Report | null>(null);
+  const [conversation, setConversation] = useState<Conversation | null>(null);
   const [loading, setLoading] = useState(true);
   const [internalNote, setInternalNote] = useState("");
   const { toast } = useToast();
@@ -59,36 +66,55 @@ const ReportDetail = () => {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase
+      // Fetch report data
+      const { data: reportData, error: reportError } = await supabase
         .from("reports")
         .select("*")
         .eq("id", id)
         .single();
 
-      console.log("📊 Query result:", { data, error });
+      console.log("📊 Report query result:", { reportData, reportError });
 
-      if (error) {
-        console.error("❌ Error fetching report:", error);
+      if (reportError) {
+        console.error("❌ Error fetching report:", reportError);
         toast({
           title: "Gagal mengambil data laporan",
-          description: error.message,
+          description: reportError.message,
           variant: "destructive",
         });
         setReport(null);
         setLoading(false);
-        // Don't navigate away immediately, show error state
         return;
       }
 
-      if (!data) {
+      if (!reportData) {
         console.warn("⚠️ No data returned for report ID:", id);
         setReport(null);
         setLoading(false);
         return;
       }
 
-      console.log("✅ Report fetched successfully:", data);
-      setReport(data as unknown as Report);
+      console.log("✅ Report fetched successfully:", reportData);
+      const typedReport = reportData as unknown as Report;
+      setReport(typedReport);
+
+      // Fetch conversation data if session_id exists
+      if (typedReport.session_id) {
+        const { data: conversationData, error: conversationError } = await supabase
+          .from("conversations")
+          .select("phone_number, device_number")
+          .eq("session_id", typedReport.session_id)
+          .maybeSingle();
+
+        console.log("📞 Conversation query result:", { conversationData, conversationError });
+
+        if (conversationError) {
+          console.error("⚠️ Error fetching conversation:", conversationError);
+        } else if (conversationData) {
+          console.log("✅ Conversation fetched successfully:", conversationData);
+          setConversation(conversationData);
+        }
+      }
     } catch (error) {
       console.error("💥 Unexpected error in fetchReport:", error);
       toast({
@@ -292,9 +318,19 @@ const ReportDetail = () => {
                   <p className="text-lg font-semibold">{report.reporter_name}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Telepon</p>
-                  <p className="text-lg">{report.phone}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Nomor Pengguna</p>
+                  <p className="text-lg font-mono">
+                    {conversation?.device_number || report.phone || "-"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">Nomor yang diinput pengguna</p>
                 </div>
+                {conversation?.phone_number && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Nomor Device WhatsApp</p>
+                    <p className="text-lg font-mono">{conversation.phone_number}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Nomor device yang menerima pesan</p>
+                  </div>
+                )}
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Alamat</p>
                   <p className="text-base">{report.address}</p>
