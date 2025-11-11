@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Dashboard from "./Dashboard";
+import { useUserRole } from "@/hooks/use-user-role";
 import {
   Table,
   TableBody,
@@ -24,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Trash2, Eye, RefreshCw, Copy, Search, ChevronLeft, ChevronRight, Building2, CheckSquare, Square } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ReportDispositionDialog } from "@/components/admin/ReportDispositionDialog";
+import { OPDMemberReturnDialog } from "@/components/admin/OPDMemberReturnDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Pagination,
@@ -58,6 +60,7 @@ interface OPD {
 
 const Reports = () => {
   const navigate = useNavigate();
+  const { role, isOPDMember, loading: roleLoading } = useUserRole();
   const [reports, setReports] = useState<Report[]>([]);
   const [filteredReports, setFilteredReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,23 +74,63 @@ const Reports = () => {
   const [opdMap, setOpdMap] = useState<Map<string, OPD>>(new Map());
   const [selectedReports, setSelectedReports] = useState<Set<string>>(new Set());
   const [showDispositionDialog, setShowDispositionDialog] = useState(false);
+  const [showReturnDialog, setShowReturnDialog] = useState(false);
+  const [userOpdIds, setUserOpdIds] = useState<string[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchReports();
-    fetchOPDs();
-  }, []);
+    if (!roleLoading) {
+      if (isOPDMember) {
+        // First fetch user OPDs, then reports
+        fetchUserOPDs().then(() => {
+          fetchReports();
+        });
+      } else {
+        fetchReports();
+      }
+      fetchOPDs();
+    }
+  }, [roleLoading, isOPDMember]);
+
+  useEffect(() => {
+    // Refetch reports when userOpdIds changes
+    if (isOPDMember && userOpdIds.length > 0) {
+      fetchReports();
+    }
+  }, [userOpdIds]);
 
   useEffect(() => {
     filterReports();
   }, [reports, searchTerm, statusFilter, typeFilter, opdFilter]);
 
+  const fetchUserOPDs = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const { data, error } = await supabase
+      .from("user_opd_assignments")
+      .select("opd_id")
+      .eq("user_id", session.user.id)
+      .eq("is_active", true);
+
+    if (!error && data) {
+      setUserOpdIds(data.map(assignment => assignment.opd_id));
+    }
+  };
+
   const fetchReports = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    
+    let query = supabase
       .from("reports")
-      .select("*")
-      .order("created_at", { ascending: false });
+      .select("*");
+
+    // Filter for OPD members - only show reports assigned to their OPD(s)
+    if (isOPDMember && userOpdIds.length > 0) {
+      query = query.in("assigned_opd_id", userOpdIds);
+    }
+
+    const { data, error } = await query.order("created_at", { ascending: false });
 
     if (error) {
       toast({
@@ -323,13 +366,24 @@ const Reports = () => {
                 </CardDescription>
               </div>
               {selectedReports.size > 0 && (
-                <Button
-                  onClick={() => setShowDispositionDialog(true)}
-                  className="gap-2"
-                >
-                  <Building2 className="h-4 w-4" />
-                  Disposisikan ({selectedReports.size})
-                </Button>
+                isOPDMember ? (
+                  <Button
+                    onClick={() => setShowReturnDialog(true)}
+                    className="gap-2"
+                    variant="outline"
+                  >
+                    <Building2 className="h-4 w-4" />
+                    Kembalikan ke Member ({selectedReports.size})
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => setShowDispositionDialog(true)}
+                    className="gap-2"
+                  >
+                    <Building2 className="h-4 w-4" />
+                    Disposisikan ({selectedReports.size})
+                  </Button>
+                )
               )}
             </div>
           </CardHeader>
@@ -514,6 +568,20 @@ const Reports = () => {
           .filter((r): r is Report => r !== undefined)}
         onSuccess={() => {
           setShowDispositionDialog(false);
+          setSelectedReports(new Set());
+          fetchReports();
+        }}
+      />
+
+      {/* OPD Member Return Dialog */}
+      <OPDMemberReturnDialog
+        open={showReturnDialog}
+        onOpenChange={setShowReturnDialog}
+        reports={Array.from(selectedReports)
+          .map(id => reports.find(r => r.id === id))
+          .filter((r): r is Report => r !== undefined)}
+        onSuccess={() => {
+          setShowReturnDialog(false);
           setSelectedReports(new Set());
           fetchReports();
         }}

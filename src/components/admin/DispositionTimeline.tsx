@@ -202,7 +202,23 @@ export function DispositionTimeline({ reportId }: DispositionTimelineProps) {
                   {/* OPD Transfer */}
                   <div className="bg-muted/50 p-3 rounded-lg space-y-2">
                     <div className="flex items-center gap-2 flex-wrap">
-                      {entry.previous_opd ? (
+                      {entry.action_type === "return_to_member" ? (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4 text-muted-foreground" />
+                            <Badge variant="outline">
+                              {entry.opd?.code}
+                            </Badge>
+                            <span className="text-sm text-muted-foreground">
+                              {entry.opd?.name}
+                            </span>
+                          </div>
+                          <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium text-primary">
+                            Dikembalikan ke Member
+                          </span>
+                        </>
+                      ) : entry.previous_opd ? (
                         <>
                           <div className="flex items-center gap-2">
                             <Building2 className="h-4 w-4 text-muted-foreground" />
@@ -214,19 +230,29 @@ export function DispositionTimeline({ reportId }: DispositionTimelineProps) {
                             </span>
                           </div>
                           <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4 text-primary" />
+                            <Badge variant="default">{entry.opd?.code}</Badge>
+                            <span className="text-sm font-medium">
+                              {entry.opd?.name}
+                            </span>
+                          </div>
                         </>
                       ) : (
-                        <span className="text-sm text-muted-foreground">
-                          Disposisi Awal
-                        </span>
+                        <>
+                          <span className="text-sm text-muted-foreground">
+                            Disposisi Awal
+                          </span>
+                          <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4 text-primary" />
+                            <Badge variant="default">{entry.opd?.code}</Badge>
+                            <span className="text-sm font-medium">
+                              {entry.opd?.name}
+                            </span>
+                          </div>
+                        </>
                       )}
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-primary" />
-                        <Badge variant="default">{entry.opd?.code}</Badge>
-                        <span className="text-sm font-medium">
-                          {entry.opd?.name}
-                        </span>
-                      </div>
                     </div>
 
                     {/* Status change */}

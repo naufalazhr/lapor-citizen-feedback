@@ -1,0 +1,237 @@
+import { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
+import { AlertTriangle } from "lucide-react";
+
+const returnFormSchema = z.object({
+  notes: z.string().min(1, "Catatan wajib diisi"),
+});
+
+type ReturnFormValues = z.infer<typeof returnFormSchema>;
+
+interface Report {
+  id: string;
+  ticket_id: string;
+  status: string;
+  assigned_opd_id: string | null;
+}
+
+interface OPDMemberReturnDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  reports: Report[];
+  onSuccess: () => void;
+}
+
+export function OPDMemberReturnDialog({
+  open,
+  onOpenChange,
+  reports,
+  onSuccess,
+}: OPDMemberReturnDialogProps) {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [tenantId, setTenantId] = useState<string | null>(null);
+
+  const form = useForm<ReturnFormValues>({
+    resolver: zodResolver(returnFormSchema),
+    defaultValues: {
+      notes: "",
+    },
+  });
+
+  useEffect(() => {
+    if (open) {
+      fetchTenantId();
+      form.reset({ notes: "" });
+    }
+  }, [open]);
+
+  const fetchTenantId = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const { data } = await supabase
+      .from("profiles")
+      .select("tenant_id")
+      .eq("id", session.user.id)
+      .single();
+
+    if (data) {
+      setTenantId(data.tenant_id);
+    }
+  };
+
+  const onSubmit = async (values: ReturnFormValues) => {
+    if (!tenantId) {
+      toast({
+        title: "Error",
+        description: "Tenant ID tidak ditemukan",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      // Process each report
+      for (const report of reports) {
+        if (!report.assigned_opd_id) {
+          console.warn(`Report ${report.id} has no assigned OPD, skipping`);
+          continue;
+        }
+
+        // Update report: Clear OPD assignment
+        const { error: updateError } = await supabase
+          .from("reports")
+          .update({
+            assigned_opd_id: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", report.id);
+
+        if (updateError) throw updateError;
+
+        // Create disposition record - recording the return action
+        const { error: dispositionError } = await supabase
+          .from("report_dispositions")
+          .insert({
+            report_id: report.id,
+            opd_id: report.assigned_opd_id, // The OPD from which it's being returned
+            previous_opd_id: report.assigned_opd_id, // Same as opd_id for return actions
+            assigned_by: session.user.id,
+            notes: values.notes,
+            status_before: report.status,
+            status_after: report.status,
+            action_type: "return_to_member",
+            tenant_id: tenantId,
+          });
+
+        if (dispositionError) throw dispositionError;
+      }
+
+      toast({
+        title: "Berhasil",
+        description: `${reports.length} laporan berhasil dikembalikan ke Member`,
+      });
+
+      onSuccess();
+      onOpenChange(false);
+      form.reset();
+    } catch (error: any) {
+      console.error("Error returning reports:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Gagal mengembalikan laporan",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[525px]">
+        <DialogHeader>
+          <DialogTitle>Kembalikan Laporan ke Member</DialogTitle>
+          <DialogDescription>
+            Kembalikan laporan yang dipilih kembali ke pool Member untuk ditindaklanjuti
+          </DialogDescription>
+        </DialogHeader>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Warning Alert */}
+            <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="font-medium text-amber-900 dark:text-amber-100 mb-1">
+                    Perhatian
+                  </h4>
+                  <p className="text-sm text-amber-700 dark:text-amber-300">
+                    Laporan akan dikembalikan ke pool Member dan status OPD akan dihapus. 
+                    Member dapat melakukan disposisi ulang.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Selected Reports */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Laporan yang Dipilih:</label>
+              <div className="flex flex-wrap gap-2">
+                {reports.map((report) => (
+                  <Badge key={report.id} variant="secondary">
+                    {report.ticket_id}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+
+            {/* Notes Field - Required */}
+            <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Catatan Pengembalian <span className="text-destructive">*</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Jelaskan alasan pengembalian laporan ini ke Member..."
+                      className="min-h-[100px]"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={loading}
+              >
+                Batal
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? "Memproses..." : "Kembalikan ke Member"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
