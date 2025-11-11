@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { UserRoleManager } from "@/components/admin/UserRoleManager";
+import { UserOPDAssignmentDialog } from "@/components/admin/UserOPDAssignmentDialog";
 import { useToast } from "@/hooks/use-toast";
-import { Search, UserCog } from "lucide-react";
+import { Search, UserCog, Building2 } from "lucide-react";
 
 interface UserProfile {
   id: string;
@@ -29,6 +30,7 @@ const Users = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [showRoleManager, setShowRoleManager] = useState(false);
+  const [showOPDAssignment, setShowOPDAssignment] = useState(false);
 
   useEffect(() => {
     checkAccess();
@@ -132,9 +134,20 @@ const Users = () => {
     setShowRoleManager(true);
   };
 
+  const handleAssignOPD = (user: UserProfile) => {
+    setSelectedUser(user);
+    setShowOPDAssignment(true);
+  };
+
   const handleRoleAssigned = () => {
     fetchUsers();
     setShowRoleManager(false);
+    setSelectedUser(null);
+  };
+
+  const handleOPDAssigned = () => {
+    fetchUsers();
+    setShowOPDAssignment(false);
     setSelectedUser(null);
   };
 
@@ -147,6 +160,7 @@ const Users = () => {
       owner: "default",
       admin: "default",
       member: "secondary",
+      opd_member: "secondary",
       viewer: "secondary",
     };
 
@@ -222,14 +236,26 @@ const Users = () => {
                       <td className="p-4">{user.position || "-"}</td>
                       <td className="p-4">{getRoleBadge(user.role)}</td>
                       <td className="p-4">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleAssignRole(user)}
-                        >
-                          <UserCog className="h-4 w-4 mr-2" />
-                          Atur Role
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleAssignRole(user)}
+                          >
+                            <UserCog className="h-4 w-4 mr-2" />
+                            Atur Role
+                          </Button>
+                          {user.role === 'opd_member' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleAssignOPD(user)}
+                            >
+                              <Building2 className="h-4 w-4 mr-2" />
+                              Tugaskan OPD
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -241,12 +267,20 @@ const Users = () => {
       </div>
 
       {selectedUser && (
-        <UserRoleManager
-          user={selectedUser}
-          open={showRoleManager}
-          onOpenChange={setShowRoleManager}
-          onRoleAssigned={handleRoleAssigned}
-        />
+        <>
+          <UserRoleManager
+            user={selectedUser}
+            open={showRoleManager}
+            onOpenChange={setShowRoleManager}
+            onRoleAssigned={handleRoleAssigned}
+          />
+          <UserOPDAssignmentDialog
+            user={selectedUser}
+            open={showOPDAssignment}
+            onOpenChange={setShowOPDAssignment}
+            onSuccess={handleOPDAssigned}
+          />
+        </>
       )}
     </Dashboard>
   );
