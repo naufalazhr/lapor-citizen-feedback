@@ -14,7 +14,7 @@ import {
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, FileText, LogOut, Settings, MessageSquare, Users } from "lucide-react";
+import { LayoutDashboard, FileText, LogOut, Settings, MessageSquare, Users, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
@@ -22,8 +22,9 @@ const menuItems = [
   { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
   { title: "Laporan", url: "/admin/reports", icon: FileText },
   { title: "Percakapan", url: "/admin/conversations", icon: MessageSquare },
-  { title: "Integrasi", url: "/admin/integration", icon: Settings },
-  { title: "Kelola Pengguna", url: "/admin/users", icon: Users },
+  { title: "Kelola OPD", url: "/admin/opds", icon: Building2, adminOnly: true },
+  { title: "Integrasi", url: "/admin/integration", icon: Settings, adminOnly: true },
+  { title: "Kelola Pengguna", url: "/admin/users", icon: Users, adminOnly: true },
 ];
 
 export function AppSidebar() {
@@ -93,13 +94,8 @@ export function AppSidebar() {
           <SidebarGroupContent>
           <SidebarMenu>
             {menuItems.map((item) => {
-              // Hide integration page from non-admin users
-              if (item.url === '/admin/integration' && userRole && !['admin', 'owner'].includes(userRole)) {
-                return null;
-              }
-              
-              // Hide user management from non-admin users
-              if (item.url === '/admin/users' && userRole && !['admin', 'owner'].includes(userRole)) {
+              // Hide admin-only pages from non-admin users
+              if (item.adminOnly && userRole && !['admin', 'owner', 'superadmin'].includes(userRole)) {
                 return null;
               }
               

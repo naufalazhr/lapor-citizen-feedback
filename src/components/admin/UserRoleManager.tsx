@@ -34,6 +34,7 @@ interface UserRoleManagerProps {
 const roles = [
   { value: "admin", label: "Admin", description: "Akses penuh termasuk pengaturan integrasi" },
   { value: "member", label: "Member", description: "Dapat mengelola laporan dan percakapan" },
+  { value: "opd_member", label: "OPD Member", description: "Dapat mengelola laporan untuk OPD yang ditugaskan" },
   { value: "viewer", label: "Viewer", description: "Hanya dapat melihat data" },
 ];
 
@@ -44,13 +45,13 @@ export const UserRoleManager = ({
   onRoleAssigned,
 }: UserRoleManagerProps) => {
   const { toast } = useToast();
-  const [selectedRole, setSelectedRole] = useState<"admin" | "member" | "viewer">("member");
+  const [selectedRole, setSelectedRole] = useState<"admin" | "member" | "opd_member" | "viewer">("member");
   const [loading, setLoading] = useState(false);
 
   // Update selected role when user prop changes or dialog opens
   useEffect(() => {
     if (open && user.role) {
-      setSelectedRole(user.role as "admin" | "member" | "viewer");
+      setSelectedRole(user.role as "admin" | "member" | "opd_member" | "viewer");
     }
   }, [open, user.role]);
 
@@ -116,7 +117,7 @@ export const UserRoleManager = ({
             <label className="text-sm font-medium">Pilih Role</label>
             <Select 
               value={selectedRole} 
-              onValueChange={(value) => setSelectedRole(value as "admin" | "member" | "viewer")}
+              onValueChange={(value) => setSelectedRole(value as "admin" | "member" | "opd_member" | "viewer")}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Pilih role..." />
@@ -141,6 +142,7 @@ export const UserRoleManager = ({
             <ul className="space-y-1 text-muted-foreground">
               <li><strong>Admin:</strong> Akses penuh, dapat mengelola integrasi dan pengguna</li>
               <li><strong>Member:</strong> Dapat mengelola laporan dan percakapan</li>
+              <li><strong>OPD Member:</strong> Dapat mengelola laporan untuk OPD yang ditugaskan</li>
               <li><strong>Viewer:</strong> Hanya dapat melihat data tanpa mengubah</li>
             </ul>
           </div>
