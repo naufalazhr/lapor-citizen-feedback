@@ -70,17 +70,53 @@ export function OPDMemberReturnDialog({
   }, [open]);
 
   const fetchTenantId = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error("Session error:", sessionError);
+        return;
+      }
+      
+      if (!session) {
+        console.error("No session found");
+        return;
+      }
 
-    const { data } = await supabase
-      .from("profiles")
-      .select("tenant_id")
-      .eq("id", session.user.id)
-      .single();
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("tenant_id")
+        .eq("id", session.user.id)
+        .single();
 
-    if (data) {
-      setTenantId(data.tenant_id);
+      if (error) {
+        console.error("Error fetching tenant_id:", error);
+        toast({
+          title: "Error",
+          description: "Gagal mengambil informasi tenant",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (data?.tenant_id) {
+        setTenantId(data.tenant_id);
+        console.log("Tenant ID fetched successfully:", data.tenant_id);
+      } else {
+        console.error("No tenant_id found in profile");
+        toast({
+          title: "Error",
+          description: "Profil pengguna tidak memiliki tenant_id. Hubungi administrator.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Unexpected error fetching tenant_id:", error);
+      toast({
+        title: "Error",
+        description: "Terjadi kesalahan saat mengambil informasi tenant",
+        variant: "destructive",
+      });
     }
   };
 
