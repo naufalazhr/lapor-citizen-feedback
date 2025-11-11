@@ -1,10 +1,9 @@
 // =============================================================================
-// Fonnte Webhook Handler - WITH PERFORMANCE MONITORING
+// Fonnte Webhook Handler
 // Main entry point for WhatsApp messages from Fonnte
 // =============================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import type { FonnteWebhookPayload } from './types.ts';
 import { ERROR_MESSAGES, normalizeFonntePayload } from './types.ts';
@@ -45,35 +44,7 @@ const debugLog = (...args: any[]) => {
   }
 };
 
-console.log('Fonnte Webhook Function Started (Performance Monitoring Enabled)');
-
-// =============================================================================
-// Performance Tracking Helper
-// =============================================================================
-async function logPerformanceMetrics(
-  tenantId: string | null,
-  conversationId: string | null,
-  metricType: string,
-  durationMs: number,
-  metadata: Record<string, any> = {}
-) {
-  try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    await supabase.from('performance_metrics').insert({
-      tenant_id: tenantId,
-      conversation_id: conversationId,
-      metric_type: metricType,
-      duration_ms: Math.round(durationMs),
-      metadata
-    });
-  } catch (error) {
-    console.error('Failed to log performance metric:', error);
-    // Don't throw - performance logging should not break webhook
-  }
-}
+console.log('Fonnte Webhook Function Started');
 
 // -----------------------------------------------------------------------------
 // Main Webhook Handler
@@ -86,14 +57,6 @@ serve(async (req: Request) => {
 
   let conversationId: string | undefined;
   let payload: FonnteWebhookPayload | undefined;
-
-  // ============================================================================
-  // PERFORMANCE TRACKING - Start
-  // ============================================================================
-  const startTime = performance.now();
-  const perfMetrics: Record<string, number> = {};
-  let tenantId: string | null = null;
-  let hasError = false;
 
   try {
     // 1. Parse request payload
@@ -140,32 +103,22 @@ serve(async (req: Request) => {
       throw new Error('Message must contain either text, attachment, or location');
     }
 
-    // ============================================================================
-    // PERF: Find or create conversation
-    // ============================================================================
-    const dbStart = performance.now();
+    // 4. Find or create conversation
     const conversation = await findOrCreateConversation(
       normalized.sender,
       normalized.device,
       normalized.name
     );
-    perfMetrics.db_find_conversation = performance.now() - dbStart;
     conversationId = conversation.id;
-    tenantId = conversation.tenant_id;
 
     console.log('Conversation:', {
       id: conversation.id,
       sessionId: conversation.session_id,
-      isNew: conversation.session_id.startsWith('temp_'),
-      tenantId: tenantId
+      isNew: conversation.session_id.startsWith('temp_')
     });
 
-    // ============================================================================
-    // PERF: Get next message index
-    // ============================================================================
-    const indexStart = performance.now();
+    // 5. Get next message index
     const messageIndex = await getNextMessageIndex(conversation.id);
-    perfMetrics.db_get_index = performance.now() - indexStart;
 
     // 6. Prepare message content
     // For image-only messages, use placeholder for database storage
@@ -173,10 +126,7 @@ serve(async (req: Request) => {
     const messageContent = normalized.message ||
       (normalized.hasAttachment ? '[Gambar]' : '');
 
-    // ============================================================================
-    // PERF: Save user message
-    // ============================================================================
-    const saveUserStart = performance.now();
+    // 7. Save user message (without attachment details yet)
     const userMessage = await saveMessage({
       conversation_id: conversation.id,
       role: 'user',
@@ -184,23 +134,19 @@ serve(async (req: Request) => {
       message_index: messageIndex,
       has_attachment: normalized.hasAttachment
     });
-    perfMetrics.db_save_user_message = performance.now() - saveUserStart;
 
     console.log('User message saved:', {
       messageId: userMessage.id,
       index: messageIndex
     });
 
-    // ============================================================================
-    // PERF: Process attachment if present
-    // ============================================================================
+    // 8. Process attachment if present
     let attachmentResult = null;
     let attachmentError = null;
 
     if (normalized.url && normalized.filename && normalized.extension) {
       console.log('✓ Starting attachment processing:', normalized.filename);
 
-      const attachmentStart = performance.now();
       try {
         attachmentResult = await processAttachmentSafe(
           normalized.url,
@@ -208,7 +154,6 @@ serve(async (req: Request) => {
           normalized.extension,
           userMessage.id
         );
-        perfMetrics.attachment_processing = performance.now() - attachmentStart;
 
         if (attachmentResult) {
           console.log('✓ Attachment processed successfully:', attachmentResult.id);
@@ -231,7 +176,6 @@ serve(async (req: Request) => {
           });
         }
       } catch (error) {
-        perfMetrics.attachment_processing = performance.now() - attachmentStart;
         console.error('✗ Attachment processing error:', error);
         attachmentError = error instanceof Error ? error.message : String(error);
 
@@ -249,15 +193,13 @@ serve(async (req: Request) => {
           conversation_id: conversationId
         });
       }
+    } else {
+      // Attachment fields missing - this is the most likely issue!
+      console.warn('✗ Skipping attachment processing - missing required fields');
     }
 
-    // ============================================================================
-    // PERF: Get conversation history
-    // ============================================================================
-    const historyStart = performance.now();
+    // 9. Get conversation history (excluding the just-saved user message)
     const history = await getConversationHistory(conversation.id);
-    perfMetrics.db_get_history = performance.now() - historyStart;
-
     // Remove the last message (current user message) from history for Flowise
     const historyForFlowise = history.slice(0, -1);
 
@@ -277,43 +219,28 @@ serve(async (req: Request) => {
       hasAttachment: !!attachmentResult
     });
 
-    // ============================================================================
-    // PERF: Call Flowise API with retry (PRIMARY BOTTLENECK)
-    // ============================================================================
-    const flowiseStart = performance.now();
-    const { response: flowiseResponse, attempts, totalTime } = await callFlowiseWithRetry(flowiseRequest);
-    perfMetrics.flowise_api = performance.now() - flowiseStart;
-    perfMetrics.flowise_attempts = attempts;
+    // 11. Call Flowise API with retry
+    const { response: flowiseResponse } = await callFlowiseWithRetry(flowiseRequest);
 
-    console.log('Flowise API response received', {
-      duration: perfMetrics.flowise_api + 'ms',
-      attempts
-    });
+    console.log('Flowise API response received');
 
     // 12. Extract session ID (CRITICAL for first message)
     const flowiseSessionId = extractSessionId(flowiseResponse);
     if (flowiseSessionId && conversation.session_id.startsWith('temp_')) {
       console.log('Updating conversation with Flowise sessionId:', flowiseSessionId);
-
-      const updateSessionStart = performance.now();
       await updateConversationSessionId(conversation.id, flowiseSessionId);
-      perfMetrics.db_update_session = performance.now() - updateSessionStart;
     }
 
     // 13. Extract response text
     const responseText = extractResponseText(flowiseResponse);
 
-    // ============================================================================
-    // PERF: Save assistant response
-    // ============================================================================
-    const saveAssistantStart = performance.now();
+    // 14. Save assistant response
     await saveMessage({
       conversation_id: conversation.id,
       role: 'assistant',
       content: responseText,
       message_index: messageIndex + 1
     });
-    perfMetrics.db_save_assistant_message = performance.now() - saveAssistantStart;
 
     console.log('Assistant response saved');
 
@@ -325,12 +252,9 @@ serve(async (req: Request) => {
       finalResponseText = `${responseText}\n\n_Catatan: ${attachmentError}_`;
     }
 
-    // ============================================================================
-    // PERF: Send response to WhatsApp via Fonnte API
-    // ============================================================================
+    // 16. Send response to WhatsApp via Fonnte API
     console.log('Sending message to WhatsApp via Fonnte...');
 
-    const fonnteStart = performance.now();
     try {
       const fonnteConfig = await getFonnteConfig();
 
@@ -343,7 +267,6 @@ serve(async (req: Request) => {
         message: finalResponseText,
         token: fonnteConfig.api_token
       });
-      perfMetrics.fonnte_send = performance.now() - fonnteStart;
 
       if (!sendResult.status) {
         console.error('Failed to send message to WhatsApp:', sendResult.error);
@@ -363,7 +286,6 @@ serve(async (req: Request) => {
         console.log('Message sent to WhatsApp successfully');
       }
     } catch (sendError) {
-      perfMetrics.fonnte_send = performance.now() - fonnteStart;
       console.error('Error sending message to WhatsApp:', sendError);
 
       // Log error but don't crash webhook
@@ -375,89 +297,6 @@ serve(async (req: Request) => {
         payload: { target: '***' + normalized.sender.slice(-4) },
         conversation_id: conversationId
       });
-    }
-
-    // ============================================================================
-    // PERFORMANCE TRACKING - Log Total Duration
-    // ============================================================================
-    const totalDuration = performance.now() - startTime;
-
-    console.log('📊 PERFORMANCE METRICS:', {
-      total: `${totalDuration.toFixed(0)}ms`,
-      flowise: `${perfMetrics.flowise_api?.toFixed(0) || 0}ms (${((perfMetrics.flowise_api / totalDuration) * 100).toFixed(1)}%)`,
-      fonnte: `${perfMetrics.fonnte_send?.toFixed(0) || 0}ms`,
-      db: `${(
-        (perfMetrics.db_find_conversation || 0) +
-        (perfMetrics.db_get_history || 0) +
-        (perfMetrics.db_save_user_message || 0) +
-        (perfMetrics.db_save_assistant_message || 0)
-      ).toFixed(0)}ms`,
-      attachment: `${perfMetrics.attachment_processing?.toFixed(0) || 0}ms`
-    });
-
-    // Log webhook_total metric
-    await logPerformanceMetrics(
-      tenantId,
-      conversationId,
-      'webhook_total',
-      totalDuration,
-      {
-        has_attachment: normalized.hasAttachment,
-        message_length: messageContent.length,
-        history_count: historyForFlowise.length,
-        flowise_attempts: perfMetrics.flowise_attempts || 1
-      }
-    );
-
-    // Log individual component metrics
-    if (perfMetrics.flowise_api) {
-      await logPerformanceMetrics(
-        tenantId,
-        conversationId,
-        'flowise_api',
-        perfMetrics.flowise_api,
-        {
-          attempts: perfMetrics.flowise_attempts || 1,
-          history_count: historyForFlowise.length
-        }
-      );
-    }
-
-    if (perfMetrics.fonnte_send) {
-      await logPerformanceMetrics(
-        tenantId,
-        conversationId,
-        'fonnte_send',
-        perfMetrics.fonnte_send,
-        {
-          message_length: finalResponseText.length
-        }
-      );
-    }
-
-    if (perfMetrics.db_get_history) {
-      await logPerformanceMetrics(
-        tenantId,
-        conversationId,
-        'db_query_get_history',
-        perfMetrics.db_get_history,
-        {
-          message_count: history.length
-        }
-      );
-    }
-
-    if (perfMetrics.attachment_processing) {
-      await logPerformanceMetrics(
-        tenantId,
-        conversationId,
-        'attachment_processing',
-        perfMetrics.attachment_processing,
-        {
-          filename: normalized.filename,
-          extension: normalized.extension
-        }
-      );
     }
 
     // 17. Return webhook acknowledgment
@@ -476,26 +315,10 @@ serve(async (req: Request) => {
     );
 
   } catch (error) {
-    hasError = true;
     console.error('Webhook processing error:', error);
 
     // Type-safe error handling
     const err = error instanceof Error ? error : new Error(String(error));
-
-    // ============================================================================
-    // PERFORMANCE TRACKING - Log Error Case
-    // ============================================================================
-    const totalDuration = performance.now() - startTime;
-    await logPerformanceMetrics(
-      tenantId,
-      conversationId || null,
-      'webhook_total',
-      totalDuration,
-      {
-        error: err.message,
-        error_type: err.name
-      }
-    );
 
     // Log error to database
     await logWebhookError({
