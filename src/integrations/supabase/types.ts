@@ -489,6 +489,51 @@ export type Database = {
           },
         ]
       }
+      opds: {
+        Row: {
+          code: string
+          contact_email: string | null
+          contact_phone: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          head_name: string | null
+          id: string
+          is_active: boolean
+          name: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          head_name?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          head_name?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       performance_metrics: {
         Row: {
           conversation_id: string | null
@@ -639,11 +684,77 @@ export type Database = {
           },
         ]
       }
+      report_dispositions: {
+        Row: {
+          action_type: string
+          assigned_at: string
+          assigned_by: string
+          id: string
+          notes: string | null
+          opd_id: string
+          previous_opd_id: string | null
+          report_id: string
+          status_after: string | null
+          status_before: string | null
+          tenant_id: string
+        }
+        Insert: {
+          action_type?: string
+          assigned_at?: string
+          assigned_by: string
+          id?: string
+          notes?: string | null
+          opd_id: string
+          previous_opd_id?: string | null
+          report_id: string
+          status_after?: string | null
+          status_before?: string | null
+          tenant_id: string
+        }
+        Update: {
+          action_type?: string
+          assigned_at?: string
+          assigned_by?: string
+          id?: string
+          notes?: string | null
+          opd_id?: string
+          previous_opd_id?: string | null
+          report_id?: string
+          status_after?: string | null
+          status_before?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_dispositions_opd_id_fkey"
+            columns: ["opd_id"]
+            isOneToOne: false
+            referencedRelation: "opds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_dispositions_previous_opd_id_fkey"
+            columns: ["previous_opd_id"]
+            isOneToOne: false
+            referencedRelation: "opds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_dispositions_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reports: {
         Row: {
           address: string
+          assigned_opd_id: string | null
           created_at: string
           description: string
+          disposition_notes: string | null
           geo_location: Json | null
           id: string
           phone: string
@@ -658,8 +769,10 @@ export type Database = {
         }
         Insert: {
           address: string
+          assigned_opd_id?: string | null
           created_at?: string
           description: string
+          disposition_notes?: string | null
           geo_location?: Json | null
           id?: string
           phone: string
@@ -674,8 +787,10 @@ export type Database = {
         }
         Update: {
           address?: string
+          assigned_opd_id?: string | null
           created_at?: string
           description?: string
+          disposition_notes?: string | null
           geo_location?: Json | null
           id?: string
           phone?: string
@@ -689,6 +804,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "reports_assigned_opd_id_fkey"
+            columns: ["assigned_opd_id"]
+            isOneToOne: false
+            referencedRelation: "opds"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "reports_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -813,6 +935,41 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_opd_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          id: string
+          is_active: boolean
+          opd_id: string
+          user_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          id?: string
+          is_active?: boolean
+          opd_id: string
+          user_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          id?: string
+          is_active?: boolean
+          opd_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_opd_assignments_opd_id_fkey"
+            columns: ["opd_id"]
+            isOneToOne: false
+            referencedRelation: "opds"
             referencedColumns: ["id"]
           },
         ]
