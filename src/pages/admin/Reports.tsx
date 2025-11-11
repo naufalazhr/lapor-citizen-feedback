@@ -21,8 +21,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Eye, RefreshCw, Copy, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Trash2, Eye, RefreshCw, Copy, Search, ChevronLeft, ChevronRight, Building2, CheckSquare, Square } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { ReportDispositionDialog } from "@/components/admin/ReportDispositionDialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Pagination,
   PaginationContent,
@@ -45,7 +47,14 @@ type Report = {
   status: "pending" | "in_progress" | "resolved" | "rejected";
   created_at: string;
   updated_at: string;
+  assigned_opd_id: string | null;
 };
+
+interface OPD {
+  id: string;
+  name: string;
+  code: string;
+}
 
 const Reports = () => {
   const navigate = useNavigate();
@@ -55,17 +64,23 @@ const Reports = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [opdFilter, setOpdFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [opds, setOpds] = useState<OPD[]>([]);
+  const [opdMap, setOpdMap] = useState<Map<string, OPD>>(new Map());
+  const [selectedReports, setSelectedReports] = useState<Set<string>>(new Set());
+  const [showDispositionDialog, setShowDispositionDialog] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchReports();
+    fetchOPDs();
   }, []);
 
   useEffect(() => {
     filterReports();
-  }, [reports, searchTerm, statusFilter, typeFilter]);
+  }, [reports, searchTerm, statusFilter, typeFilter, opdFilter]);
 
   const fetchReports = async () => {
     setLoading(true);
@@ -84,6 +99,23 @@ const Reports = () => {
       setReports((data || []) as unknown as Report[]);
     }
     setLoading(false);
+  };
+
+  const fetchOPDs = async () => {
+    const { data, error } = await supabase
+      .from("opds")
+      .select("id, name, code")
+      .eq("is_active", true)
+      .order("name", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching OPDs:", error);
+    } else {
+      const opdList = data || [];
+      setOpds(opdList);
+      const map = new Map(opdList.map(opd => [opd.id, opd]));
+      setOpdMap(map);
+    }
   };
 
   const filterReports = () => {
@@ -108,6 +140,15 @@ const Reports = () => {
     // Apply type filter
     if (typeFilter !== "all") {
       filtered = filtered.filter((report) => report.type === typeFilter);
+    }
+
+    // Apply OPD filter
+    if (opdFilter !== "all") {
+      if (opdFilter === "unassigned") {
+        filtered = filtered.filter((report) => !report.assigned_opd_id);
+      } else {
+        filtered = filtered.filter((report) => report.assigned_opd_id === opdFilter);
+      }
     }
 
     setFilteredReports(filtered);
@@ -241,6 +282,21 @@ const Reports = () => {
                 </SelectContent>
               </Select>
 
+              <Select value={opdFilter} onValueChange={setOpdFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Semua OPD" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua OPD</SelectItem>
+                  <SelectItem value="unassigned">Belum Didisposisi</SelectItem>
+                  {opds.map((opd) => (
+                    <SelectItem key={opd.id} value={opd.id}>
+                      {opd.code} - {opd.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
               <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(Number(v))}>
                 <SelectTrigger>
                   <SelectValue />
@@ -258,10 +314,24 @@ const Reports = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Semua Laporan</CardTitle>
-            <CardDescription>
-              Menampilkan {startIndex + 1}-{Math.min(endIndex, filteredReports.length)} dari {filteredReports.length} laporan
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Semua Laporan</CardTitle>
+                <CardDescription>
+                  Menampilkan {startIndex + 1}-{Math.min(endIndex, filteredReports.length)} dari {filteredReports.length} laporan
+                  {selectedReports.size > 0 && ` • ${selectedReports.size} dipilih`}
+                </CardDescription>
+              </div>
+              {selectedReports.size > 0 && (
+                <Button
+                  onClick={() => setShowDispositionDialog(true)}
+                  className="gap-2"
+                >
+                  <Building2 className="h-4 w-4" />
+                  Disposisikan ({selectedReports.size})
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -286,6 +356,20 @@ const Reports = () => {
                   <TableBody>
                     {paginatedReports.map((report) => (
                       <TableRow key={report.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedReports.has(report.id)}
+                            onCheckedChange={(checked) => {
+                              const newSelected = new Set(selectedReports);
+                              if (checked) {
+                                newSelected.add(report.id);
+                              } else {
+                                newSelected.delete(report.id);
+                              }
+                              setSelectedReports(newSelected);
+                            }}
+                          />
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <code className="text-xs font-mono bg-muted px-2 py-1 rounded">
@@ -323,7 +407,16 @@ const Reports = () => {
                             </SelectContent>
                           </Select>
                         </TableCell>
-                        <TableCell>{new Date(report.created_at).toLocaleDateString("id-ID")}</TableCell>
+                        <TableCell>
+                          {report.assigned_opd_id && opdMap.has(report.assigned_opd_id) ? (
+                            <Badge variant="outline" className="gap-1">
+                              <Building2 className="h-3 w-3" />
+                              {opdMap.get(report.assigned_opd_id)?.code}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <div className="flex gap-2">
                             <Button
@@ -411,6 +504,20 @@ const Reports = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Disposition Dialog */}
+      <ReportDispositionDialog
+        open={showDispositionDialog}
+        onOpenChange={setShowDispositionDialog}
+        reports={Array.from(selectedReports)
+          .map(id => reports.find(r => r.id === id))
+          .filter((r): r is Report => r !== undefined)}
+        onSuccess={() => {
+          setShowDispositionDialog(false);
+          setSelectedReports(new Set());
+          fetchReports();
+        }}
+      />
     </Dashboard>
   );
 };

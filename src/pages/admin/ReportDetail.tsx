@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Copy, Download, Trash2 } from "lucide-react";
+import { ArrowLeft, Copy, Download, Trash2, Building2, Edit } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -17,6 +17,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { lazy, Suspense } from "react";
+import { DispositionTimeline } from "@/components/admin/DispositionTimeline";
+import { ReportDispositionDialog } from "@/components/admin/ReportDispositionDialog";
 
 const LeafletMap = lazy(() => import("@/components/LeafletMap"));
 
@@ -34,6 +36,15 @@ type Report = {
   created_at: string;
   updated_at: string;
   session_id: string | null;
+  assigned_opd_id: string | null;
+  disposition_notes: string | null;
+};
+
+type OPD = {
+  id: string;
+  name: string;
+  code: string;
+  head_name: string | null;
 };
 
 type Conversation = {
@@ -46,8 +57,10 @@ const ReportDetail = () => {
   const navigate = useNavigate();
   const [report, setReport] = useState<Report | null>(null);
   const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [assignedOPD, setAssignedOPD] = useState<OPD | null>(null);
   const [loading, setLoading] = useState(true);
   const [internalNote, setInternalNote] = useState("");
+  const [showDispositionDialog, setShowDispositionDialog] = useState(false);
   const { toast } = useToast();
 
   console.log("🎨 ReportDetail render - ID:", id, "Loading:", loading, "Report:", report ? "exists" : "null");
@@ -97,6 +110,19 @@ const ReportDetail = () => {
       console.log("✅ Report fetched successfully:", reportData);
       const typedReport = reportData as unknown as Report;
       setReport(typedReport);
+
+      // Fetch assigned OPD if exists
+      if (typedReport.assigned_opd_id) {
+        const { data: opdData } = await supabase
+          .from("opds")
+          .select("id, name, code, head_name")
+          .eq("id", typedReport.assigned_opd_id)
+          .maybeSingle();
+        
+        if (opdData) {
+          setAssignedOPD(opdData);
+        }
+      }
 
       // Fetch conversation data if session_id exists
       if (typedReport.session_id) {
@@ -390,6 +416,57 @@ const ReportDetail = () => {
               </CardContent>
             </Card>
 
+            {/* OPD Disposition Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5" />
+                    Disposisi OPD
+                  </CardTitle>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDispositionDialog(true)}
+                  >
+                    <Edit className="h-4 w-4 mr-2" />
+                    {assignedOPD ? "Ubah" : "Disposisikan"}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {assignedOPD ? (
+                  <div className="space-y-3">
+                    <div className="bg-primary/10 p-4 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge variant="default">{assignedOPD.code}</Badge>
+                        <span className="text-sm text-muted-foreground">•</span>
+                        <span className="font-medium">{assignedOPD.name}</span>
+                      </div>
+                      {assignedOPD.head_name && (
+                        <p className="text-sm text-muted-foreground">
+                          Kepala: {assignedOPD.head_name}
+                        </p>
+                      )}
+                    </div>
+                    {report.disposition_notes && (
+                      <div className="bg-muted p-3 rounded-lg">
+                        <p className="text-sm font-medium mb-1">Catatan Disposisi:</p>
+                        <p className="text-sm text-muted-foreground">
+                          {report.disposition_notes}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <Building2 className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Belum didisposisikan ke OPD</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle>Informasi Waktu</CardTitle>
@@ -470,7 +547,21 @@ const ReportDetail = () => {
             </Card>
           </div>
         </div>
+
+        {/* Disposition Timeline - Full Width */}
+        <DispositionTimeline reportId={report.id} />
       </div>
+
+      {/* Disposition Dialog */}
+      <ReportDispositionDialog
+        open={showDispositionDialog}
+        onOpenChange={setShowDispositionDialog}
+        reports={[report]}
+        onSuccess={() => {
+          setShowDispositionDialog(false);
+          fetchReport();
+        }}
+      />
     </Dashboard>
   );
 };
