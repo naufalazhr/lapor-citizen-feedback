@@ -163,12 +163,32 @@ export const FlowiseConfigManager = () => {
 
         if (error) throw error;
       } else {
+        // Get tenant_id from current user's profile
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error("Not authenticated");
+
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("tenant_id")
+          .eq("id", session.user.id)
+          .single();
+
+        if (!profile?.tenant_id) throw new Error("Tenant ID not found");
+
         // Create new config
-        const { error } = await supabase.from("flowise_config").insert({
-          ...updateData,
+        const { error } = await supabase.from("flowise_config").insert([{
+          api_url: formData.api_url.trim(),
+          api_key: formData.api_key.trim(),
+          chatflow_id: formData.chatflow_id.trim(),
+          streaming: formData.streaming,
+          timeout_seconds: Number(formData.timeout_seconds),
+          session_variables: formData.session_variables.trim()
+            ? JSON.parse(formData.session_variables)
+            : null,
           config_name: "default",
           is_active: true,
-        });
+          tenant_id: profile.tenant_id,
+        }]);
 
         if (error) throw error;
       }

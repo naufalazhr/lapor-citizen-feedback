@@ -151,12 +151,28 @@ export const FonnteConfigManager = () => {
 
         if (error) throw error;
       } else {
+        // Get tenant_id from current user's profile
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error("Not authenticated");
+
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("tenant_id")
+          .eq("id", session.user.id)
+          .single();
+
+        if (!profile?.tenant_id) throw new Error("Tenant ID not found");
+
         // Create new config
-        const { error } = await supabase.from("fonnte_config").insert({
-          ...updateData,
+        const { error } = await supabase.from("fonnte_config").insert([{
+          api_token: formData.api_token.trim(),
+          device_numbers: deviceNumbers,
+          auto_reply_enabled: formData.auto_reply_enabled,
+          session_timeout_minutes: Number(formData.session_timeout_minutes),
           config_name: "default",
           is_active: true,
-        });
+          tenant_id: profile.tenant_id,
+        }]);
 
         if (error) throw error;
       }
