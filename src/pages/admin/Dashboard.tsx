@@ -5,6 +5,7 @@ import { User } from "@supabase/supabase-js";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/admin/AppSidebar";
 import { ProfileMenu } from "@/components/admin/ProfileMenu";
+import { useUserRole } from "@/hooks/use-user-role";
 
 interface DashboardProps {
   children: React.ReactNode;
@@ -15,6 +16,14 @@ const Dashboard = ({ children }: DashboardProps) => {
   const [hasRole, setHasRole] = useState(false);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { role, loading: roleLoading } = useUserRole();
+
+  const getDashboardTitle = () => {
+    if (role === 'admin' || role === 'superadmin' || role === 'owner') return 'Admin Dashboard';
+    if (role === 'member') return 'Member Dashboard';
+    if (role === 'opd_member') return 'OPD Member Dashboard';
+    return 'Dashboard';
+  };
 
   useEffect(() => {
     checkAuth();
@@ -78,7 +87,7 @@ const Dashboard = ({ children }: DashboardProps) => {
           <div className="flex h-14 items-center justify-between px-4">
             <div className="flex items-center">
               <SidebarTrigger className="mr-4" />
-              <h1 className="text-lg font-semibold">Admin Dashboard</h1>
+              <h1 className="text-lg font-semibold">{getDashboardTitle()}</h1>
             </div>
             <ProfileMenu />
           </div>
