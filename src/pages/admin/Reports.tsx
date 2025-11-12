@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { ReportDispositionDialog } from "@/components/admin/ReportDispositionDialog";
 import { OPDMemberReturnDialog } from "@/components/admin/OPDMemberReturnDialog";
 import { ReturnRequestCard } from "@/components/admin/ReturnRequestCard";
+import { ReturnRequestApprovalDialog } from "@/components/admin/ReturnRequestApprovalDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Pagination,
@@ -83,6 +84,8 @@ const Reports = () => {
   const [selectedReports, setSelectedReports] = useState<Set<string>>(new Set());
   const [showDispositionDialog, setShowDispositionDialog] = useState(false);
   const [showReturnDialog, setShowReturnDialog] = useState(false);
+  const [showReturnApprovalDialog, setShowReturnApprovalDialog] = useState(false);
+  const [selectedReturnRequest, setSelectedReturnRequest] = useState<any>(null);
   const [userOpdIds, setUserOpdIds] = useState<string[]>([]);
   const { toast } = useToast();
 
@@ -513,6 +516,47 @@ const Reports = () => {
                                 {report.return_request.status === 'rejected' && '✗ Pengembalian Ditolak'}
                               </Badge>
                             )}
+                            {!isOPDMember && report.return_request?.status === 'pending' && (
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="h-6 px-2 text-xs bg-green-600 hover:bg-green-700 text-white"
+                                onClick={async () => {
+                                  // Fetch complete return request data with nested relationships
+                                  const { data, error } = await supabase
+                                    .from("report_return_requests")
+                                    .select(`
+                                      *,
+                                      reports!report_return_requests_report_id_fkey (
+                                        ticket_id,
+                                        reporter_name,
+                                        description,
+                                        type,
+                                        status
+                                      ),
+                                      profiles!report_return_requests_requested_by_fkey (
+                                        full_name,
+                                        email
+                                      )
+                                    `)
+                                    .eq("id", report.return_request.id)
+                                    .single();
+                                  
+                                  if (!error && data) {
+                                    setSelectedReturnRequest(data);
+                                    setShowReturnApprovalDialog(true);
+                                  } else {
+                                    toast({
+                                      title: "Error",
+                                      description: "Gagal memuat data permintaan pengembalian",
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }}
+                              >
+                                Setujui
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -657,6 +701,18 @@ const Reports = () => {
         onSuccess={() => {
           setShowReturnDialog(false);
           setSelectedReports(new Set());
+          fetchReports();
+        }}
+      />
+
+      {/* Member Return Request Approval Dialog */}
+      <ReturnRequestApprovalDialog
+        open={showReturnApprovalDialog}
+        onOpenChange={setShowReturnApprovalDialog}
+        request={selectedReturnRequest}
+        onSuccess={() => {
+          setSelectedReturnRequest(null);
+          setShowReturnApprovalDialog(false);
           fetchReports();
         }}
       />
