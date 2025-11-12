@@ -522,30 +522,40 @@ const Reports = () => {
                                 variant="default"
                                 className="h-6 px-2 text-xs bg-green-600 hover:bg-green-700 text-white"
                                 onClick={async () => {
-                                  // Fetch complete return request data with nested relationships
-                                  const { data, error } = await supabase
-                                    .from("report_return_requests")
-                                    .select(`
-                                      *,
-                                      reports!report_return_requests_report_id_fkey (
-                                        ticket_id,
-                                        reporter_name,
-                                        description,
-                                        type,
-                                        status
-                                      ),
-                                      profiles!report_return_requests_requested_by_fkey (
-                                        full_name,
-                                        email
-                                      )
-                                    `)
-                                    .eq("id", report.return_request.id)
-                                    .single();
-                                  
-                                  if (!error && data) {
-                                    setSelectedReturnRequest(data);
+                                  try {
+                                    // 1) Fetch the base request first (ensures RLS passes)
+                                    const { data: req, error: reqErr } = await supabase
+                                      .from("report_return_requests")
+                                      .select("id, report_id, requested_by, requested_at, notes, status")
+                                      .eq("id", report.return_request!.id)
+                                      .single();
+
+                                    if (reqErr || !req) throw reqErr || new Error("not_found");
+
+                                    // 2) Fetch related report and requester profile in parallel
+                                    const [reportRes, profileRes] = await Promise.all([
+                                      supabase
+                                        .from("reports")
+                                        .select("ticket_id, reporter_name, description, type, status")
+                                        .eq("id", req.report_id)
+                                        .single(),
+                                      supabase
+                                        .from("profiles")
+                                        .select("full_name, email")
+                                        .eq("id", req.requested_by)
+                                        .single(),
+                                    ]);
+
+                                    // 3) Compose the payload expected by the Approval Dialog
+                                    const composed = {
+                                      ...req,
+                                      reports: reportRes.data || { ticket_id: "-", reporter_name: "-", description: "", type: "lapor", status: "pending" },
+                                      profiles: profileRes.data || { full_name: "-", email: "-" },
+                                    } as any;
+
+                                    setSelectedReturnRequest(composed);
                                     setShowReturnApprovalDialog(true);
-                                  } else {
+                                  } catch (e) {
                                     toast({
                                       title: "Error",
                                       description: "Gagal memuat data permintaan pengembalian",
