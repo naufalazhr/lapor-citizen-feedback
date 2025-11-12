@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Copy, Download, Trash2, Building2, Edit } from "lucide-react";
+import { ArrowLeft, Copy, Download, Trash2, Building2, Edit, RotateCcw } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -19,6 +19,8 @@ import { Label } from "@/components/ui/label";
 import { lazy, Suspense } from "react";
 import { DispositionTimeline } from "@/components/admin/DispositionTimeline";
 import { ReportDispositionDialog } from "@/components/admin/ReportDispositionDialog";
+import { OPDMemberReturnDialog } from "@/components/admin/OPDMemberReturnDialog";
+import { useUserRole } from "@/hooks/use-user-role";
 
 const LeafletMap = lazy(() => import("@/components/LeafletMap"));
 
@@ -61,7 +63,9 @@ const ReportDetail = () => {
   const [loading, setLoading] = useState(true);
   const [internalNote, setInternalNote] = useState("");
   const [showDispositionDialog, setShowDispositionDialog] = useState(false);
+  const [showReturnDialog, setShowReturnDialog] = useState(false);
   const { toast } = useToast();
+  const { isOPDMember } = useUserRole();
 
   console.log("🎨 ReportDetail render - ID:", id, "Loading:", loading, "Report:", report ? "exists" : "null");
 
@@ -424,14 +428,26 @@ const ReportDetail = () => {
                     <Building2 className="h-5 w-5" />
                     Disposisi OPD
                   </CardTitle>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowDispositionDialog(true)}
-                  >
-                    <Edit className="h-4 w-4 mr-2" />
-                    {assignedOPD ? "Ubah" : "Disposisikan"}
-                  </Button>
+                  {isOPDMember ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowReturnDialog(true)}
+                      disabled={!assignedOPD}
+                    >
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Kembalikan ke Member
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowDispositionDialog(true)}
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      {assignedOPD ? "Ubah" : "Disposisikan"}
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
@@ -553,15 +569,30 @@ const ReportDetail = () => {
       </div>
 
       {/* Disposition Dialog */}
-      <ReportDispositionDialog
-        open={showDispositionDialog}
-        onOpenChange={setShowDispositionDialog}
-        reports={[report]}
-        onSuccess={() => {
-          setShowDispositionDialog(false);
-          fetchReport();
-        }}
-      />
+      {!isOPDMember && (
+        <ReportDispositionDialog
+          open={showDispositionDialog}
+          onOpenChange={setShowDispositionDialog}
+          reports={[report]}
+          onSuccess={() => {
+            setShowDispositionDialog(false);
+            fetchReport();
+          }}
+        />
+      )}
+
+      {/* Return Dialog for OPD Members */}
+      {isOPDMember && (
+        <OPDMemberReturnDialog
+          open={showReturnDialog}
+          onOpenChange={setShowReturnDialog}
+          reports={[report]}
+          onSuccess={() => {
+            setShowReturnDialog(false);
+            fetchReport();
+          }}
+        />
+      )}
     </Dashboard>
   );
 };
