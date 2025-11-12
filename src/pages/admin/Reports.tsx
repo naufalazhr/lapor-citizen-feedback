@@ -149,7 +149,7 @@ const Reports = () => {
           .from("report_dispositions")
           .select("report_id, action_type")
           .in("report_id", reportIds)
-          .eq("action_type", "return")
+          .in("action_type", ["return", "return_to_member"])
           .order("assigned_at", { ascending: false });
         
         const returnedReportIds = new Set(
