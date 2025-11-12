@@ -452,10 +452,12 @@ const Reports = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-12"></TableHead>
                       <TableHead>ID Tiket</TableHead>
                       <TableHead>Pelapor</TableHead>
                       <TableHead>Jenis</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>OPD</TableHead>
                       <TableHead>Tanggal</TableHead>
                       <TableHead>Aksi</TableHead>
                     </TableRow>
@@ -598,6 +600,15 @@ const Reports = () => {
                           ) : (
                             <span className="text-xs text-muted-foreground">-</span>
                           )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm text-muted-foreground">
+                            {new Date(report.created_at).toLocaleDateString("id-ID", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-2">
