@@ -13,6 +13,8 @@ interface DispositionEntry {
   status_before: string | null;
   status_after: string | null;
   action_type: string;
+  entry_type?: 'disposition' | 'return_request';
+  return_status?: string;
   opd: {
     id: string;
     name: string;
@@ -24,6 +26,11 @@ interface DispositionEntry {
     code: string;
   } | null;
   assigner: {
+    id: string;
+    full_name: string;
+    email: string;
+  } | null;
+  reviewer?: {
     id: string;
     full_name: string;
     email: string;
@@ -46,7 +53,8 @@ export function DispositionTimeline({ reportId }: DispositionTimelineProps) {
     try {
       setLoading(true);
       
-      const { data, error } = await supabase
+      // Fetch dispositions
+      const { data: dispositionData, error: dispError } = await supabase
         .from("report_dispositions")
         .select(`
           id,
@@ -70,11 +78,32 @@ export function DispositionTimeline({ reportId }: DispositionTimelineProps) {
         .eq("report_id", reportId)
         .order("assigned_at", { ascending: false });
 
-      if (error) throw error;
+      if (dispError) throw dispError;
 
-      // Fetch assigner details separately
-      const dispositionsWithAssigners = await Promise.all(
-        (data || []).map(async (disposition) => {
+      // Fetch return requests
+      const { data: returnRequestData, error: reqError } = await supabase
+        .from("report_return_requests")
+        .select(`
+          id,
+          requested_at,
+          requested_by,
+          reviewed_at,
+          reviewed_by,
+          status,
+          notes,
+          rejection_reason
+        `)
+        .eq("report_id", reportId)
+        .order("requested_at", { ascending: false });
+
+      if (reqError) throw reqError;
+
+      // Combine dispositions and return requests
+      const allEntries = [];
+
+      // Add dispositions with profile data
+      const dispositionsWithProfiles = await Promise.all(
+        (dispositionData || []).map(async (disposition) => {
           let assigner = null;
           if (disposition.assigned_by) {
             const { data: profileData } = await supabase
@@ -82,14 +111,86 @@ export function DispositionTimeline({ reportId }: DispositionTimelineProps) {
               .select("id, full_name, email")
               .eq("id", disposition.assigned_by)
               .maybeSingle();
-            
             assigner = profileData;
           }
-          return { ...disposition, assigner };
+          return { 
+            ...disposition, 
+            assigner,
+            entry_type: 'disposition' as const
+          };
         })
       );
+      allEntries.push(...dispositionsWithProfiles);
 
-      setDispositions(dispositionsWithAssigners as any);
+      // Add return request entries
+      const returnRequestsWithProfiles = await Promise.all(
+        (returnRequestData || []).map(async (request) => {
+          let requester = null;
+          let reviewer = null;
+
+          if (request.requested_by) {
+            const { data: requesterData } = await supabase
+              .from("profiles")
+              .select("id, full_name, email")
+              .eq("id", request.requested_by)
+              .maybeSingle();
+            requester = requesterData;
+          }
+
+          if (request.reviewed_by) {
+            const { data: reviewerData } = await supabase
+              .from("profiles")
+              .select("id, full_name, email")
+              .eq("id", request.reviewed_by)
+              .maybeSingle();
+            reviewer = reviewerData;
+          }
+
+          // Create entry for request creation
+          const requestEntry: any = {
+            id: `request-${request.id}`,
+            assigned_at: request.requested_at,
+            notes: request.notes,
+            action_type: 'return_request_created',
+            entry_type: 'return_request' as const,
+            return_status: request.status,
+            assigner: requester,
+            opd: null,
+            previous_opd: null,
+            status_before: null,
+            status_after: null,
+          };
+
+          // Create entry for approval/rejection if reviewed
+          const entries = [requestEntry];
+          if (request.reviewed_at && request.status !== 'pending') {
+            entries.push({
+              id: `review-${request.id}`,
+              assigned_at: request.reviewed_at,
+              notes: request.status === 'rejected' ? request.rejection_reason : 'Permintaan pengembalian disetujui',
+              action_type: request.status === 'approved' ? 'return_request_approved' : 'return_request_rejected',
+              entry_type: 'return_request' as const,
+              return_status: request.status,
+              assigner: reviewer,
+              reviewer: reviewer,
+              opd: null,
+              previous_opd: null,
+              status_before: null,
+              status_after: null,
+            });
+          }
+
+          return entries;
+        })
+      );
+      allEntries.push(...returnRequestsWithProfiles.flat());
+
+      // Sort all entries by date
+      allEntries.sort((a, b) => 
+        new Date(b.assigned_at).getTime() - new Date(a.assigned_at).getTime()
+      );
+
+      setDispositions(allEntries as any);
     } catch (error: any) {
       console.error("Error fetching dispositions:", error);
     } finally {
@@ -199,10 +300,37 @@ export function DispositionTimeline({ reportId }: DispositionTimelineProps) {
                     )}
                   </div>
 
-                  {/* OPD Transfer */}
+                  {/* Timeline Entry Content */}
                   <div className="bg-muted/50 p-3 rounded-lg space-y-2">
                     <div className="flex items-center gap-2 flex-wrap">
-                      {entry.action_type === "return_to_member" ? (
+                      {entry.action_type === "return_request_created" ? (
+                        <>
+                          <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300">
+                            Permintaan Pengembalian
+                          </Badge>
+                          <span className="text-sm font-medium">
+                            OPD Member mengajukan pengembalian laporan ke Member
+                          </span>
+                        </>
+                      ) : entry.action_type === "return_request_approved" ? (
+                        <>
+                          <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">
+                            Permintaan Disetujui
+                          </Badge>
+                          <span className="text-sm font-medium">
+                            Member menyetujui pengembalian laporan
+                          </span>
+                        </>
+                      ) : entry.action_type === "return_request_rejected" ? (
+                        <>
+                          <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300">
+                            Permintaan Ditolak
+                          </Badge>
+                          <span className="text-sm font-medium">
+                            Member menolak pengembalian laporan
+                          </span>
+                        </>
+                      ) : entry.action_type === "return_to_member" ? (
                         <>
                           <div className="flex items-center gap-2">
                             <Building2 className="h-4 w-4 text-muted-foreground" />

@@ -52,6 +52,12 @@ type Report = {
   updated_at: string;
   assigned_opd_id: string | null;
   was_returned?: boolean;
+  return_request?: {
+    id: string;
+    status: string;
+    requested_at: string;
+    notes: string;
+  };
 };
 
 interface OPD {
@@ -157,10 +163,25 @@ const Reports = () => {
           (dispositions || []).map(d => d.report_id)
         );
         
-        // Mark reports that were returned
+        // Fetch pending return requests for these reports
+        const { data: returnRequests } = await supabase
+          .from("report_return_requests")
+          .select("id, report_id, status, requested_at, notes")
+          .in("report_id", reportIds);
+        
+        const returnRequestMap = new Map(
+          (returnRequests || []).map(req => [req.report_id, req])
+        );
+        
+        // Mark reports that were returned and attach return request status
         reports.forEach(report => {
           if (!report.assigned_opd_id && returnedReportIds.has(report.id)) {
             report.was_returned = true;
+          }
+          
+          const returnRequest = returnRequestMap.get(report.id);
+          if (returnRequest) {
+            report.return_request = returnRequest;
           }
         });
       }
@@ -470,9 +491,29 @@ const Reports = () => {
                         </TableCell>
                         <TableCell className="font-medium">{report.reporter_name}</TableCell>
                         <TableCell>
-                          <Badge className={getTypeColor(report.type)} variant="outline">
-                            {report.type}
-                          </Badge>
+                          <div className="flex gap-2 flex-wrap">
+                            <Badge className={getTypeColor(report.type)} variant="outline">
+                              {report.type}
+                            </Badge>
+                            {report.return_request && (
+                              <Badge 
+                                variant={
+                                  report.return_request.status === 'pending' ? 'default' : 
+                                  report.return_request.status === 'approved' ? 'outline' : 
+                                  'destructive'
+                                }
+                                className={
+                                  report.return_request.status === 'pending' 
+                                    ? 'bg-orange-500 hover:bg-orange-600' 
+                                    : ''
+                                }
+                              >
+                                {report.return_request.status === 'pending' && '⏳ Permintaan Dikembalikan'}
+                                {report.return_request.status === 'approved' && '✓ Dikembalikan ke Member'}
+                                {report.return_request.status === 'rejected' && '✗ Pengembalian Ditolak'}
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Select
