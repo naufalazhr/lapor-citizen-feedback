@@ -115,19 +115,19 @@ export function ReturnRequestCard() {
 
   return (
     <>
-      <Card className="border-orange-200 bg-orange-50/50">
-        <CardHeader>
+      <Card className="border-orange-300 bg-orange-50 shadow-md">
+        <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-orange-900">
                 <ArrowLeft className="h-5 w-5 text-orange-600" />
                 Permintaan Pengembalian Laporan
               </CardTitle>
-              <CardDescription>
-                {requests.length} laporan menunggu persetujuan pengembalian
+              <CardDescription className="text-orange-700 font-medium">
+                {requests.length} laporan menunggu persetujuan pengembalian dari Anda
               </CardDescription>
             </div>
-            <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300">
+            <Badge className="bg-orange-600 text-white border-orange-700 text-base px-3 py-1">
               {requests.length} Pending
             </Badge>
           </div>
@@ -169,13 +169,25 @@ export function ReturnRequestCard() {
                       </p>
                     </div>
                     
-                    <Button
-                      size="sm"
-                      onClick={() => handleReviewClick(request)}
-                      className="shrink-0"
-                    >
-                      Tinjau
-                    </Button>
+                    <div className="flex gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleReviewClick(request)}
+                      >
+                        Detail
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setSelectedRequest(request);
+                          setDialogOpen(true);
+                        }}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        Setujui
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
