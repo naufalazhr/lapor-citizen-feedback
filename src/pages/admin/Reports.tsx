@@ -50,6 +50,7 @@ type Report = {
   created_at: string;
   updated_at: string;
   assigned_opd_id: string | null;
+  was_returned?: boolean;
 };
 
 interface OPD {
@@ -139,7 +140,31 @@ const Reports = () => {
         variant: "destructive",
       });
     } else {
-      setReports((data || []) as unknown as Report[]);
+      const reports = (data || []) as unknown as Report[];
+      
+      // Check which reports were returned by fetching latest dispositions with action_type = 'return'
+      const reportIds = reports.map(r => r.id);
+      if (reportIds.length > 0) {
+        const { data: dispositions } = await supabase
+          .from("report_dispositions")
+          .select("report_id, action_type")
+          .in("report_id", reportIds)
+          .eq("action_type", "return")
+          .order("assigned_at", { ascending: false });
+        
+        const returnedReportIds = new Set(
+          (dispositions || []).map(d => d.report_id)
+        );
+        
+        // Mark reports that were returned
+        reports.forEach(report => {
+          if (!report.assigned_opd_id && returnedReportIds.has(report.id)) {
+            report.was_returned = true;
+          }
+        });
+      }
+      
+      setReports(reports);
     }
     setLoading(false);
   };
@@ -466,6 +491,10 @@ const Reports = () => {
                             <Badge variant="outline" className="gap-1">
                               <Building2 className="h-3 w-3" />
                               {opdMap.get(report.assigned_opd_id)?.code}
+                            </Badge>
+                          ) : report.was_returned ? (
+                            <Badge variant="secondary" className="gap-1">
+                              Dikembalikan
                             </Badge>
                           ) : (
                             <span className="text-xs text-muted-foreground">-</span>
