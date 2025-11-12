@@ -135,40 +135,28 @@ export function OPDMemberReturnDialog({
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
 
-      // Process each report
+      // Process each report using the secure function
       for (const report of reports) {
         if (!report.assigned_opd_id) {
           console.warn(`Report ${report.id} has no assigned OPD, skipping`);
           continue;
         }
 
-        // Update report: Clear OPD assignment
-        const { error: updateError } = await supabase
-          .from("reports")
-          .update({
-            assigned_opd_id: null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", report.id);
+        // Call the secure function to return the report
+        const { data, error } = await supabase.rpc('opd_return_report', {
+          p_report_id: report.id,
+          p_notes: values.notes
+        });
 
-        if (updateError) throw updateError;
+        if (error) {
+          console.error('Error calling opd_return_report:', error);
+          throw error;
+        }
 
-        // Create disposition record - recording the return action
-        const { error: dispositionError } = await supabase
-          .from("report_dispositions")
-          .insert({
-            report_id: report.id,
-            opd_id: report.assigned_opd_id, // The OPD from which it's being returned
-            previous_opd_id: report.assigned_opd_id, // Same as opd_id for return actions
-            assigned_by: session.user.id,
-            notes: values.notes,
-            status_before: report.status,
-            status_after: report.status,
-            action_type: "return_to_member",
-            tenant_id: tenantId,
-          });
-
-        if (dispositionError) throw dispositionError;
+        if (data && !data.success) {
+          console.error('Function returned error:', data.error);
+          throw new Error(data.error || 'Failed to return report');
+        }
       }
 
       toast({

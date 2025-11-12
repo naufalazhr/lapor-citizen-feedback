@@ -1129,6 +1129,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      opd_return_report: {
+        Args: { p_notes: string; p_report_id: string }
+        Returns: Json
+      }
     }
     Enums: {
       agent_status: "draft" | "published" | "archived"
