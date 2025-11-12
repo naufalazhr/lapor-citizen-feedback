@@ -135,33 +135,32 @@ export function OPDMemberReturnDialog({
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
 
-      // Process each report using the secure function
+      // Create return requests for each report
       for (const report of reports) {
         if (!report.assigned_opd_id) {
           console.warn(`Report ${report.id} has no assigned OPD, skipping`);
           continue;
         }
 
-        // Call the secure function to return the report
-        const { data, error } = await supabase.rpc('opd_return_report', {
-          p_report_id: report.id,
-          p_notes: values.notes
-        });
+        const { error } = await supabase
+          .from("report_return_requests")
+          .insert({
+            report_id: report.id,
+            requested_by: session.user.id,
+            notes: values.notes,
+            tenant_id: tenantId,
+            status: 'pending'
+          });
 
         if (error) {
-          console.error('Error calling opd_return_report:', error);
+          console.error('Error creating return request:', error);
           throw error;
-        }
-
-        if (data && !data.success) {
-          console.error('Function returned error:', data.error);
-          throw new Error(data.error || 'Failed to return report');
         }
       }
 
       toast({
-        title: "Berhasil",
-        description: `${reports.length} laporan berhasil dikembalikan ke Member`,
+        title: "Permintaan Diajukan",
+        description: `Permintaan pengembalian ${reports.length} laporan telah diajukan ke Member`,
       });
 
       onSuccess();
@@ -183,25 +182,24 @@ export function OPDMemberReturnDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[525px]">
         <DialogHeader>
-          <DialogTitle>Kembalikan Laporan ke Member</DialogTitle>
+          <DialogTitle>Ajukan Pengembalian Laporan</DialogTitle>
           <DialogDescription>
-            Kembalikan laporan yang dipilih kembali ke pool Member untuk ditindaklanjuti
+            Buat permintaan pengembalian yang akan ditinjau oleh Member
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             {/* Warning Alert */}
-            <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+            <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+                <AlertTriangle className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
                 <div className="flex-1">
-                  <h4 className="font-medium text-amber-900 dark:text-amber-100 mb-1">
+                  <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-1">
                     Perhatian
                   </h4>
-                  <p className="text-sm text-amber-700 dark:text-amber-300">
-                    Laporan akan dikembalikan ke pool Member dan status OPD akan dihapus. 
-                    Member dapat melakukan disposisi ulang.
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Permintaan pengembalian akan dikirim ke Member untuk ditinjau dan disetujui.
                   </p>
                 </div>
               </div>
@@ -250,7 +248,7 @@ export function OPDMemberReturnDialog({
                 Batal
               </Button>
               <Button type="submit" disabled={loading}>
-                {loading ? "Memproses..." : "Kembalikan ke Member"}
+                {loading ? "Memproses..." : "Ajukan Permintaan"}
               </Button>
             </DialogFooter>
           </form>

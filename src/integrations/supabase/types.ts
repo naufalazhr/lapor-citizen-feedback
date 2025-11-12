@@ -748,6 +748,59 @@ export type Database = {
           },
         ]
       }
+      report_return_requests: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string
+          rejection_reason: string | null
+          report_id: string
+          requested_at: string
+          requested_by: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes: string
+          rejection_reason?: string | null
+          report_id: string
+          requested_at?: string
+          requested_by: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string
+          rejection_reason?: string | null
+          report_id?: string
+          requested_at?: string
+          requested_by?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_return_requests_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reports: {
         Row: {
           address: string
@@ -1071,6 +1124,14 @@ export type Database = {
       }
     }
     Functions: {
+      approve_report_return: {
+        Args: {
+          p_approved: boolean
+          p_rejection_reason?: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
       assign_user_role: {
         Args: {
           new_role: Database["public"]["Enums"]["app_role"]
@@ -1128,10 +1189,6 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
-      }
-      opd_return_report: {
-        Args: { p_notes: string; p_report_id: string }
-        Returns: Json
       }
     }
     Enums: {

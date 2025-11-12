@@ -26,6 +26,7 @@ import { Trash2, Eye, RefreshCw, Copy, Search, ChevronLeft, ChevronRight, Buildi
 import { Input } from "@/components/ui/input";
 import { ReportDispositionDialog } from "@/components/admin/ReportDispositionDialog";
 import { OPDMemberReturnDialog } from "@/components/admin/OPDMemberReturnDialog";
+import { ReturnRequestCard } from "@/components/admin/ReturnRequestCard";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Pagination,
@@ -379,6 +380,9 @@ const Reports = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Return Requests Card - Only show for Members/Admins */}
+        {!isOPDMember && <ReturnRequestCard />}
 
         <Card>
           <CardHeader>
