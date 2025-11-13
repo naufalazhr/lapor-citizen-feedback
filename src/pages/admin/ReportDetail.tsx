@@ -65,7 +65,7 @@ const ReportDetail = () => {
   const [showDispositionDialog, setShowDispositionDialog] = useState(false);
   const [showReturnDialog, setShowReturnDialog] = useState(false);
   const { toast } = useToast();
-  const { isOPDMember } = useUserRole();
+  const { isOPDMember, role } = useUserRole();
 
   console.log("🎨 ReportDetail render - ID:", id, "Loading:", loading, "Report:", report ? "exists" : "null");
 
@@ -301,10 +301,12 @@ const ReportDetail = () => {
               <p className="text-muted-foreground">Informasi lengkap tentang laporan ini</p>
             </div>
           </div>
-          <Button variant="destructive" onClick={deleteReport}>
-            <Trash2 className="h-4 w-4 mr-2" />
-            Hapus Laporan
-          </Button>
+          {(role === 'admin' || role === 'superadmin') && (
+            <Button variant="destructive" onClick={deleteReport}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Hapus Laporan
+            </Button>
+          )}
         </div>
 
         {/* Ticket ID Card */}

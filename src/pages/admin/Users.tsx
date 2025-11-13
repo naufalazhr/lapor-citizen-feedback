@@ -83,10 +83,39 @@ const Users = () => {
 
   const fetchUsers = async () => {
     try {
-      const { data: profiles, error: profilesError } = await supabase
+      // TENANT ISOLATION: Get current user's tenant_id
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        navigate('/auth');
+        return;
+      }
+
+      const { data: currentUserProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('tenant_id')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profileError) {
+        console.error("Error fetching current user profile:", profileError);
+        throw profileError;
+      }
+
+      // If current user has no tenant_id, they might be superadmin (show all)
+      // Otherwise, only show users from the same tenant
+      let profilesQuery = supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
+
+      if (currentUserProfile?.tenant_id) {
+        // TENANT ISOLATION: Filter by tenant_id and exclude superadmins
+        profilesQuery = profilesQuery
+          .eq('tenant_id', currentUserProfile.tenant_id)
+          .not('tenant_id', 'is', null);
+      }
+
+      const { data: profiles, error: profilesError } = await profilesQuery;
 
       if (profilesError) {
         console.error("Error fetching profiles:", profilesError);

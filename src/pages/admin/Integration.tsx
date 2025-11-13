@@ -17,10 +17,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Copy, Check, Code, Key, BookOpen, ChevronDown, Settings, FileCode, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useUserRole } from "@/hooks/use-user-role";
 
 const Integration = () => {
   const navigate = useNavigate();
   const { toast } = useToastHook();
+  const { isSuperadmin } = useUserRole();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -603,53 +605,59 @@ try {
           </Card>
         </Collapsible>
 
-        <Collapsible open={flowiseOpen} onOpenChange={setFlowiseOpen}>
-          <Card>
-            <CollapsibleTrigger className="w-full">
-              <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="h-5 w-5" />
-                    <div className="text-left">
-                      <CardTitle>Flowise Configuration</CardTitle>
-                      <CardDescription>Configure AI agent settings for WhatsApp integration</CardDescription>
+        {/* Flowise Configuration - Superadmin Only */}
+        {isSuperadmin && (
+          <Collapsible open={flowiseOpen} onOpenChange={setFlowiseOpen}>
+            <Card>
+              <CollapsibleTrigger className="w-full">
+                <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="h-5 w-5" />
+                      <div className="text-left">
+                        <CardTitle>Flowise Configuration</CardTitle>
+                        <CardDescription>Configure AI agent settings for WhatsApp integration</CardDescription>
+                      </div>
                     </div>
+                    <ChevronDown className={`h-5 w-5 transition-transform ${flowiseOpen ? "rotate-180" : ""}`} />
                   </div>
-                  <ChevronDown className={`h-5 w-5 transition-transform ${flowiseOpen ? "rotate-180" : ""}`} />
-                </div>
-              </CardHeader>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <CardContent className="pt-6">
-                <FlowiseConfigManager />
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="pt-6">
+                  <FlowiseConfigManager />
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+        )}
 
-        <Collapsible open={fonnteOpen} onOpenChange={setFonnteOpen}>
-          <Card>
-            <CollapsibleTrigger className="w-full">
-              <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="h-5 w-5" />
-                    <div className="text-left">
-                      <CardTitle>Fonnte Configuration</CardTitle>
-                      <CardDescription>Configure WhatsApp gateway settings and webhook</CardDescription>
+        {/* Fonnte Configuration - Superadmin Only */}
+        {isSuperadmin && (
+          <Collapsible open={fonnteOpen} onOpenChange={setFonnteOpen}>
+            <Card>
+              <CollapsibleTrigger className="w-full">
+                <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="h-5 w-5" />
+                      <div className="text-left">
+                        <CardTitle>Fonnte Configuration</CardTitle>
+                        <CardDescription>Configure WhatsApp gateway settings and webhook</CardDescription>
+                      </div>
                     </div>
+                    <ChevronDown className={`h-5 w-5 transition-transform ${fonnteOpen ? "rotate-180" : ""}`} />
                   </div>
-                  <ChevronDown className={`h-5 w-5 transition-transform ${fonnteOpen ? "rotate-180" : ""}`} />
-                </div>
-              </CardHeader>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <CardContent className="pt-6">
-                <FonnteConfigManager />
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="pt-6">
+                  <FonnteConfigManager />
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+        )}
       </div>
     </Dashboard>
   );
