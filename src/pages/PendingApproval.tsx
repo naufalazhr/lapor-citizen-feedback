@@ -4,11 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Clock, CheckCircle2, XCircle, Edit, LogOut, RefreshCw } from "lucide-react";
+import { Clock, XCircle, Edit, LogOut, RefreshCw, Building2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 interface ApprovalRequest {
   id: string;
+  tenant_id: string;
   status: string;
   requested_at: string;
   organization: string;
@@ -16,6 +17,11 @@ interface ApprovalRequest {
   position: string;
   rejection_reason: string | null;
   reviewed_at: string | null;
+  tenant?: {
+    id: string;
+    name: string;
+    slug: string;
+  };
 }
 
 const PendingApproval = () => {
@@ -75,10 +81,13 @@ const PendingApproval = () => {
       return;
     }
 
-    // Fetch approval request
+    // Fetch approval request with tenant information
     const { data, error } = await supabase
       .from('user_approvals')
-      .select('*')
+      .select(`
+        *,
+        tenant:tenants(id, name, slug)
+      `)
       .eq('user_id', targetUserId)
       .order('requested_at', { ascending: false })
       .limit(1)
@@ -233,16 +242,25 @@ const PendingApproval = () => {
             </div>
           )}
 
+          {/* Tenant Information */}
+          {approvalRequest.tenant && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-muted-foreground">Requesting Access To</h3>
+              <div className="flex items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                <Building2 className="h-6 w-6 text-primary" />
+                <div>
+                  <p className="font-semibold text-primary text-lg">{approvalRequest.tenant.name}</p>
+                  <p className="text-xs text-muted-foreground">Tenant Slug: {approvalRequest.tenant.slug}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Request Details */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-muted-foreground">Request Details</h3>
+            <h3 className="text-sm font-semibold text-muted-foreground">Additional Details</h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Organization</p>
-                <p className="text-sm font-medium">{approvalRequest.organization}</p>
-              </div>
-
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">Department</p>
                 <p className="text-sm font-medium">{approvalRequest.department}</p>

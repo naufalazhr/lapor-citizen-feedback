@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { UserCircle, Mail, Building2, Briefcase, LogOut, Send } from "lucide-react";
+import { UserCircle, Mail, Building2, Briefcase, LogOut, Send, CheckCircle, XCircle, Loader2 } from "lucide-react";
 
 interface UserProfile {
   id: string;
@@ -23,6 +23,12 @@ interface ApprovalRequest {
   requested_at: string;
 }
 
+interface ValidatedTenant {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 const ProfileSetup = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -33,7 +39,11 @@ const ProfileSetup = () => {
   const [approvalRequest, setApprovalRequest] = useState<ApprovalRequest | null>(null);
 
   // Form state
-  const [organization, setOrganization] = useState("");
+  const [tenantSlug, setTenantSlug] = useState("");
+  const [validatedTenant, setValidatedTenant] = useState<ValidatedTenant | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [tenantError, setTenantError] = useState("");
+  const [organization, setOrganization] = useState(""); // Keep for backward compatibility with profile
   const [department, setDepartment] = useState("");
   const [position, setPosition] = useState("");
 
@@ -98,6 +108,42 @@ const ProfileSetup = () => {
     }
   };
 
+  const verifyTenantSlug = async (slug: string) => {
+    if (!slug || slug.trim() === '') {
+      setValidatedTenant(null);
+      setTenantError('');
+      return;
+    }
+
+    setVerifying(true);
+    setTenantError('');
+
+    const { data, error } = await supabase
+      .from('tenants')
+      .select('id, name, slug')
+      .eq('slug', slug.toLowerCase().trim())
+      .eq('status', 'active')
+      .maybeSingle();
+
+    setVerifying(false);
+
+    if (error) {
+      console.error('Error verifying tenant:', error);
+      setTenantError('Error verifying tenant slug');
+      setValidatedTenant(null);
+      return;
+    }
+
+    if (!data) {
+      setTenantError('Tenant not found. Please check the slug and try again.');
+      setValidatedTenant(null);
+      return;
+    }
+
+    setValidatedTenant(data);
+    setTenantError('');
+  };
+
   const handleSaveProfile = async () => {
     if (!profile) return;
 
@@ -132,11 +178,21 @@ const ProfileSetup = () => {
   const handleRequestAccess = async () => {
     if (!profile) return;
 
+    // Validate tenant slug
+    if (!validatedTenant) {
+      toast({
+        title: "Tenant required",
+        description: "Please enter a valid tenant slug before requesting access",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Validate required fields
-    if (!organization || !department || !position) {
+    if (!department || !position) {
       toast({
         title: "Missing information",
-        description: "Please fill in organization, department, and position before requesting access",
+        description: "Please fill in department and position before requesting access",
         variant: "destructive",
       });
       return;
@@ -144,16 +200,37 @@ const ProfileSetup = () => {
 
     setRequesting(true);
 
-    // First save the profile
-    await handleSaveProfile();
+    // Save tenant name to organization field in profile for reference
+    const organizationValue = validatedTenant.name;
 
-    // Then create approval request
+    // First save the profile
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({
+        organization: organizationValue,
+        department,
+        position,
+      })
+      .eq('id', profile.id);
+
+    if (profileError) {
+      toast({
+        title: "Error saving profile",
+        description: profileError.message,
+        variant: "destructive",
+      });
+      setRequesting(false);
+      return;
+    }
+
+    // Then create approval request with tenant_id
     const { error } = await supabase
       .from('user_approvals')
       .insert({
         user_id: profile.id,
+        tenant_id: validatedTenant.id,
         requested_role: 'viewer',
-        organization,
+        organization: organizationValue,
         department,
         position,
         status: 'pending',
@@ -171,7 +248,7 @@ const ProfileSetup = () => {
 
     toast({
       title: "Access request submitted",
-      description: "An administrator will review your request shortly",
+      description: `Your request to join ${validatedTenant.name} has been submitted`,
     });
 
     // Redirect to pending approval page
@@ -261,20 +338,52 @@ const ProfileSetup = () => {
             <h3 className="text-sm font-semibold text-muted-foreground">Organization Details</h3>
 
             <div className="space-y-2">
-              <Label htmlFor="organization">
-                Organization <span className="text-destructive">*</span>
+              <Label htmlFor="tenantSlug">
+                Tenant Slug <span className="text-destructive">*</span>
               </Label>
               <div className="relative">
                 <Building2 className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
-                  id="organization"
-                  placeholder="e.g., Tech Company Inc."
-                  value={organization}
-                  onChange={(e) => setOrganization(e.target.value)}
-                  className="pl-10"
+                  id="tenantSlug"
+                  placeholder="e.g., default"
+                  value={tenantSlug}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setTenantSlug(value);
+                    verifyTenantSlug(value);
+                  }}
+                  className="pl-10 pr-10"
                   disabled={approvalRequest !== null}
                 />
+                {verifying && (
+                  <Loader2 className="absolute right-3 top-3 h-4 w-4 text-muted-foreground animate-spin" />
+                )}
+                {!verifying && validatedTenant && (
+                  <CheckCircle className="absolute right-3 top-3 h-4 w-4 text-green-500" />
+                )}
+                {!verifying && tenantError && (
+                  <XCircle className="absolute right-3 top-3 h-4 w-4 text-destructive" />
+                )}
               </div>
+              <p className="text-xs text-muted-foreground">
+                Enter the tenant slug provided by your organization administrator
+              </p>
+              {validatedTenant && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md">
+                  <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                  <span className="text-sm text-green-900 dark:text-green-100">
+                    {validatedTenant.name}
+                  </span>
+                </div>
+              )}
+              {tenantError && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-destructive/10 border border-destructive/30 rounded-md">
+                  <XCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+                  <span className="text-sm text-destructive">
+                    {tenantError}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -317,17 +426,9 @@ const ProfileSetup = () => {
             {!approvalRequest && (
               <>
                 <Button
-                  variant="outline"
-                  onClick={handleSaveProfile}
-                  disabled={saving}
-                  className="flex-1"
-                >
-                  {saving ? "Saving..." : "Save Profile"}
-                </Button>
-                <Button
                   onClick={handleRequestAccess}
-                  disabled={requesting || !organization || !department || !position}
-                  className="flex-1"
+                  disabled={requesting || !validatedTenant || !department || !position || verifying}
+                  className="w-full"
                 >
                   <Send className="h-4 w-4 mr-2" />
                   {requesting ? "Requesting..." : "Request Access"}

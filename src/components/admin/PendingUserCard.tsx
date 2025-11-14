@@ -41,6 +41,7 @@ import { formatDistanceToNow } from "date-fns";
 interface UserApproval {
   id: string;
   user_id: string;
+  tenant_id: string;
   requested_role: string;
   status: string;
   organization: string | null;
@@ -50,6 +51,11 @@ interface UserApproval {
   user?: {
     email: string;
     full_name?: string;
+  };
+  tenant?: {
+    id: string;
+    name: string;
+    slug: string;
   };
 }
 
@@ -63,56 +69,25 @@ export function PendingUserCard({ approval, onApproved, onRejected }: PendingUse
   const { toast } = useToast();
   const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
-  const [selectedTenant, setSelectedTenant] = useState<string>("");
   const [selectedRole, setSelectedRole] = useState<string>(approval.requested_role);
   const [rejectionReason, setRejectionReason] = useState("");
-  const [tenants, setTenants] = useState<any[]>([]);
   const [processing, setProcessing] = useState(false);
-  const [loadingTenants, setLoadingTenants] = useState(false);
-
-  const fetchTenants = async () => {
-    setLoadingTenants(true);
-    const { data, error } = await supabase
-      .from("tenants")
-      .select("id, name, slug, status")
-      .eq("status", "active")
-      .order("name");
-
-    if (error) {
-      console.error("Error fetching tenants:", error);
-      toast({
-        title: "Error loading tenants",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      setTenants(data || []);
-    }
-    setLoadingTenants(false);
-  };
 
   const handleApproveClick = () => {
-    fetchTenants();
     setShowApproveDialog(true);
   };
 
   const handleApprove = async () => {
-    if (!selectedTenant) {
-      toast({
-        title: "Tenant required",
-        description: "Please select a tenant/organization",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setProcessing(true);
 
     try {
+      // Use tenant_id from the approval request
+      const tenantId = approval.tenant_id;
+
       // Step 1: Update user's tenant_id in profiles
       const { error: profileError } = await supabase
         .from("profiles")
-        .update({ tenant_id: selectedTenant })
+        .update({ tenant_id: tenantId })
         .eq("id", approval.user_id);
 
       if (profileError) throw profileError;
@@ -120,13 +95,18 @@ export function PendingUserCard({ approval, onApproved, onRejected }: PendingUse
       // Step 2: Assign role to user
       const { error: roleError } = await supabase
         .from("user_roles")
-        .insert({ user_id: approval.user_id, role: selectedRole });
+        .insert({
+          user_id: approval.user_id,
+          role: selectedRole as "owner" | "admin" | "member" | "viewer" | "superadmin" | "opd_member"
+        });
 
       if (roleError) {
         // If role already exists, update it
         const { error: updateRoleError } = await supabase
           .from("user_roles")
-          .update({ role: selectedRole })
+          .update({
+            role: selectedRole as "owner" | "admin" | "member" | "viewer" | "superadmin" | "opd_member"
+          })
           .eq("user_id", approval.user_id);
 
         if (updateRoleError) throw updateRoleError;
@@ -146,7 +126,7 @@ export function PendingUserCard({ approval, onApproved, onRejected }: PendingUse
 
       toast({
         title: "User approved",
-        description: `${approval.user?.email} has been approved and can now access the system`,
+        description: `${approval.user?.email} has been approved and assigned to ${approval.tenant?.name || 'the organization'}`,
       });
 
       setShowApproveDialog(false);
@@ -231,18 +211,20 @@ export function PendingUserCard({ approval, onApproved, onRejected }: PendingUse
 
         <CardContent>
           <div className="space-y-4">
-            {/* Request Details */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-              {approval.organization && (
-                <div className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Organization</p>
-                    <p className="font-medium">{approval.organization}</p>
-                  </div>
+            {/* Tenant Information */}
+            {approval.tenant && (
+              <div className="flex items-center gap-2 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                <Building2 className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Requesting access to</p>
+                  <p className="font-semibold text-primary">{approval.tenant.name}</p>
+                  <p className="text-xs text-muted-foreground">Slug: {approval.tenant.slug}</p>
                 </div>
-              )}
+              </div>
+            )}
 
+            {/* Request Details */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               {approval.department && (
                 <div className="flex items-center gap-2">
                   <Building2 className="h-4 w-4 text-muted-foreground" />
@@ -299,29 +281,27 @@ export function PendingUserCard({ approval, onApproved, onRejected }: PendingUse
           <DialogHeader>
             <DialogTitle>Approve User</DialogTitle>
             <DialogDescription>
-              Assign {approval.user?.email} to a tenant and role
+              Approve {approval.user?.email} to join {approval.tenant?.name || 'the organization'}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Tenant / Organization</Label>
-              <Select value={selectedTenant} onValueChange={setSelectedTenant}>
-                <SelectTrigger disabled={loadingTenants}>
-                  <SelectValue placeholder={loadingTenants ? "Loading..." : "Select tenant"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {tenants.map((tenant) => (
-                    <SelectItem key={tenant.id} value={tenant.id}>
-                      {tenant.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Display Tenant (Read-only) */}
+            {approval.tenant && (
+              <div className="space-y-2">
+                <Label>Organization</Label>
+                <div className="flex items-center gap-2 p-3 bg-muted rounded-md">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium">{approval.tenant.name}</p>
+                    <p className="text-xs text-muted-foreground">Slug: {approval.tenant.slug}</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
-              <Label>Role</Label>
+              <Label>Assign Role</Label>
               <Select value={selectedRole} onValueChange={setSelectedRole}>
                 <SelectTrigger>
                   <SelectValue />
@@ -345,7 +325,7 @@ export function PendingUserCard({ approval, onApproved, onRejected }: PendingUse
             >
               Cancel
             </Button>
-            <Button onClick={handleApprove} disabled={processing || !selectedTenant}>
+            <Button onClick={handleApprove} disabled={processing}>
               {processing ? "Approving..." : "Approve User"}
             </Button>
           </DialogFooter>

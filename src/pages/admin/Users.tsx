@@ -103,43 +103,83 @@ const Users = () => {
   };
 
   const fetchPendingApprovals = async () => {
-    const { data, error } = await supabase
-      .from('user_approvals')
-      .select(`
-        id,
-        user_id,
-        requested_role,
-        status,
-        organization,
-        department,
-        position,
-        requested_at
-      `)
-      .eq('status', 'pending')
-      .order('requested_at', { ascending: false });
+    try {
+      // TENANT ISOLATION: Get current user's profile and role
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        return;
+      }
 
-    if (error) {
-      console.error('Error fetching pending approvals:', error);
-      return;
+      const { data: currentUserProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('tenant_id')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profileError) {
+        console.error('Error fetching current user profile:', profileError);
+        return;
+      }
+
+      // Check if user is superadmin
+      const { data: roleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', session.user.id)
+        .single();
+
+      const isSuperadmin = roleData?.role === 'superadmin';
+
+      // Build query with tenant filtering
+      let approvalsQuery = supabase
+        .from('user_approvals')
+        .select(`
+          id,
+          user_id,
+          tenant_id,
+          requested_role,
+          status,
+          organization,
+          department,
+          position,
+          requested_at,
+          tenant:tenants(id, name, slug)
+        `)
+        .eq('status', 'pending')
+        .order('requested_at', { ascending: false });
+
+      // If not superadmin, filter by tenant_id
+      if (!isSuperadmin && currentUserProfile?.tenant_id) {
+        approvalsQuery = approvalsQuery.eq('tenant_id', currentUserProfile.tenant_id);
+      }
+
+      const { data, error } = await approvalsQuery;
+
+      if (error) {
+        console.error('Error fetching pending approvals:', error);
+        return;
+      }
+
+      // Fetch user details for each approval
+      const approvalsWithUsers = await Promise.all(
+        (data || []).map(async (approval) => {
+          const { data: userData } = await supabase
+            .from('profiles')
+            .select('email, full_name')
+            .eq('id', approval.user_id)
+            .single();
+
+          return {
+            ...approval,
+            user: userData || { email: 'Unknown' },
+          };
+        })
+      );
+
+      setPendingApprovals(approvalsWithUsers);
+    } catch (error) {
+      console.error('Error in fetchPendingApprovals:', error);
     }
-
-    // Fetch user details for each approval
-    const approvalsWithUsers = await Promise.all(
-      (data || []).map(async (approval) => {
-        const { data: userData } = await supabase
-          .from('profiles')
-          .select('email, full_name')
-          .eq('id', approval.user_id)
-          .single();
-
-        return {
-          ...approval,
-          user: userData || { email: 'Unknown' },
-        };
-      })
-    );
-
-    setPendingApprovals(approvalsWithUsers);
   };
 
   const fetchUsers = async () => {
