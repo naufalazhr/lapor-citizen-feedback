@@ -273,7 +273,7 @@ export function DispositionTimeline({ reportId }: DispositionTimelineProps) {
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[400px] pr-4">
-          <div className="space-y-4">
+          <div className="space-y-4 pl-3">
             {dispositions.map((entry, index) => (
               <div
                 key={entry.id}
