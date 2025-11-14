@@ -5,10 +5,13 @@ import Dashboard from "./Dashboard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserRoleManager } from "@/components/admin/UserRoleManager";
 import { UserOPDAssignmentDialog } from "@/components/admin/UserOPDAssignmentDialog";
+import { InvitationManager } from "@/components/admin/InvitationManager";
+import { PendingUserCard } from "@/components/admin/PendingUserCard";
 import { useToast } from "@/hooks/use-toast";
-import { Search, UserCog, Building2 } from "lucide-react";
+import { Search, UserCog, Building2, UserPlus, Clock } from "lucide-react";
 
 interface UserProfile {
   id: string;
@@ -18,6 +21,21 @@ interface UserProfile {
   department: string | null;
   position: string | null;
   role: string | null;
+}
+
+interface PendingApproval {
+  id: string;
+  user_id: string;
+  requested_role: string;
+  status: string;
+  organization: string | null;
+  department: string | null;
+  position: string | null;
+  requested_at: string;
+  user?: {
+    email: string;
+    full_name?: string;
+  };
 }
 
 const Users = () => {
@@ -31,6 +49,8 @@ const Users = () => {
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [showRoleManager, setShowRoleManager] = useState(false);
   const [showOPDAssignment, setShowOPDAssignment] = useState(false);
+  const [showInvitationManager, setShowInvitationManager] = useState(false);
+  const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([]);
 
   useEffect(() => {
     checkAccess();
@@ -79,6 +99,47 @@ const Users = () => {
 
     setIsAdmin(true);
     fetchUsers();
+    fetchPendingApprovals();
+  };
+
+  const fetchPendingApprovals = async () => {
+    const { data, error } = await supabase
+      .from('user_approvals')
+      .select(`
+        id,
+        user_id,
+        requested_role,
+        status,
+        organization,
+        department,
+        position,
+        requested_at
+      `)
+      .eq('status', 'pending')
+      .order('requested_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching pending approvals:', error);
+      return;
+    }
+
+    // Fetch user details for each approval
+    const approvalsWithUsers = await Promise.all(
+      (data || []).map(async (approval) => {
+        const { data: userData } = await supabase
+          .from('profiles')
+          .select('email, full_name')
+          .eq('id', approval.user_id)
+          .single();
+
+        return {
+          ...approval,
+          user: userData || { email: 'Unknown' },
+        };
+      })
+    );
+
+    setPendingApprovals(approvalsWithUsers);
   };
 
   const fetchUsers = async () => {
@@ -220,7 +281,43 @@ const Users = () => {
               Kelola pengguna dan tetapkan role akses
             </p>
           </div>
+          <Button onClick={() => setShowInvitationManager(true)}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Invite User
+          </Button>
         </div>
+
+        {/* Pending Approvals Section */}
+        {pendingApprovals.length > 0 && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Clock className="h-5 w-5" />
+                    Pending Approvals
+                  </CardTitle>
+                  <CardDescription>
+                    Users waiting for access approval
+                  </CardDescription>
+                </div>
+                <Badge variant="secondary">{pendingApprovals.length}</Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {pendingApprovals.map((approval) => (
+                  <PendingUserCard
+                    key={approval.id}
+                    approval={approval}
+                    onApproved={fetchPendingApprovals}
+                    onRejected={fetchPendingApprovals}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="flex items-center gap-4">
           <div className="relative flex-1 max-w-md">
@@ -311,6 +408,11 @@ const Users = () => {
           />
         </>
       )}
+
+      <InvitationManager
+        open={showInvitationManager}
+        onOpenChange={setShowInvitationManager}
+      />
     </Dashboard>
   );
 };

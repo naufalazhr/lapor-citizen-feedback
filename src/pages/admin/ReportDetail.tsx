@@ -161,10 +161,11 @@ const ReportDetail = () => {
   const updateStatus = async (status: "pending" | "in_progress" | "resolved" | "rejected") => {
     if (!report) return;
 
-    const { error } = await supabase
-      .from("reports")
-      .update({ status })
-      .eq("id", report.id);
+    const { data, error } = await supabase.rpc('update_report_status', {
+      p_report_id: report.id,
+      p_new_status: status,
+      p_notes: null
+    });
 
     if (error) {
       toast({
@@ -175,7 +176,7 @@ const ReportDetail = () => {
     } else {
       toast({
         title: "Status berhasil diperbarui",
-        description: "Status laporan telah diubah",
+        description: "Status laporan telah diubah dan tercatat di timeline",
       });
       fetchReport();
     }

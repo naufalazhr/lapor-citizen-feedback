@@ -5,6 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Report from "./pages/Report";
 import Auth from "./pages/Auth";
+import ProfileSetup from "./pages/ProfileSetup";
+import PendingApproval from "./pages/PendingApproval";
+import AcceptInvitation from "./pages/AcceptInvitation";
 import DashboardOverview from "./pages/admin/DashboardOverview";
 import Reports from "./pages/admin/Reports";
 import ReportDetail from "./pages/admin/ReportDetail";
@@ -34,6 +37,9 @@ const App = () => (
           <Route path="/admin/users" element={<Users />} />
           <Route path="/admin/opds" element={<OPDs />} />
           <Route path="/admin" element={<DashboardOverview />} />
+          <Route path="/profile-setup" element={<ProfileSetup />} />
+          <Route path="/pending-approval" element={<PendingApproval />} />
+          <Route path="/invite/:token" element={<AcceptInvitation />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

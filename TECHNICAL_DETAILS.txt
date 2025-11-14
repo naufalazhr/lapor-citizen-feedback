@@ -1,0 +1,275 @@
+TECHNICAL DEEP DIVE - STATUS CHANGE TRACKING
+
+===== COMPONENT: ReportDetail.tsx =====
+
+File: src/pages/admin/ReportDetail.tsx
+Lines: 161-182
+
+Code:
+--------
+const updateStatus = async (status: "pending" | "in_progress" | "resolved" | "rejected") => {
+  if (!report) return;
+
+  const { error } = await supabase
+    .from("reports")
+    .update({ status })
+    .eq("id", report.id);
+
+  if (error) {
+    toast({
+      title: "Gagal mengubah status",
+      description: error.message,
+      variant: "destructive",
+    });
+  } else {
+    toast({
+      title: "Status berhasil diperbarui",
+      description: "Status laporan telah diubah",
+    });
+    fetchReport();
+  }
+};
+--------
+
+Issues:
+1. No tenant_id available in this function
+2. No user ID captured
+3. No timestamp recorded (auto-updated by trigger, but not linked to action)
+4. No timeline entry creation
+5. No audit log entry
+
+Triggered by:
+Line 388-399: Select component with onValueChange handler
+<Select
+  value={report.status}
+  onValueChange={(value) => updateStatus(value as ...)}
+>
+
+===== COMPONENT: Reports.tsx =====
+
+File: src/pages/admin/Reports.tsx
+Lines: 251-270
+
+Code:
+--------
+const updateStatus = async (id: string, status: "pending" | "in_progress" | "resolved" | "rejected") => {
+  const { error } = await supabase
+    .from("reports")
+    .update({ status })
+    .eq("id", id);
+
+  if (error) {
+    toast({
+      title: "Gagal mengubah status",
+      description: error.message,
+      variant: "destructive",
+    });
+  } else {
+    toast({
+      title: "Status berhasil diperbarui",
+      description: "Status laporan telah diubah",
+    });
+    fetchReports();
+  }
+};
+--------
+
+Issues: Same as ReportDetail.tsx
+
+Triggered by:
+Line 574-589: Select component in table row
+<Select
+  value={report.status}
+  onValueChange={(value) => updateStatus(report.id, value as ...)}
+>
+
+===== COMPONENT: ReportDispositionDialog.tsx (WORKS CORRECTLY) =====
+
+File: src/components/admin/ReportDispositionDialog.tsx
+Lines: 158-186
+
+Code:
+--------
+// Update report
+const { error: updateError } = await supabase
+  .from("reports")
+  .update({
+    assigned_opd_id: values.opd_id,
+    disposition_notes: values.notes || null,
+    status: statusAfter as any,
+  })
+  .eq("id", report.id);
+
+if (updateError) throw updateError;
+
+// Create disposition record (timeline entry)
+const { error: dispositionError } = await supabase
+  .from("report_dispositions")
+  .insert({
+    report_id: report.id,
+    opd_id: values.opd_id,
+    previous_opd_id: previousOPDId,
+    assigned_by: session.user.id,
+    status_before: statusBefore,
+    status_after: statusAfter,
+    notes: values.notes || null,
+    action_type: "disposition",
+    tenant_id: tenantId,
+  });
+
+if (dispositionError) throw dispositionError;
+--------
+
+Good practices:
+1. Captures session.user.id
+2. Captures tenant_id
+3. Records status_before and status_after
+4. Creates explicit timeline entry
+5. Uses action_type to categorize action
+6. Includes notes for context
+
+===== DATABASE: approve_report_return RPC Function =====
+
+File: supabase/migrations/20251112043811_ba7212d7-1870-4276-b327-1dc1162d39e2.sql
+Lines: 93-166
+
+Function: approve_report_return(p_request_id UUID, p_approved BOOLEAN, p_rejection_reason TEXT)
+
+Key features:
+- SECURITY DEFINER (runs with elevated privileges)
+- Locks the report FOR UPDATE (prevents race conditions)
+- Creates timeline entry in report_dispositions on approval:
+  
+  INSERT INTO report_dispositions (
+    report_id, opd_id, previous_opd_id, assigned_by, notes,
+    status_before, status_after, action_type, tenant_id
+  ) VALUES (
+    v_request.report_id, v_report.assigned_opd_id, v_report.assigned_opd_id,
+    v_user_id, v_request.notes, v_report.status::text, v_report.status::text,
+    'return_to_member', v_request.tenant_id
+  );
+
+- Updates report to clear OPD assignment
+- Updates return request with reviewed_by and reviewed_at
+- Returns success/error in JSON format
+
+===== DATABASE TABLES STRUCTURE =====
+
+report_dispositions:
+CREATE TABLE public.report_dispositions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  report_id UUID NOT NULL REFERENCES public.reports(id),
+  opd_id UUID NOT NULL REFERENCES public.opds(id),
+  previous_opd_id UUID REFERENCES public.opds(id),
+  assigned_by UUID NOT NULL,
+  assigned_at TIMESTAMPTZ DEFAULT now(),
+  status_before TEXT,
+  status_after TEXT,
+  notes TEXT,
+  action_type TEXT DEFAULT 'disposition',
+  tenant_id UUID NOT NULL REFERENCES public.tenants(id)
+);
+
+action_type values: 'disposition', 'return_to_member'
+Missing: 'status_change'
+
+===== WHAT'S MISSING =====
+
+1. No status_change action_type in report_dispositions
+   Solution: Add to existing table or create separate tracking
+
+2. No explicit user capture in dropdowns
+   Solution: Include session.user.id when available
+
+3. No timestamp coordination
+   Solution: Explicitly set assigned_at in timeline entry
+
+4. audit_logs table unused
+   Solution: Either populate it or use report_dispositions
+
+5. No validation that user has permission to change status
+   Solution: Add RLS policies or function-level checks
+
+===== IMPACT ANALYSIS =====
+
+Reports in database: 52 total
+- With disposition records: 6
+- Without disposition records: 46
+
+Status distribution across all 52:
+- pending: 32 (61%)
+- in_progress: 14 (27%)
+- resolved: 5 (10%)
+- rejected: 1 (2%)
+
+Among the 46 reports without disposition records:
+- Any status changes to those reports are untracked
+- No way to know if status was changed or when
+- No audit trail
+
+Estimated untracked changes: 31+ reports 
+(based on reports having non-pending status but no disposition)
+
+===== TIMELINE COMPONENT QUERY =====
+
+File: src/components/admin/DispositionTimeline.tsx
+Lines: 52-99
+
+Queries report_dispositions:
+SELECT id, assigned_at, assigned_by, notes, status_before, status_after, 
+       action_type, opd:opds!opd_id, previous_opd:opds!previous_opd_id
+FROM report_dispositions
+WHERE report_id = ?
+ORDER BY assigned_at DESC
+
+Also queries report_return_requests:
+SELECT id, requested_at, requested_by, reviewed_at, reviewed_by, 
+       status, notes, rejection_reason
+FROM report_return_requests
+WHERE report_id = ?
+ORDER BY requested_at DESC
+
+Combines both into single timeline, sorted by timestamp.
+
+Missing: No query for status_change events since they're not recorded.
+
+===== PROPOSED SOLUTION PATTERN =====
+
+For consistency, status changes should follow this pattern:
+
+1. Create RPC function: update_report_status()
+   - Accepts: report_id, new_status, notes, tenant_id
+   - Validates user permissions
+   - Updates reports table
+   - Creates report_dispositions entry with action_type='status_change'
+   - Returns JSON with success/error
+
+2. Replace all updateStatus() calls with RPC call
+
+3. Add to DispositionTimeline component:
+   - Render entries with action_type='status_change'
+   - Show who changed it and when
+
+4. Optional: Use audit_logs instead of report_dispositions
+   - Separate concerns: timeline vs audit
+   - But would need separate UI component
+
+===== DATABASE QUERY TO FIND UNTRACKED CHANGES =====
+
+SELECT r.id, r.ticket_id, r.status, 
+       COUNT(rd.id) as disposition_count,
+       r.updated_at, r.created_at
+FROM reports r
+LEFT JOIN report_dispositions rd ON r.id = rd.report_id
+WHERE r.status != 'pending'  -- likely changed
+AND rd.id IS NULL  -- but no disposition record
+GROUP BY r.id
+ORDER BY r.updated_at DESC;
+
+This query finds reports that:
+1. Have a non-pending status (changed from default)
+2. Have NO disposition records
+3. Therefore, have untracked status changes
+
+Expected results: ~31 reports
+

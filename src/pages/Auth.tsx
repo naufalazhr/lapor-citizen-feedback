@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,9 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, Building2, MessageSquare, BarChart3 } from "lucide-react";
+import { Eye, EyeOff, Building2, MessageSquare, BarChart3, Mail, UserPlus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { validateInvitationToken } from "@/utils/invitation";
+import type { InvitationWithDetails } from "@/types/invitation";
 
 const Auth = () => {
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -20,6 +24,8 @@ const Auth = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loginTitle, setLoginTitle] = useState("Portal Lapor");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [invitationToken, setInvitationToken] = useState<string | null>(null);
+  const [invitation, setInvitation] = useState<InvitationWithDetails | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -38,7 +44,28 @@ const Auth = () => {
       }
     };
 
+    // Check for invitation token in URL
+    const checkInvitation = async () => {
+      const inviteToken = searchParams.get('invite');
+      if (inviteToken) {
+        setInvitationToken(inviteToken);
+        const invitationData = await validateInvitationToken(inviteToken);
+        if (invitationData) {
+          setInvitation(invitationData);
+          // Pre-fill email from invitation
+          setEmail(invitationData.email);
+        } else {
+          toast({
+            title: "Invalid invitation",
+            description: "This invitation link is invalid or expired",
+            variant: "destructive",
+          });
+        }
+      }
+    };
+
     fetchLoginConfig();
+    checkInvitation();
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
@@ -53,7 +80,7 @@ const Auth = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, searchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,6 +124,7 @@ const Auth = () => {
             organization,
             department,
             position,
+            invitation_token: invitationToken, // Include invitation token
           },
         },
       });
@@ -104,25 +132,34 @@ const Auth = () => {
       if (signUpError) throw signUpError;
 
       if (authData.user) {
-        // Create approval request
-        const { error: approvalError } = await supabase
-          .from("user_approvals")
-          .insert({
-            user_id: authData.user.id,
-            requested_role: "viewer",
-            organization,
-            department,
-            position,
-          });
+        // If no invitation token, create approval request
+        if (!invitationToken) {
+          const { error: approvalError } = await supabase
+            .from("user_approvals")
+            .insert({
+              user_id: authData.user.id,
+              requested_role: "viewer",
+              organization,
+              department,
+              position,
+            });
 
-        if (approvalError) console.error("Approval request error:", approvalError);
+          if (approvalError) console.error("Approval request error:", approvalError);
+        }
       }
 
-      toast({
-        title: "Pendaftaran berhasil",
-        description: "Akun Anda menunggu persetujuan admin. Kami akan mengirim email setelah akun Anda disetujui.",
-      });
-      
+      if (invitation) {
+        toast({
+          title: "Pendaftaran berhasil",
+          description: `Selamat datang di ${invitation.tenant?.name}! Anda akan dialihkan ke dashboard.`,
+        });
+      } else {
+        toast({
+          title: "Pendaftaran berhasil",
+          description: "Akun Anda menunggu persetujuan admin. Kami akan mengirim email setelah akun Anda disetujui.",
+        });
+      }
+
       // Reset form
       setEmail("");
       setPassword("");
@@ -143,10 +180,17 @@ const Auth = () => {
 
   const handleGoogleLogin = async () => {
     try {
+      const redirectTo = invitationToken
+        ? `${window.location.origin}/?invite=${invitationToken}`
+        : `${window.location.origin}/`;
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/`,
+          redirectTo,
+          queryParams: invitationToken ? {
+            invitation_token: invitationToken,
+          } : undefined,
         },
       });
 
@@ -319,6 +363,26 @@ const Auth = () => {
 
               {/* Register Tab */}
               <TabsContent value="register">
+                {/* Invitation Banner */}
+                {invitation && (
+                  <div className="mb-6 bg-primary/10 border border-primary/30 rounded-lg p-4 space-y-2">
+                    <div className="flex items-start gap-3">
+                      <UserPlus className="h-5 w-5 text-primary mt-0.5" />
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm text-primary">
+                          You're invited to join {invitation.tenant?.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Complete your registration to join as{' '}
+                          <Badge variant="outline" className="ml-1">
+                            {invitation.role}
+                          </Badge>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="register-name">Nama Lengkap</Label>

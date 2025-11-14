@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Clock, Building2, User, FileText, ArrowRight } from "lucide-react";
+import { Clock, Building2, User, FileText, ArrowRight, RefreshCw } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 interface DispositionEntry {
@@ -328,6 +328,18 @@ export function DispositionTimeline({ reportId }: DispositionTimelineProps) {
                           </Badge>
                           <span className="text-sm font-medium">
                             Member menolak pengembalian laporan
+                          </span>
+                        </>
+                      ) : entry.action_type === "status_change" ? (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <RefreshCw className="h-4 w-4 text-blue-600" />
+                            <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300">
+                              Perubahan Status
+                            </Badge>
+                          </div>
+                          <span className="text-sm font-medium">
+                            Status laporan diubah
                           </span>
                         </>
                       ) : entry.action_type === "return_to_member" ? (

@@ -54,15 +54,43 @@ const Dashboard = ({ children }: DashboardProps) => {
   };
 
   const checkUserRole = async (userId: string) => {
-    const { data, error } = await supabase
+    // Step 1: Check if user has tenant_id
+    const { data: profileData, error: profileError } = await supabase
+      .from("profiles")
+      .select("tenant_id")
+      .eq("id", userId)
+      .single();
+
+    // If user has no tenant_id, redirect to profile setup
+    if (!profileError && profileData && !profileData.tenant_id) {
+      setHasRole(false);
+      navigate("/profile-setup");
+      return;
+    }
+
+    // Step 2: Check if user has role
+    const { data: roleData, error: roleError } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
       .single();
 
-    if (error || !data) {
+    if (roleError || !roleData) {
+      // Step 3: Check if user has pending approval request
+      const { data: approvalData } = await supabase
+        .from("user_approvals")
+        .select("status")
+        .eq("user_id", userId)
+        .eq("status", "pending")
+        .single();
+
       setHasRole(false);
-      navigate("/auth");
+
+      if (approvalData) {
+        navigate("/pending-approval");
+      } else {
+        navigate("/profile-setup");
+      }
     } else {
       setHasRole(true);
     }

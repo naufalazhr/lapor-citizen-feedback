@@ -1,0 +1,187 @@
+LAPOR CITIZEN FEEDBACK PLATFORM - TIMELINE/ACTIVITY TRACKING INVESTIGATION
+Date: November 13, 2025
+
+===== EXECUTIVE SUMMARY =====
+
+The platform has a PARTIAL timeline system that records OPD dispositions and return requests, 
+but DIRECT STATUS CHANGES made through dropdowns are NOT being recorded in the timeline.
+
+This is the critical gap: when admins change status via the dropdown selector, only the 
+reports.status field is updated. No timeline entry is created. No audit trail exists.
+
+===== 1. TIMELINE COMPONENT =====
+
+Location: src/components/admin/DispositionTimeline.tsx
+Used in: src/pages/admin/ReportDetail.tsx (line 570)
+
+Displays entries from:
+1. report_dispositions table (13 records exist)
+2. report_return_requests table (1 record exists)
+
+Activities Currently Tracked:
+- OPD disposition/assignment: YES
+- OPD transfer: YES  
+- Return request created: YES
+- Return approved: YES
+- Return rejected: YES
+- DIRECT STATUS CHANGE: NO (THIS IS THE PROBLEM)
+- Internal notes: NO (not implemented)
+
+===== 2. WHERE STATUS CHANGES HAPPEN =====
+
+LOCATION 1: src/pages/admin/ReportDetail.tsx (lines 161-182)
+Status Dropdown -> updateStatus() function
+-> supabase.from("reports").update({ status })
+-> NO timeline entry created
+
+LOCATION 2: src/pages/admin/Reports.tsx (lines 251-270)
+Status Dropdown -> updateStatus() function  
+-> supabase.from("reports").update({ status })
+-> NO timeline entry created
+
+LOCATION 3: src/components/admin/ReportDispositionDialog.tsx (lines 158-186)
+Disposition Dialog -> onSubmit() function
+-> Updates reports.status AND creates report_dispositions entry
+-> PROPERLY TRACKED
+
+LOCATION 4: ReturnRequestApprovalDialog.tsx
+-> Calls approve_report_return() RPC function
+-> Function creates timeline entry
+-> PROPERLY TRACKED
+
+===== 3. DATABASE STRUCTURE =====
+
+Table: report_dispositions (13 records)
+Tracks: OPD assignments, transfers, returns
+Fields: report_id, opd_id, previous_opd_id, assigned_by, assigned_at, 
+        status_before, status_after, notes, action_type, tenant_id
+
+Table: report_return_requests (1 record)
+Tracks: OPD return requests and approvals
+Fields: report_id, requested_by, status (pending/approved/rejected), 
+        reviewed_by, reviewed_at, rejection_reason
+
+Table: reports (52 records)
+Status distribution:
+- pending: 32 reports
+- in_progress: 14 reports
+- resolved: 5 reports
+- rejected: 1 report
+
+Table: audit_logs (0 records)
+Status: EMPTY, not being used
+
+===== 4. ROOT CAUSE =====
+
+1. No middleware/interceptor for status updates
+2. No database trigger on reports table
+3. No RPC function for status changes (unlike return approvals)
+4. Inconsistent patterns:
+   - Disposition: dialog -> explicit timeline entry
+   - Status: dropdown -> direct update, no tracking
+
+===== 5. KEY FINDINGS =====
+
+Reports with potential untracked status changes:
+- 46 reports not assigned to OPD
+- 6 reports have disposition records
+- Status was changed from 'pending' to 'in_progress' on at least 1 report 
+  (RPRT-202511-00010) - but unclear if tracked via disposition or untracked dropdown
+
+Sample tracked disposition:
+ID: d1331ab2-12be-4222-9cc7-f859426abb3f
+Report: cb21261b-4ce0-4b56-9afa-4dfd3e22c1fb (RPRT-202511-00010)
+Status: pending -> in_progress
+Assigned at: 2025-11-11 17:48:02 UTC
+Tracked: YES (because created via ReportDispositionDialog)
+
+===== 6. THE PROBLEM FLOW =====
+
+Admin clicks status dropdown in ReportDetail or Reports page
+  -> Selects new status (e.g., 'in_progress')
+    -> updateStatus() function called
+      -> Direct Supabase update: reports.status = new_value
+        -> Query executes
+          -> NO report_dispositions entry created
+            -> NO audit_logs entry created
+              -> Timeline shows "Belum ada riwayat disposisi"
+                -> NO AUDIT TRAIL EXISTS
+
+===== 7. MISSING PIECES =====
+
+1. No trigger on reports.status field to log changes
+2. No function to handle status update + timeline creation
+3. audit_logs table exists but is never populated
+4. Timeline component only shows dispositions and return requests, 
+   never shows direct status changes
+
+===== 8. EVIDENCE FROM DATA =====
+
+Query: SELECT r.id, r.ticket_id, r.status, rd.status_before, rd.status_after 
+       FROM reports r LEFT JOIN report_dispositions rd ON r.id = rd.report_id
+
+Results show:
+- Most reports (46/52) have NULL status_before and status_after
+  = No disposition record = Could have untracked status changes
+- Only 6 reports have disposition records
+- Even for in_progress reports, no way to verify if status was set via 
+  disposition dialog or untracked dropdown
+
+===== 9. FUNCTIONS IN DATABASE =====
+
+RPC Functions:
+- approve_report_return() - handles return approvals with timeline creation
+- No function for general status changes
+
+Triggers:
+- update_reports_updated_at - updates timestamp only
+- No trigger for status change tracking
+
+===== 10. RECOMMENDATIONS =====
+
+Fix 1: Create RPC function for status updates
+- Similar to approve_report_return()
+- Creates both status update and timeline entry
+- Single transaction
+
+Fix 2: Add database trigger
+- Monitor reports.status changes
+- Auto-create audit_logs or report_dispositions entries
+- More reliable than client code
+
+Fix 3: Update UI code
+- Change dropdowns to call new function or RPC
+- Remove direct Supabase calls
+- Ensure consistency
+
+===== 11. FILE LOCATIONS =====
+
+ReportDetail status change: src/pages/admin/ReportDetail.tsx:161-182
+Reports status change: src/pages/admin/Reports.tsx:251-270
+Timeline display: src/components/admin/DispositionTimeline.tsx
+Disposition (works): src/components/admin/ReportDispositionDialog.tsx:159-186
+Return approval (works): src/components/admin/ReturnRequestApprovalDialog.tsx
+
+===== CONCLUSION =====
+
+The timeline/activity tracking system is PARTIALLY IMPLEMENTED:
+
+WORKS:
+✓ OPD dispositions tracked
+✓ Return requests tracked
+✓ Timeline component displays correctly
+
+BROKEN:
+✗ Direct status changes NOT tracked
+✗ No audit trail for dropdown status changes
+✗ Inconsistent between disposition (tracked) and status (untracked) workflows
+✗ audit_logs table unused
+✗ 31+ reports likely have untracked status changes
+
+ROOT CAUSE: Different code paths
+- Disposition: Goes through dialog -> explicit timeline creation
+- Status: Goes through dropdown -> direct update, bypasses tracking
+
+IMPACT: Loss of audit trail for status changes. No way to know who changed 
+the status or when (unless it was done via OPD disposition dialog).
+
