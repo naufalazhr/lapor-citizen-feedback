@@ -7,13 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Copy, Download, Trash2, Building2, Edit, RotateCcw } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { lazy, Suspense } from "react";
@@ -84,11 +78,7 @@ const ReportDetail = () => {
 
     try {
       // Fetch report data
-      const { data: reportData, error: reportError } = await supabase
-        .from("reports")
-        .select("*")
-        .eq("id", id)
-        .single();
+      const { data: reportData, error: reportError } = await supabase.from("reports").select("*").eq("id", id).single();
 
       console.log("📊 Report query result:", { reportData, reportError });
 
@@ -122,7 +112,7 @@ const ReportDetail = () => {
           .select("id, name, code, head_name")
           .eq("id", typedReport.assigned_opd_id)
           .maybeSingle();
-        
+
         if (opdData) {
           setAssignedOPD(opdData);
         }
@@ -161,10 +151,10 @@ const ReportDetail = () => {
   const updateStatus = async (status: "pending" | "in_progress" | "resolved" | "rejected") => {
     if (!report) return;
 
-    const { data, error } = await supabase.rpc('update_report_status', {
+    const { data, error } = await supabase.rpc("update_report_status", {
       p_report_id: report.id,
       p_new_status: status,
-      p_notes: null
+      p_notes: null,
     });
 
     if (error) {
@@ -227,7 +217,7 @@ const ReportDetail = () => {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      
+
       toast({
         title: "Berhasil",
         description: "Foto berhasil diunduh",
@@ -302,7 +292,7 @@ const ReportDetail = () => {
               <p className="text-muted-foreground">Informasi lengkap tentang laporan ini</p>
             </div>
           </div>
-          {(role === 'admin' || role === 'superadmin') && (
+          {(role === "admin" || role === "superadmin") && (
             <Button variant="destructive" onClick={deleteReport}>
               <Trash2 className="h-4 w-4 mr-2" />
               Hapus Laporan
@@ -315,14 +305,8 @@ const ReportDetail = () => {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <code className="text-2xl font-mono font-bold bg-muted px-4 py-2 rounded-lg">
-                  {report.ticket_id}
-                </code>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => copyToClipboard(report.ticket_id)}
-                >
+                <code className="text-2xl font-mono font-bold bg-muted px-4 py-2 rounded-lg">{report.ticket_id}</code>
+                <Button size="icon" variant="ghost" onClick={() => copyToClipboard(report.ticket_id)}>
                   <Copy className="h-4 w-4" />
                 </Button>
               </div>
@@ -330,9 +314,7 @@ const ReportDetail = () => {
                 <Badge className={getTypeColor(report.type)} variant="outline">
                   {report.type}
                 </Badge>
-                <Badge className={getStatusColor(report.status)}>
-                  {report.status}
-                </Badge>
+                <Badge className={getStatusColor(report.status)}>{report.status}</Badge>
               </div>
             </div>
           </CardContent>
@@ -351,10 +333,8 @@ const ReportDetail = () => {
                   <p className="text-lg font-semibold">{report.reporter_name}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Nomor Pengguna</p>
-                  <p className="text-lg font-mono">
-                    {conversation?.device_number || report.phone || "-"}
-                  </p>
+                  <p className="text-sm font-medium text-muted-foreground">Nomor Kontak</p>
+                  <p className="text-lg font-mono">{conversation?.device_number || report.phone || "-"}</p>
                   <p className="text-xs text-muted-foreground mt-1">Nomor yang diinput pengguna</p>
                 </div>
                 {conversation?.phone_number && (
@@ -442,11 +422,7 @@ const ReportDetail = () => {
                       Kembalikan ke Member
                     </Button>
                   ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowDispositionDialog(true)}
-                    >
+                    <Button variant="outline" size="sm" onClick={() => setShowDispositionDialog(true)}>
                       <Edit className="h-4 w-4 mr-2" />
                       {assignedOPD ? "Ubah" : "Disposisikan"}
                     </Button>
@@ -463,17 +439,13 @@ const ReportDetail = () => {
                         <span className="font-medium">{assignedOPD.name}</span>
                       </div>
                       {assignedOPD.head_name && (
-                        <p className="text-sm text-muted-foreground">
-                          Kepala: {assignedOPD.head_name}
-                        </p>
+                        <p className="text-sm text-muted-foreground">Kepala: {assignedOPD.head_name}</p>
                       )}
                     </div>
                     {report.disposition_notes && (
                       <div className="bg-muted p-3 rounded-lg">
                         <p className="text-sm font-medium mb-1">Catatan Disposisi:</p>
-                        <p className="text-sm text-muted-foreground">
-                          {report.disposition_notes}
-                        </p>
+                        <p className="text-sm text-muted-foreground">{report.disposition_notes}</p>
                       </div>
                     )}
                   </div>
@@ -517,11 +489,7 @@ const ReportDetail = () => {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <img
-                    src={report.photo_url}
-                    alt="Report"
-                    className="w-full rounded-lg border object-cover"
-                  />
+                  <img src={report.photo_url} alt="Report" className="w-full rounded-lg border object-cover" />
                 </CardContent>
               </Card>
             )}
@@ -531,9 +499,7 @@ const ReportDetail = () => {
                 <CardTitle>Lokasi</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {report.geo_location && 
-                 report.geo_location.lat !== null && 
-                 report.geo_location.lng !== null ? (
+                {report.geo_location && report.geo_location.lat !== null && report.geo_location.lng !== null ? (
                   <>
                     <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
                       <div>
@@ -545,22 +511,19 @@ const ReportDetail = () => {
                         <p className="text-base font-mono">{report.geo_location.lng.toFixed(6)}</p>
                       </div>
                     </div>
-                    
-                    <Suspense fallback={
-                      <div className="rounded-lg overflow-hidden border h-[400px] flex items-center justify-center bg-muted">
-                        <p className="text-muted-foreground">Loading map...</p>
-                      </div>
-                    }>
-                      <LeafletMap 
-                        latitude={report.geo_location.lat} 
-                        longitude={report.geo_location.lng} 
-                      />
+
+                    <Suspense
+                      fallback={
+                        <div className="rounded-lg overflow-hidden border h-[400px] flex items-center justify-center bg-muted">
+                          <p className="text-muted-foreground">Loading map...</p>
+                        </div>
+                      }
+                    >
+                      <LeafletMap latitude={report.geo_location.lat} longitude={report.geo_location.lng} />
                     </Suspense>
                   </>
                 ) : (
-                  <p className="text-center text-muted-foreground py-8">
-                    Tidak ada data lokasi untuk laporan ini
-                  </p>
+                  <p className="text-center text-muted-foreground py-8">Tidak ada data lokasi untuk laporan ini</p>
                 )}
               </CardContent>
             </Card>
