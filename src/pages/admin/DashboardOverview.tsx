@@ -318,6 +318,46 @@ const DashboardOverview = () => {
           </CardContent>
         </Card>
 
+        {/* New OPD & Disposition Analytics */}
+        {!dashboardLoading && !dashboardError && (
+          <>
+            {/* Admin/Member View - Full Analytics */}
+            {(role === 'admin' || role === 'member' || role === 'owner') && (
+              <>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <OPDDistributionChart reports={reports} />
+                  <OPDProgressChart reports={reports} />
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <DispositionTimelineChart dispositions={dispositions} />
+                  <TopOPDsCard reports={reports} />
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <OPDResponseTimeChart reports={reports} dispositions={dispositions} />
+                  <DispositionActionChart dispositions={dispositions} />
+                </div>
+              </>
+            )}
+
+            {/* OPD Member View - Simplified Analytics */}
+            {role === 'opd_member' && (
+              <>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <OPDProgressChart reports={reports} />
+                  <OPDResponseTimeChart reports={reports} dispositions={dispositions} />
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <DispositionTimelineChart dispositions={dispositions} />
+                  <DispositionActionChart dispositions={dispositions} />
+                </div>
+              </>
+            )}
+          </>
+        )}
+
         {/* Analytics Charts */}
         <div className="grid gap-4 md:grid-cols-2">
           <Card>
