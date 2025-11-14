@@ -88,10 +88,10 @@ export const OPDProgressChart = ({ reports }: OPDProgressChartProps) => {
               }}
             />
             <Legend />
-            <Bar dataKey="pending" stackId="a" fill="hsl(45, 93%, 58%)" name="Pending" />
-            <Bar dataKey="in_progress" stackId="a" fill="hsl(217, 91%, 60%)" name="Dalam Progress" />
-            <Bar dataKey="resolved" stackId="a" fill="hsl(142, 76%, 45%)" name="Selesai" />
-            <Bar dataKey="rejected" stackId="a" fill="hsl(0, 84%, 60%)" name="Ditolak" />
+            <Bar dataKey="pending" stackId="a" fill="hsl(38, 60%, 50%)" name="Pending" />
+            <Bar dataKey="in_progress" stackId="a" fill="hsl(217, 70%, 45%)" name="Dalam Progress" />
+            <Bar dataKey="resolved" stackId="a" fill="hsl(142, 45%, 42%)" name="Selesai" />
+            <Bar dataKey="rejected" stackId="a" fill="hsl(0, 60%, 50%)" name="Ditolak" />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>
