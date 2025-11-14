@@ -280,7 +280,7 @@ export function DispositionTimeline({ reportId }: DispositionTimelineProps) {
                 className="relative pl-6 pb-4 border-l-2 border-border last:border-l-0 last:pb-0"
               >
                 {/* Timeline dot */}
-                <div className="absolute left-[-9px] top-0 w-4 h-4 rounded-full bg-primary border-4 border-background" />
+                <div className="absolute left-[-9px] top-[6px] w-4 h-4 rounded-full bg-primary border-4 border-background" />
 
                 <div className="space-y-3">
                   {/* Header with timestamp */}
