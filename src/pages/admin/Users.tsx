@@ -350,7 +350,10 @@ const Users = () => {
                   <PendingUserCard
                     key={approval.id}
                     approval={approval}
-                    onApproved={fetchPendingApprovals}
+                    onApproved={() => {
+                      fetchPendingApprovals();
+                      fetchUsers();
+                    }}
                     onRejected={fetchPendingApprovals}
                   />
                 ))}

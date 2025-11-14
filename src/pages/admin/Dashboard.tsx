@@ -59,40 +59,57 @@ const Dashboard = ({ children }: DashboardProps) => {
       .from("profiles")
       .select("tenant_id")
       .eq("id", userId)
-      .single();
+      .maybeSingle();
 
-    // If user has no tenant_id, redirect to profile setup
-    if (!profileError && profileData && !profileData.tenant_id) {
+    if (profileError) {
+      console.error("Error fetching profile:", profileError);
       setHasRole(false);
       navigate("/profile-setup");
       return;
     }
 
-    // Step 2: Check if user has role
+    // If user has no tenant_id, redirect to profile setup
+    if (!profileData || !profileData.tenant_id) {
+      setHasRole(false);
+      navigate("/profile-setup");
+      return;
+    }
+
+    // Step 2: Check if user has role (user has tenant_id at this point)
     const { data: roleData, error: roleError } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
-      .single();
+      .maybeSingle();
 
-    if (roleError || !roleData) {
-      // Step 3: Check if user has pending approval request
-      const { data: approvalData } = await supabase
-        .from("user_approvals")
-        .select("status")
-        .eq("user_id", userId)
-        .eq("status", "pending")
-        .single();
-
+    if (roleError) {
+      console.error("Error fetching role:", roleError);
+      // If there's an error fetching role, redirect to profile setup
       setHasRole(false);
+      navigate("/profile-setup");
+      return;
+    }
 
-      if (approvalData) {
-        navigate("/pending-approval");
-      } else {
-        navigate("/profile-setup");
-      }
-    } else {
+    // If user has a role, they're good to go
+    if (roleData) {
       setHasRole(true);
+      return;
+    }
+
+    // Step 3: User has tenant but no role - check if they have pending approval
+    const { data: approvalData } = await supabase
+      .from("user_approvals")
+      .select("status")
+      .eq("user_id", userId)
+      .eq("status", "pending")
+      .maybeSingle();
+
+    setHasRole(false);
+
+    if (approvalData) {
+      navigate("/pending-approval");
+    } else {
+      navigate("/profile-setup");
     }
   };
 

@@ -51,6 +51,22 @@ const ProfileSetup = () => {
     checkAuth();
   }, []);
 
+  // Debounce tenant slug verification (wait 500ms after user stops typing)
+  useEffect(() => {
+    if (!tenantSlug || tenantSlug.trim() === '') {
+      setValidatedTenant(null);
+      setTenantError('');
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      verifyTenantSlug(tenantSlug);
+    }, 500); // 500ms debounce delay
+
+    // Cleanup function: cancel the timeout if tenantSlug changes
+    return () => clearTimeout(timeoutId);
+  }, [tenantSlug]);
+
   const checkAuth = async () => {
     const { data: { session } } = await supabase.auth.getSession();
 
@@ -347,11 +363,7 @@ const ProfileSetup = () => {
                   id="tenantSlug"
                   placeholder="e.g., default"
                   value={tenantSlug}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setTenantSlug(value);
-                    verifyTenantSlug(value);
-                  }}
+                  onChange={(e) => setTenantSlug(e.target.value)}
                   className="pl-10 pr-10"
                   disabled={approvalRequest !== null}
                 />
