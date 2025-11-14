@@ -16,6 +16,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { useUserRole } from "@/hooks/use-user-role";
+import { useDashboardData } from "@/hooks/use-dashboard-data";
+import { OPDDistributionChart } from "@/components/admin/dashboard/OPDDistributionChart";
+import { OPDProgressChart } from "@/components/admin/dashboard/OPDProgressChart";
+import { DispositionTimelineChart } from "@/components/admin/dashboard/DispositionTimelineChart";
+import { OPDResponseTimeChart } from "@/components/admin/dashboard/OPDResponseTimeChart";
+import { DispositionActionChart } from "@/components/admin/dashboard/DispositionActionChart";
+import { TopOPDsCard } from "@/components/admin/dashboard/TopOPDsCard";
 
 type DashboardStats = {
   total_reports: number;
@@ -44,6 +52,8 @@ const DashboardOverview = () => {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { role, isOPDMember } = useUserRole();
+  const { reports, dispositions, loading: dashboardLoading, error: dashboardError } = useDashboardData();
 
   useEffect(() => {
     fetchDashboardData();
@@ -150,11 +160,33 @@ const DashboardOverview = () => {
     return type === "lapor" ? "bg-primary/10 text-primary" : "bg-accent text-accent-foreground";
   };
 
-  if (loading) {
+  if (loading || dashboardLoading) {
     return (
       <Dashboard>
-        <div className="flex justify-center items-center h-96">
+        <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+      </Dashboard>
+    );
+  }
+
+  if (dashboardError) {
+    return (
+      <Dashboard>
+        <div className="flex items-center justify-center h-64 text-destructive">
+          <AlertCircle className="h-5 w-5 mr-2" />
+          {dashboardError}
+        </div>
+      </Dashboard>
+    );
+  }
+
+  if (dashboardError) {
+    return (
+      <Dashboard>
+        <div className="flex items-center justify-center h-64 text-destructive">
+          <AlertCircle className="h-5 w-5 mr-2" />
+          {dashboardError}
         </div>
       </Dashboard>
     );
