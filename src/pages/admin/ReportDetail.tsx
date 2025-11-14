@@ -4,12 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 import Dashboard from "./Dashboard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Copy, Download, Trash2, Building2, Edit, RotateCcw } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { lazy, Suspense } from "react";
 import { DispositionTimeline } from "@/components/admin/DispositionTimeline";
 import { ReportDispositionDialog } from "@/components/admin/ReportDispositionDialog";
@@ -58,6 +60,7 @@ const ReportDetail = () => {
   const [internalNote, setInternalNote] = useState("");
   const [showDispositionDialog, setShowDispositionDialog] = useState(false);
   const [showReturnDialog, setShowReturnDialog] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
   const { toast } = useToast();
   const { isOPDMember, role } = useUserRole();
 
@@ -280,7 +283,7 @@ const ReportDetail = () => {
 
   return (
     <Dashboard>
-      <div className="space-y-6">
+      <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -320,219 +323,276 @@ const ReportDetail = () => {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Column - Report Details */}
-          <div className="space-y-6">
+        {/* Main 2-Column Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          {/* LEFT COLUMN (60%) */}
+          <div className="lg:col-span-3 space-y-4">
+            {/* Reporter Information Card - Compact */}
             <Card>
-              <CardHeader>
-                <CardTitle>Informasi Pelapor</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Nama Pelapor</p>
-                  <p className="text-lg font-semibold">{report.reporter_name}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Nomor Kontak</p>
-                  <p className="text-lg font-mono">{conversation?.device_number || report.phone || "-"}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Nomor yang diinput pengguna</p>
-                </div>
-                {conversation?.phone_number && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Nomor Device WhatsApp</p>
-                    <p className="text-lg font-mono">{conversation.phone_number}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Nomor device yang menerima pesan</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Alamat</p>
-                  <p className="text-base">{report.address}</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Deskripsi Laporan</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-base whitespace-pre-wrap">{report.description}</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Ubah Status</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Select
-                  value={report.status}
-                  onValueChange={(value) => updateStatus(value as "pending" | "in_progress" | "resolved" | "rejected")}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="in_progress">Dalam Proses</SelectItem>
-                    <SelectItem value="resolved">Selesai</SelectItem>
-                    <SelectItem value="rejected">Ditolak</SelectItem>
-                  </SelectContent>
-                </Select>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Catatan Internal</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="internal-note">Tambah Catatan</Label>
-                  <Textarea
-                    id="internal-note"
-                    placeholder="Tulis catatan internal untuk laporan ini..."
-                    value={internalNote}
-                    onChange={(e) => setInternalNote(e.target.value)}
-                    rows={4}
-                  />
-                </div>
-                <Button className="w-full" disabled>
-                  Simpan Catatan (Segera Hadir)
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* OPD Disposition Card */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <Building2 className="h-5 w-5" />
-                    Disposisi OPD
-                  </CardTitle>
-                  {isOPDMember ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowReturnDialog(true)}
-                      disabled={!assignedOPD}
-                    >
-                      <RotateCcw className="h-4 w-4 mr-2" />
-                      Kembalikan ke Member
-                    </Button>
-                  ) : (
-                    <Button variant="outline" size="sm" onClick={() => setShowDispositionDialog(true)}>
-                      <Edit className="h-4 w-4 mr-2" />
-                      {assignedOPD ? "Ubah" : "Disposisikan"}
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                {assignedOPD ? (
-                  <div className="space-y-3">
-                    <div className="bg-primary/10 p-4 rounded-lg">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Badge variant="default">{assignedOPD.code}</Badge>
-                        <span className="text-sm text-muted-foreground">•</span>
-                        <span className="font-medium">{assignedOPD.name}</span>
-                      </div>
-                      {assignedOPD.head_name && (
-                        <p className="text-sm text-muted-foreground">Kepala: {assignedOPD.head_name}</p>
-                      )}
-                    </div>
-                    {report.disposition_notes && (
-                      <div className="bg-muted p-3 rounded-lg">
-                        <p className="text-sm font-medium mb-1">Catatan Disposisi:</p>
-                        <p className="text-sm text-muted-foreground">{report.disposition_notes}</p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center py-6 text-muted-foreground">
-                    <Building2 className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">Belum didisposisikan ke OPD</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Informasi Waktu</CardTitle>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Informasi Pelapor</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Dibuat</p>
-                  <p className="text-base">{new Date(report.created_at).toLocaleString("id-ID")}</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Nama Pelapor</p>
+                    <p className="text-sm font-semibold">{report.reporter_name}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Nomor Kontak</p>
+                    <p className="text-sm font-mono">{conversation?.device_number || report.phone || "-"}</p>
+                  </div>
+                  {conversation?.phone_number && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground">Nomor WhatsApp</p>
+                      <p className="text-sm font-mono">{conversation.phone_number}</p>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Terakhir Diperbarui</p>
-                  <p className="text-base">{new Date(report.updated_at).toLocaleString("id-ID")}</p>
+                <div className="pt-2 border-t">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Alamat</p>
+                  <p className="text-sm">{report.address}</p>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Description Card - Compact */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Deskripsi Laporan</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="max-h-[300px] overflow-y-auto">
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{report.description}</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Timeline - Moved Here */}
+            <DispositionTimeline reportId={report.id} />
+
+            {/* Location Card - Smaller */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Lokasi</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {report.geo_location && report.geo_location.lat !== null && report.geo_location.lng !== null ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3 p-3 bg-muted/50 rounded-lg">
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">Latitude</p>
+                        <p className="text-sm font-mono">{report.geo_location.lat.toFixed(6)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">Longitude</p>
+                        <p className="text-sm font-mono">{report.geo_location.lng.toFixed(6)}</p>
+                      </div>
+                    </div>
+                    <div className="h-[280px] rounded-lg overflow-hidden border">
+                      <Suspense
+                        fallback={
+                          <div className="h-full flex items-center justify-center bg-muted">
+                            <p className="text-sm text-muted-foreground">Memuat peta...</p>
+                          </div>
+                        }
+                      >
+                        <LeafletMap latitude={report.geo_location.lat} longitude={report.geo_location.lng} />
+                      </Suspense>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-center text-sm text-muted-foreground py-8">Tidak ada data lokasi</p>
+                )}
               </CardContent>
             </Card>
           </div>
 
-          {/* Right Column - Photo & Map */}
-          <div className="space-y-6">
+          {/* RIGHT COLUMN (40%) */}
+          <div className="lg:col-span-2 space-y-4">
+            {/* Photo Thumbnail Card */}
             {report.photo_url && (
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Foto Laporan</CardTitle>
-                    <Button variant="outline" size="sm" onClick={downloadImage}>
-                      <Download className="h-4 w-4 mr-2" />
-                      Unduh
-                    </Button>
-                  </div>
+              <Card className="overflow-hidden">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Foto Laporan</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <img src={report.photo_url} alt="Report" className="w-full rounded-lg border object-cover" />
+                <CardContent className="p-3">
+                  <div
+                    className="relative group cursor-pointer rounded-lg overflow-hidden"
+                    onClick={() => setShowImageModal(true)}
+                  >
+                    <img
+                      src={report.photo_url}
+                      alt="Report Thumbnail"
+                      className="w-full h-auto object-cover rounded-lg transition-transform group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <div className="text-white text-center">
+                        <p className="text-sm font-medium">Klik untuk memperbesar</p>
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadImage();
+                    }}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Unduh Foto
+                  </Button>
                 </CardContent>
               </Card>
             )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Lokasi</CardTitle>
+            {/* Actions Panel - Consolidated */}
+            <Card className="lg:sticky lg:top-6">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Panel Aksi</CardTitle>
+                <CardDescription className="text-xs">Kelola laporan ini</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {report.geo_location && report.geo_location.lat !== null && report.geo_location.lng !== null ? (
-                  <>
-                    <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Latitude</p>
-                        <p className="text-base font-mono">{report.geo_location.lat.toFixed(6)}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Longitude</p>
-                        <p className="text-base font-mono">{report.geo_location.lng.toFixed(6)}</p>
-                      </div>
-                    </div>
+                {/* Section 1: Status Update */}
+                <div className="space-y-2">
+                  <Label htmlFor="status-select" className="text-xs font-semibold">Ubah Status</Label>
+                  <Select
+                    value={report.status}
+                    onValueChange={(value) => updateStatus(value as "pending" | "in_progress" | "resolved" | "rejected")}
+                  >
+                    <SelectTrigger id="status-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="in_progress">Dalam Proses</SelectItem>
+                      <SelectItem value="resolved">Selesai</SelectItem>
+                      <SelectItem value="rejected">Ditolak</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                    <Suspense
-                      fallback={
-                        <div className="rounded-lg overflow-hidden border h-[400px] flex items-center justify-center bg-muted">
-                          <p className="text-muted-foreground">Loading map...</p>
+                <Separator />
+
+                {/* Section 2: OPD Disposition */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold flex items-center gap-1">
+                      <Building2 className="h-3 w-3" />
+                      Disposisi OPD
+                    </Label>
+                  </div>
+                  {assignedOPD ? (
+                    <div className="space-y-2">
+                      <div className="bg-primary/5 p-3 rounded-lg">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant="default" className="text-xs">{assignedOPD.code}</Badge>
+                          <span className="text-xs font-medium">{assignedOPD.name}</span>
                         </div>
-                      }
+                        {assignedOPD.head_name && (
+                          <p className="text-xs text-muted-foreground">Kepala: {assignedOPD.head_name}</p>
+                        )}
+                      </div>
+                      {report.disposition_notes && (
+                        <div className="bg-muted p-2 rounded-lg">
+                          <p className="text-xs font-medium mb-1">Catatan:</p>
+                          <p className="text-xs text-muted-foreground">{report.disposition_notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 bg-muted/30 rounded-lg">
+                      <Building2 className="h-8 w-8 mx-auto mb-1 opacity-30" />
+                      <p className="text-xs text-muted-foreground">Belum didisposisikan</p>
+                    </div>
+                  )}
+                  {isOPDMember ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => setShowReturnDialog(true)}
+                      disabled={!assignedOPD}
                     >
-                      <LeafletMap latitude={report.geo_location.lat} longitude={report.geo_location.lng} />
-                    </Suspense>
-                  </>
-                ) : (
-                  <p className="text-center text-muted-foreground py-8">Tidak ada data lokasi untuk laporan ini</p>
-                )}
+                      <RotateCcw className="h-3 w-3 mr-2" />
+                      Kembalikan ke Member
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => setShowDispositionDialog(true)}
+                    >
+                      <Edit className="h-3 w-3 mr-2" />
+                      {assignedOPD ? "Ubah Disposisi" : "Disposisikan"}
+                    </Button>
+                  )}
+                </div>
+
+                <Separator />
+
+                {/* Section 3: Internal Notes */}
+                <div className="space-y-2">
+                  <Label htmlFor="internal-note" className="text-xs font-semibold">Catatan Internal</Label>
+                  <Textarea
+                    id="internal-note"
+                    placeholder="Tulis catatan internal..."
+                    value={internalNote}
+                    onChange={(e) => setInternalNote(e.target.value)}
+                    rows={3}
+                    className="text-sm"
+                  />
+                  <Button size="sm" className="w-full" disabled>
+                    Simpan Catatan (Segera Hadir)
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Metadata Card - Time Info */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Informasi Waktu</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div>
+                  <p className="text-xs text-muted-foreground">Dibuat</p>
+                  <p className="text-xs font-medium">{new Date(report.created_at).toLocaleString("id-ID")}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Terakhir Diperbarui</p>
+                  <p className="text-xs font-medium">{new Date(report.updated_at).toLocaleString("id-ID")}</p>
+                </div>
               </CardContent>
             </Card>
           </div>
         </div>
-
-        {/* Disposition Timeline - Full Width */}
-        <DispositionTimeline reportId={report.id} />
       </div>
+
+      {/* Image Modal Dialog */}
+      <Dialog open={showImageModal} onOpenChange={setShowImageModal}>
+        <DialogContent className="max-w-[90vw] max-h-[90vh] p-2">
+          <DialogHeader>
+            <DialogTitle>Foto Laporan</DialogTitle>
+          </DialogHeader>
+          <div className="relative">
+            <img
+              src={report.photo_url || ""}
+              alt="Report Full Size"
+              className="w-full h-auto rounded-lg"
+            />
+            <div className="absolute bottom-4 right-4">
+              <Button onClick={downloadImage} variant="secondary" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Unduh Foto
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Disposition Dialog */}
       {!isOPDMember && (
