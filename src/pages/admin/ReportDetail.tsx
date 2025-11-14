@@ -146,6 +146,10 @@ const ReportDetail = () => {
           setConversation(conversationData);
         }
       }
+
+      // Fetch internal notes
+      console.log("📝 Fetching internal notes for report:", id);
+      await fetchInternalNotes();
     } catch (error) {
       console.error("💥 Unexpected error in fetchReport:", error);
       toast({
@@ -209,6 +213,8 @@ const ReportDetail = () => {
   const fetchInternalNotes = async () => {
     if (!id) return;
 
+    console.log("🔍 Starting fetchInternalNotes for report:", id);
+
     try {
       // Fetch comments
       const { data: comments, error: commentsError } = await supabase
@@ -218,22 +224,33 @@ const ReportDetail = () => {
         .eq("is_internal", true)
         .order("created_at", { ascending: false });
 
+      console.log("📊 Internal notes query result:", { 
+        count: comments?.length || 0, 
+        commentsError,
+        comments 
+      });
+
       if (commentsError) {
-        console.error("Error fetching internal notes:", commentsError);
+        console.error("❌ Error fetching internal notes:", commentsError);
         return;
       }
 
       if (!comments || comments.length === 0) {
+        console.log("ℹ️ No internal notes found");
         setInternalNotes([]);
         return;
       }
 
       // Fetch user profiles for the comments
       const userIds = [...new Set(comments.map(c => c.user_id))];
-      const { data: profiles } = await supabase
+      console.log("👥 Fetching profiles for user IDs:", userIds);
+      
+      const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select("id, full_name, email")
         .in("id", userIds);
+
+      console.log("👤 Profiles query result:", { profiles, profilesError });
 
       // Map profiles to comments
       const profilesMap = new Map(profiles?.map(p => [p.id, p]) || []);
@@ -245,9 +262,10 @@ const ReportDetail = () => {
         };
       });
 
+      console.log("✅ Setting internal notes:", notesWithUsers);
       setInternalNotes(notesWithUsers);
     } catch (error) {
-      console.error("Error fetching internal notes:", error);
+      console.error("💥 Error fetching internal notes:", error);
     }
   };
 
