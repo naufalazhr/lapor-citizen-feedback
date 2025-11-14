@@ -58,6 +58,14 @@ const ReportDetail = () => {
   const [assignedOPD, setAssignedOPD] = useState<OPD | null>(null);
   const [loading, setLoading] = useState(true);
   const [internalNote, setInternalNote] = useState("");
+  const [internalNotes, setInternalNotes] = useState<Array<{
+    id: string;
+    comment: string;
+    created_at: string;
+    user_id: string;
+    user_name?: string;
+  }>>([]);
+  const [savingNote, setSavingNote] = useState(false);
   const [showDispositionDialog, setShowDispositionDialog] = useState(false);
   const [showReturnDialog, setShowReturnDialog] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
@@ -195,6 +203,95 @@ const ReportDetail = () => {
         description: "Laporan telah dihapus dari sistem",
       });
       navigate("/admin/reports");
+    }
+  };
+
+  const fetchInternalNotes = async () => {
+    if (!id) return;
+
+    try {
+      // Fetch comments
+      const { data: comments, error: commentsError } = await supabase
+        .from("report_comments")
+        .select("id, comment, created_at, user_id")
+        .eq("report_id", id)
+        .eq("is_internal", true)
+        .order("created_at", { ascending: false });
+
+      if (commentsError) {
+        console.error("Error fetching internal notes:", commentsError);
+        return;
+      }
+
+      if (!comments || comments.length === 0) {
+        setInternalNotes([]);
+        return;
+      }
+
+      // Fetch user profiles for the comments
+      const userIds = [...new Set(comments.map(c => c.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", userIds);
+
+      // Map profiles to comments
+      const profilesMap = new Map(profiles?.map(p => [p.id, p]) || []);
+      const notesWithUsers = comments.map(comment => {
+        const profile = profilesMap.get(comment.user_id);
+        return {
+          ...comment,
+          user_name: profile?.full_name || profile?.email || 'User'
+        };
+      });
+
+      setInternalNotes(notesWithUsers);
+    } catch (error) {
+      console.error("Error fetching internal notes:", error);
+    }
+  };
+
+  const saveInternalNote = async () => {
+    if (!internalNote.trim() || !id || !report) return;
+
+    setSavingNote(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast({
+          title: "Error",
+          description: "Anda harus login untuk menyimpan catatan",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { error } = await supabase.from("report_comments").insert({
+        report_id: id,
+        comment: internalNote.trim(),
+        is_internal: true,
+        user_id: user.id,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Berhasil",
+        description: "Catatan internal berhasil disimpan",
+      });
+
+      setInternalNote("");
+      await fetchInternalNotes();
+    } catch (error: any) {
+      console.error("Error saving internal note:", error);
+      toast({
+        title: "Gagal menyimpan catatan",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSavingNote(false);
     }
   };
 
@@ -535,8 +632,25 @@ const ReportDetail = () => {
                 <Separator />
 
                 {/* Section 3: Internal Notes */}
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <Label htmlFor="internal-note" className="text-xs font-semibold">Catatan Internal</Label>
+                  
+                  {/* Existing Notes Display */}
+                  {internalNotes.length > 0 && (
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto border rounded-md p-2">
+                      {internalNotes.map((note) => (
+                        <div key={note.id} className="bg-muted/50 rounded-md p-2 space-y-1">
+                          <p className="text-xs text-foreground">{note.comment}</p>
+                          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                            <span>{note.user_name || 'User'}</span>
+                            <span>{new Date(note.created_at).toLocaleString("id-ID")}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add New Note */}
                   <Textarea
                     id="internal-note"
                     placeholder="Tulis catatan internal..."
@@ -545,8 +659,13 @@ const ReportDetail = () => {
                     rows={3}
                     className="text-sm"
                   />
-                  <Button size="sm" className="w-full" disabled>
-                    Simpan Catatan (Segera Hadir)
+                  <Button 
+                    size="sm" 
+                    className="w-full" 
+                    onClick={saveInternalNote}
+                    disabled={!internalNote.trim() || savingNote}
+                  >
+                    {savingNote ? "Menyimpan..." : "Simpan Catatan"}
                   </Button>
                 </div>
               </CardContent>
