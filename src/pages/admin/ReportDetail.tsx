@@ -574,22 +574,22 @@ const ReportDetail = () => {
 
       {/* Image Modal Dialog */}
       <Dialog open={showImageModal} onOpenChange={setShowImageModal}>
-        <DialogContent className="max-w-[90vw] max-h-[90vh] p-2">
+        <DialogContent className="max-w-[95vw] max-h-[95vh] p-4">
           <DialogHeader>
             <DialogTitle>Foto Laporan</DialogTitle>
           </DialogHeader>
-          <div className="relative">
+          <div className="flex items-center justify-center">
             <img
               src={report.photo_url || ""}
               alt="Report Full Size"
-              className="w-full h-auto rounded-lg"
+              className="max-w-full max-h-[calc(95vh-10rem)] object-contain rounded-lg"
             />
-            <div className="absolute bottom-4 right-4">
-              <Button onClick={downloadImage} variant="secondary" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Unduh Foto
-              </Button>
-            </div>
+          </div>
+          <div className="flex justify-end mt-4">
+            <Button onClick={downloadImage} variant="secondary" size="sm">
+              <Download className="h-4 w-4 mr-2" />
+              Unduh Foto
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
