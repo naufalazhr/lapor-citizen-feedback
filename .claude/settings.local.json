@@ -3,13 +3,15 @@
     "allow": [
       "Bash(sed:*)",
       "Bash(git -C \"c:\\Users\\yugie\\lapor ai\\lapor-citizen-feedback\" diff supabase/migrations/20251029191633_create_conversation_system.sql)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(grep:*)",
+      "Bash(npx supabase:*)"
     ],
     "deny": [],
     "ask": []
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "supabase"
-  ],
-  "enableAllProjectMcpServers": true
+  ]
 }

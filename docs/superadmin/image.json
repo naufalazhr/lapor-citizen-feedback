@@ -1,0 +1,78 @@
+
+   "general_settings": {
+
+     "image_style": "realistic photo",
+
+     "lighting": "soft morning daylight from a nearby window, with gentle highlights and ambient warmth",
+
+    
+     "color_palette": "warm beige, soft white, muted green, and honey gold"
+
+   },
+
+   "person_attributes": {
+
+     "character_name": "Mbak Rania",
+
+     "gender": "female",
+
+     "age_range": "20s",
+
+     "appearance": "Indonesian woman with fair warm-toned skin, round face, almond-shaped eyes, small pointed nose, and a
+friendly smile",
+
+     "clothing": "light brown blouse and beige trousers",
+
+     "accessories": ["neatly styled beige hijab"],
+
+     "consistency_note": "Always depict the same character: consistent facial structure, hijab, and outfit"
+
+   },
+
+   "consistent_person_details": {
+
+     "skin_tone": "fair warm-toned",
+
+     "face_shape": "round",
+
+     "eyes": "almond-shaped, dark brown",
+
+     "nose": "small and pointed",
+
+     "smile": "soft and warm",
+
+     "hijab": "soft beige, styled naturally",
+
+     "outfit": "light brown blouse and beige pants"
+
+   },
+
+
+   "shot_composition": {
+
+     "shot_type": ["medium shot"],
+
+     "framing": "centered with space at the top for overlay text",
+
+     "depth_of_field": "shallow DOF, focused on subject and tray"
+
+   },
+
+   "themes_and_mood": {
+
+     "mood": "fresh, cozy, and homely",
+
+     "themes": ["healthy morning", "home lifestyle", "breakfast with honey"]
+
+   }
+
+ }
+"background_context": "minimalist bright kitchen with greenery by the window"
+
+ "pose_and_interaction": {
+
+ "poses": ["holding a transparent glass of honey water with both hands, smiling"],
+
+ "expression": "gentle and cheerful",
+
+ "product_placement": "Madu Uray jar on kitchen counter beside a sliced lemon and wooden coaster"

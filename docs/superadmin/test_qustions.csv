@@ -1,0 +1,66 @@
+category,question,expectedType
+greeting,Hello,greeting_response
+greeting,Hi there,greeting_response
+greeting,Good morning,greeting_response
+greeting,Hey,greeting_response
+greeting,Greetings,greeting_response
+help,How can you help me?,help_response
+help,What can you do?,help_response
+help,What services do you provide?,help_response
+help,I need assistance,help_response
+help,Can you help me with something?,help_response
+information,Tell me about your features,information_response
+information,What are your capabilities?,information_response
+information,Explain how this works,information_response
+information,What is this platform about?,information_response
+information,Can you give me more details?,information_response
+complex,How do I integrate this with my existing system?,complex_response
+complex,What are the security measures in place?,complex_response
+complex,Can you explain the architecture?,complex_response
+complex,What are the pricing tiers and what do they include?,complex_response
+complex,How does the authentication process work?,complex_response
+technical,What API endpoints are available?,technical_response
+technical,How do I set up webhooks?,technical_response
+technical,What programming languages are supported?,technical_response
+technical,Do you have SDK documentation?,technical_response
+technical,What are the rate limits?,technical_response
+support,I'm having trouble with my account,support_response
+support,Something is not working properly,support_response
+support,I need to report a bug,support_response
+support,How do I reset my password?,support_response
+support,Can I speak to a human agent?,support_response
+followup,Can you tell me more about that?,followup_response
+followup,What else should I know?,followup_response
+followup,Could you elaborate?,followup_response
+followup,I have another question,followup_response
+followup,What happens next?,followup_response
+feedback,This is really helpful,feedback_response
+feedback,Thank you for your assistance,feedback_response
+feedback,I appreciate the information,feedback_response
+feedback,This doesn't answer my question,feedback_response
+feedback,I'm still confused,feedback_response
+navigation,How do I get started?,navigation_response
+navigation,Where can I find the documentation?,navigation_response
+navigation,Take me to the dashboard,navigation_response
+navigation,Show me my profile settings,navigation_response
+navigation,How do I access my account?,navigation_response
+features,What's new in the latest update?,features_response
+features,What features are coming soon?,features_response
+features,Do you support mobile apps?,features_response
+features,Can I customize the interface?,features_response
+features,What integrations are available?,features_response
+billing,How much does this cost?,billing_response
+billing,What payment methods do you accept?,billing_response
+billing,Can I get a refund?,billing_response
+billing,How do I upgrade my plan?,billing_response
+billing,When will I be billed?,billing_response
+privacy,How is my data protected?,privacy_response
+privacy,Do you share my information with third parties?,privacy_response
+privacy,What data do you collect?,privacy_response
+privacy,Can I delete my account?,privacy_response
+privacy,Where are your servers located?,privacy_response
+edge_case,What is the meaning of life?,edge_case_response
+edge_case,Can you write code for me?,edge_case_response
+edge_case,Tell me a joke,edge_case_response
+edge_case,What's the weather today?,edge_case_response
+edge_case,Do you have emotions?,edge_case_response

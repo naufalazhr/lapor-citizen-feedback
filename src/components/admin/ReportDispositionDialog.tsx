@@ -116,19 +116,32 @@ export function ReportDispositionDialog({
 
   const fetchOPDs = async () => {
     try {
-      const { data, error } = await supabase
+      console.log("🔍 Fetching OPDs...");
+      const { data, error, status, statusText } = await supabase
         .from("opds")
         .select("id, name, code")
         .eq("is_active", true)
         .order("name", { ascending: true });
 
-      if (error) throw error;
+      console.log("📊 OPDs fetch result:", {
+        data,
+        error,
+        status,
+        statusText,
+        count: data?.length || 0
+      });
+
+      if (error) {
+        console.error("❌ OPDs fetch error:", error);
+        throw error;
+      }
       setOpds(data || []);
+      console.log("✅ OPDs set:", data?.length || 0, "items");
     } catch (error: any) {
-      console.error("Error fetching OPDs:", error);
+      console.error("❌ Error fetching OPDs:", error);
       toast({
         title: "Error",
-        description: "Gagal memuat data OPD",
+        description: "Gagal memuat data OPD: " + (error.message || "Unknown error"),
         variant: "destructive",
       });
     }
