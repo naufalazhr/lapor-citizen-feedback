@@ -684,6 +684,50 @@ export type Database = {
           },
         ]
       }
+      report_ai_insights: {
+        Row: {
+          id: string
+          report_id: string
+          summary_analysis: string
+          key_insights: Json
+          recommended_actions: Json
+          model_used: string
+          generated_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          report_id: string
+          summary_analysis: string
+          key_insights?: Json
+          recommended_actions?: Json
+          model_used?: string
+          generated_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          report_id?: string
+          summary_analysis?: string
+          key_insights?: Json
+          recommended_actions?: Json
+          model_used?: string
+          generated_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_ai_insights_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: true
+            referencedRelation: "reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_dispositions: {
         Row: {
           action_type: string

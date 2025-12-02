@@ -16,6 +16,7 @@ import { lazy, Suspense } from "react";
 import { DispositionTimeline } from "@/components/admin/DispositionTimeline";
 import { ReportDispositionDialog } from "@/components/admin/ReportDispositionDialog";
 import { OPDMemberReturnDialog } from "@/components/admin/OPDMemberReturnDialog";
+import { AIInsightSection } from "@/components/admin/AIInsightSection";
 import { useUserRole } from "@/hooks/use-user-role";
 
 const LeafletMap = lazy(() => import("@/components/LeafletMap"));
@@ -482,6 +483,24 @@ const ReportDetail = () => {
                 </div>
               </CardContent>
             </Card>
+
+            {/* AI Insight Section */}
+            <AIInsightSection
+              reportId={report.id}
+              reportData={{
+                id: report.id,
+                ticket_id: report.ticket_id,
+                reporter_name: report.reporter_name,
+                phone: report.phone,
+                address: report.address,
+                description: report.description,
+                type: report.type,
+                status: report.status,
+                created_at: report.created_at,
+                assigned_opd_name: assignedOPD?.name || null,
+                disposition_notes: report.disposition_notes,
+              }}
+            />
 
             {/* Timeline - Moved Here */}
             <DispositionTimeline reportId={report.id} />
