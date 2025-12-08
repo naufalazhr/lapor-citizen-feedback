@@ -6,7 +6,9 @@
       "Bash(mv:*)",
       "Bash(grep:*)",
       "Bash(npx supabase:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(find:*)",
+      "Bash(npm install:*)"
     ],
     "deny": [],
     "ask": []

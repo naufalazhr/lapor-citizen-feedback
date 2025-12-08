@@ -11,6 +11,7 @@ export interface DashboardReport {
   created_at: string;
   updated_at: string;
   assigned_opd_id: string | null;
+  geo_location?: { lat: number; lng: number } | null;
   opds?: {
     id: string;
     name: string;

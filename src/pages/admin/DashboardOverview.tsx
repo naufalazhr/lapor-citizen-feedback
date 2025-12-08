@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import Dashboard from "./Dashboard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, Clock, CheckCircle, TrendingUp, AlertCircle } from "lucide-react";
+import { FileText, Clock, CheckCircle, TrendingUp, AlertCircle, LayoutDashboard, FileDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   Table,
@@ -18,12 +19,23 @@ import { Button } from "@/components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useDashboardData } from "@/hooks/use-dashboard-data";
+import { useExecutiveDashboard } from "@/hooks/use-executive-dashboard";
 import { OPDDistributionChart } from "@/components/admin/dashboard/OPDDistributionChart";
 import { OPDProgressChart } from "@/components/admin/dashboard/OPDProgressChart";
 import { DispositionTimelineChart } from "@/components/admin/dashboard/DispositionTimelineChart";
 import { OPDResponseTimeChart } from "@/components/admin/dashboard/OPDResponseTimeChart";
 import { DispositionActionChart } from "@/components/admin/dashboard/DispositionActionChart";
 import { TopOPDsCard } from "@/components/admin/dashboard/TopOPDsCard";
+import {
+  TodaySnapshotCard,
+  UrgentIssuesCard,
+  TrendingIssuesCard,
+  SlowOPDAlertCard,
+  AIRecommendationsSummary,
+  RegionalHeatmap,
+  DateRangeFilter,
+} from "@/components/admin/dashboard/executive";
+import { exportDashboardToPDF } from "@/utils/dashboard-pdf-export";
 
 type DashboardStats = {
   total_reports: number;
@@ -54,6 +66,22 @@ const DashboardOverview = () => {
   const navigate = useNavigate();
   const { role, isOPDMember } = useUserRole();
   const { reports, dispositions, loading: dashboardLoading, error: dashboardError } = useDashboardData();
+  const {
+    allReports,
+    reportsWithLocation,
+    todayStats,
+    trendingByType,
+    trendingByStatus,
+    trendingByOPD,
+    slowOPDs,
+    urgentIssues,
+    recommendations,
+    loading: executiveLoading,
+    dateRange,
+    setDateRange,
+    refetch: refetchExecutive,
+  } = useExecutiveDashboard();
+  const [exportingPDF, setExportingPDF] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -160,7 +188,36 @@ const DashboardOverview = () => {
     return type === "lapor" ? "bg-primary/10 text-primary" : "bg-accent text-accent-foreground";
   };
 
-  if (loading || dashboardLoading) {
+  const handleExportPDF = async () => {
+    try {
+      setExportingPDF(true);
+      await exportDashboardToPDF({
+        dateRange,
+        todayStats,
+        trendingByType,
+        trendingByOPD,
+        slowOPDs,
+        urgentIssues,
+        recommendations,
+        allReports,
+      });
+      toast({
+        title: "Berhasil",
+        description: "Dashboard berhasil diekspor ke PDF",
+      });
+    } catch (error: any) {
+      console.error("Error exporting PDF:", error);
+      toast({
+        title: "Gagal Export PDF",
+        description: error.message || "Terjadi kesalahan saat export PDF",
+        variant: "destructive",
+      });
+    } finally {
+      setExportingPDF(false);
+    }
+  };
+
+  if (loading || dashboardLoading || executiveLoading) {
     return (
       <Dashboard>
         <div className="flex items-center justify-center h-64">
@@ -199,6 +256,82 @@ const DashboardOverview = () => {
           <h1 className="text-3xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground">Ringkasan dan statistik laporan terkini</p>
         </div>
+
+        {/* Executive Summary for Admin/Member/Owner */}
+        {(role === 'admin' || role === 'member' || role === 'owner') && (
+          <div className="space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <LayoutDashboard className="h-5 w-5 text-primary" />
+                <h2 className="text-xl font-semibold">Ringkasan Eksekutif</h2>
+                <span className="text-sm text-muted-foreground hidden lg:inline">
+                  {new Date().toLocaleDateString('id-ID', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <DateRangeFilter
+                  dateRange={dateRange}
+                  onDateRangeChange={setDateRange}
+                />
+                <Button
+                  onClick={handleExportPDF}
+                  disabled={exportingPDF || allReports.length === 0}
+                  variant="outline"
+                  size="sm"
+                  className="h-9"
+                >
+                  {exportingPDF ? (
+                    <>
+                      <span className="animate-spin mr-2">⏳</span>
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <FileDown className="h-4 w-4 mr-2" />
+                      Export PDF
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Row 1: Today Snapshot + Urgent Issues */}
+            <div className="grid gap-4 md:grid-cols-2">
+              <TodaySnapshotCard data={todayStats} />
+              <UrgentIssuesCard issues={urgentIssues} />
+            </div>
+
+            {/* Row 2: Trending + Heatmap */}
+            <div className="grid gap-4 md:grid-cols-2">
+              <TrendingIssuesCard
+                byType={trendingByType}
+                byStatus={trendingByStatus}
+                byOPD={trendingByOPD}
+              />
+              <RegionalHeatmap reports={reportsWithLocation} />
+            </div>
+
+            {/* Row 3: Slow OPD Alert */}
+            <SlowOPDAlertCard slowOPDs={slowOPDs} />
+
+            {/* Row 4: AI Recommendations */}
+            <AIRecommendationsSummary
+              recommendations={recommendations}
+              allReports={allReports}
+              todayStats={todayStats}
+              slowOPDs={slowOPDs}
+              trendingByType={trendingByType}
+              onInsightGenerated={refetchExecutive}
+            />
+
+            <Separator className="my-6" />
+          </div>
+        )}
 
         {/* Stats Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

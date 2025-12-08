@@ -484,7 +484,7 @@ const ReportDetail = () => {
               </CardContent>
             </Card>
 
-            {/* AI Insight Section */}
+            {/* AI Insight Section (includes Classification) */}
             <AIInsightSection
               reportId={report.id}
               reportData={{

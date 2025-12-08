@@ -19,10 +19,27 @@ interface ReportData {
   disposition_notes?: string | null
 }
 
+interface OPDInfo {
+  id: string
+  code: string
+  name: string
+  description: string | null
+}
+
+interface ClassificationResult {
+  urgency: 'critical' | 'moderate' | 'minor'
+  urgency_reason: string
+  sentiment: 'positive' | 'negative' | 'neutral'
+  sentiment_reason: string
+  suggested_opd_name: string
+  suggested_opd_confidence: 'high' | 'medium' | 'low'
+}
+
 interface AIInsightResponse {
   summary_analysis: string
   key_insights: string[]
   recommended_actions: string[]
+  classification?: ClassificationResult
 }
 
 Deno.serve(async (req) => {
@@ -84,7 +101,11 @@ Deno.serve(async (req) => {
     }
 
     // Parse request body
-    const { report_id, report_data }: { report_id: string; report_data: ReportData } = await req.json()
+    const { report_id, report_data, available_opds }: {
+      report_id: string
+      report_data: ReportData
+      available_opds?: OPDInfo[]
+    } = await req.json()
 
     if (!report_id || !report_data) {
       return new Response(
@@ -119,7 +140,7 @@ Deno.serve(async (req) => {
 LAPORAN [${report_data.ticket_id}]
 Jenis: ${reportTypeLabel} | Status: ${statusLabel}
 Lokasi: ${report_data.address}
-${report_data.assigned_opd_name ? `OPD: ${report_data.assigned_opd_name}` : 'OPD: Belum ditentukan'}
+${report_data.assigned_opd_name ? `OPD Saat Ini: ${report_data.assigned_opd_name}` : 'OPD: Belum ditentukan'}
 
 ISI LAPORAN:
 ${report_data.description}
@@ -141,17 +162,39 @@ Hasilkan JSON dengan format berikut. WAJIB singkat dan padat.
     "[Aksi 1: mulai dengan kata kerja, maks 10 kata]",
     "[Aksi 2: mulai dengan kata kerja, maks 10 kata]",
     "[Aksi 3: mulai dengan kata kerja, maks 10 kata]"
-  ]
+  ],
+  "classification": {
+    "urgency": "[critical|moderate|minor]",
+    "urgency_reason": "[1 kalimat alasan, maks 15 kata]",
+    "sentiment": "[positive|negative|neutral]",
+    "sentiment_reason": "[1 kalimat alasan, maks 15 kata]",
+    "suggested_opd_name": "[Nama OPD yang relevan, contoh: Dinas Kesehatan, Dinas Lingkungan Hidup, Dinas Pekerjaan Umum, dll]",
+    "suggested_opd_confidence": "[high|medium|low]"
+  }
 }
 
 ATURAN WAJIB:
-1. TOTAL output MAKSIMAL 120 kata
+1. TOTAL output MAKSIMAL 200 kata
 2. Summary: 1-2 kalimat saja, langsung ke inti masalah
 3. Key Insights: Tepat 3 poin, tiap poin maks 10 kata
 4. Actions: Tepat 3 aksi, MULAI dengan kata kerja (Koordinasi..., Kirim..., Tindaklanjuti..., Verifikasi...)
 5. Gunakan bahasa Indonesia yang lugas dan jelas
 6. JANGAN gunakan kata pengantar, langsung ke poin
-7. Output HANYA JSON, tanpa markdown atau penjelasan tambahan`
+7. Output HANYA JSON, tanpa markdown atau penjelasan tambahan
+
+PANDUAN KLASIFIKASI:
+- Urgency CRITICAL: Risiko kesehatan/keselamatan jiwa, bencana, keadaan darurat
+- Urgency MODERATE: Gangguan layanan publik, infrastruktur rusak, dampak komunitas
+- Urgency MINOR: Keluhan umum, saran, pertanyaan informasi
+- Sentiment berdasarkan nada laporan: marah/frustasi=negative, puas/apresiasi=positive, netral=neutral
+- suggested_opd_name: WAJIB isi nama OPD pemerintah daerah yang paling relevan berdasarkan isi laporan. Contoh:
+  * Masalah kesehatan/penyakit/rumah sakit → Dinas Kesehatan
+  * Masalah jalan/jembatan/drainase → Dinas Pekerjaan Umum
+  * Masalah sampah/polusi/lingkungan → Dinas Lingkungan Hidup
+  * Masalah pendidikan/sekolah → Dinas Pendidikan
+  * Masalah keamanan/kriminal → Kepolisian/Satpol PP
+  * Masalah perizinan/administrasi → Dinas terkait atau Bagian Umum
+- Confidence HIGH jika domain OPD jelas cocok, MEDIUM jika perlu verifikasi, LOW jika ragu`
 
     // Call OpenRouter API with Gemini 2.5 Flash
     console.log('Calling OpenRouter API...')
@@ -172,7 +215,7 @@ ATURAN WAJIB:
           }
         ],
         temperature: 0.3,  // Lower temperature for more focused, consistent output
-        max_tokens: 500    // Reduced to enforce brevity (~120 words target)
+        max_tokens: 800    // Increased to accommodate classification data (~200 words target)
       })
     })
 
@@ -230,6 +273,21 @@ ATURAN WAJIB:
       )
     }
 
+    // Extract and validate classification data
+    const classification = parsedInsight.classification
+    const validUrgency = classification?.urgency && ['critical', 'moderate', 'minor'].includes(classification.urgency)
+      ? classification.urgency
+      : null
+    const validSentiment = classification?.sentiment && ['positive', 'negative', 'neutral'].includes(classification.sentiment)
+      ? classification.sentiment
+      : null
+    const validConfidence = classification?.suggested_opd_confidence && ['high', 'medium', 'low'].includes(classification.suggested_opd_confidence)
+      ? classification.suggested_opd_confidence
+      : null
+
+    // Get suggested OPD name (no validation needed - AI provides the name)
+    const suggestedOpdName = classification?.suggested_opd_name?.trim() || null
+
     // Save to database using upsert (update if exists, insert if not)
     const { data: savedInsight, error: saveError } = await supabaseAdmin
       .from('report_ai_insights')
@@ -238,6 +296,14 @@ ATURAN WAJIB:
         summary_analysis: parsedInsight.summary_analysis,
         key_insights: parsedInsight.key_insights,
         recommended_actions: parsedInsight.recommended_actions,
+        // Classification fields
+        urgency: validUrgency,
+        urgency_reason: classification?.urgency_reason || null,
+        sentiment: validSentiment,
+        sentiment_reason: classification?.sentiment_reason || null,
+        suggested_opd_name: suggestedOpdName,
+        suggested_opd_confidence: validConfidence,
+        // Metadata
         model_used: 'google/gemini-2.5-flash',
         generated_by: user.id,
         updated_at: new Date().toISOString()

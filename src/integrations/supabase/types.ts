@@ -695,6 +695,13 @@ export type Database = {
           generated_by: string | null
           created_at: string
           updated_at: string
+          urgency: Database["public"]["Enums"]["urgency_level"] | null
+          urgency_reason: string | null
+          sentiment: Database["public"]["Enums"]["sentiment_type"] | null
+          sentiment_reason: string | null
+          suggested_opd_id: string | null
+          suggested_opd_name: string | null
+          suggested_opd_confidence: string | null
         }
         Insert: {
           id?: string
@@ -706,6 +713,13 @@ export type Database = {
           generated_by?: string | null
           created_at?: string
           updated_at?: string
+          urgency?: Database["public"]["Enums"]["urgency_level"] | null
+          urgency_reason?: string | null
+          sentiment?: Database["public"]["Enums"]["sentiment_type"] | null
+          sentiment_reason?: string | null
+          suggested_opd_id?: string | null
+          suggested_opd_name?: string | null
+          suggested_opd_confidence?: string | null
         }
         Update: {
           id?: string
@@ -717,6 +731,13 @@ export type Database = {
           generated_by?: string | null
           created_at?: string
           updated_at?: string
+          urgency?: Database["public"]["Enums"]["urgency_level"] | null
+          urgency_reason?: string | null
+          sentiment?: Database["public"]["Enums"]["sentiment_type"] | null
+          sentiment_reason?: string | null
+          suggested_opd_id?: string | null
+          suggested_opd_name?: string | null
+          suggested_opd_confidence?: string | null
         }
         Relationships: [
           {
@@ -724,6 +745,13 @@ export type Database = {
             columns: ["report_id"]
             isOneToOne: true
             referencedRelation: "reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_ai_insights_suggested_opd_id_fkey"
+            columns: ["suggested_opd_id"]
+            isOneToOne: false
+            referencedRelation: "opds"
             referencedColumns: ["id"]
           },
         ]
@@ -1261,6 +1289,8 @@ export type Database = {
       report_status: "pending" | "in_progress" | "resolved" | "rejected"
       report_type: "lapor" | "aspirasi"
       session_status: "active" | "completed" | "abandoned"
+      urgency_level: "critical" | "moderate" | "minor"
+      sentiment_type: "positive" | "negative" | "neutral"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1415,6 +1445,8 @@ export const Constants = {
       report_status: ["pending", "in_progress", "resolved", "rejected"],
       report_type: ["lapor", "aspirasi"],
       session_status: ["active", "completed", "abandoned"],
+      urgency_level: ["critical", "moderate", "minor"],
+      sentiment_type: ["positive", "negative", "neutral"],
     },
   },
 } as const
