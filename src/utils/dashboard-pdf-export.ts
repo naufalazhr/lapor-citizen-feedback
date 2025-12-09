@@ -71,113 +71,169 @@ export async function exportDashboardToPDF(data: DashboardExportData): Promise<v
     sectionNumber++;
     yPos += 8;
 
-    // Executive Summary
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    const summaryLines = doc.splitTextToSize(aiInsight.executive_summary, pageWidth - 28);
-    doc.text(summaryLines, 14, yPos);
-    yPos += summaryLines.length * 5 + 5;
+    // Executive Summary - using table for proper text wrapping
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Ringkasan Eksekutif']],
+      body: [[aiInsight.executive_summary]],
+      theme: 'plain',
+      headStyles: {
+        fillColor: [147, 51, 234], // purple
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 10,
+      },
+      bodyStyles: {
+        fontSize: 10,
+        cellPadding: 4,
+      },
+      margin: { left: 14, right: 14 },
+      tableWidth: 'auto',
+    });
+    yPos = (doc as any).lastAutoTable.finalY + 8;
 
-    // Priority Alerts
+    // Priority Alerts - using table
     if (aiInsight.priority_alerts.length > 0) {
       checkPageBreak(40);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Priority Alerts:', 14, yPos);
-      yPos += 6;
 
-      aiInsight.priority_alerts.forEach((alert, idx) => {
-        checkPageBreak(20);
-        const levelColor: { [key: string]: [number, number, number] } = {
-          critical: [239, 68, 68],
-          warning: [245, 158, 11],
-          info: [59, 130, 246],
-        };
-        const color = levelColor[alert.level] || levelColor.info;
-
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(color[0], color[1], color[2]);
-        doc.text(`[${alert.level.toUpperCase()}] ${alert.title}`, 18, yPos);
-        yPos += 5;
-
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(0);
-        const msgLines = doc.splitTextToSize(alert.message, pageWidth - 36);
-        doc.text(msgLines, 22, yPos);
-        yPos += msgLines.length * 4 + 2;
-
-        doc.setFontSize(9);
-        doc.setTextColor(100);
-        doc.text(`→ ${alert.action}`, 22, yPos);
-        doc.setTextColor(0);
-        yPos += 6;
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Level', 'Alert', 'Pesan', 'Tindakan']],
+        body: aiInsight.priority_alerts.map(alert => [
+          alert.level.toUpperCase(),
+          alert.title,
+          alert.message,
+          alert.action,
+        ]),
+        theme: 'striped',
+        headStyles: {
+          fillColor: [239, 68, 68], // red
+          fontSize: 9,
+        },
+        bodyStyles: {
+          fontSize: 9,
+        },
+        columnStyles: {
+          0: { cellWidth: 20, fontStyle: 'bold' },
+          1: { cellWidth: 35 },
+          2: { cellWidth: 60 },
+          3: { cellWidth: 50 },
+        },
+        margin: { left: 14, right: 14 },
+        didParseCell: (data) => {
+          // Color code the level column
+          if (data.column.index === 0 && data.section === 'body') {
+            const level = data.cell.raw?.toString().toLowerCase();
+            if (level === 'critical') {
+              data.cell.styles.textColor = [239, 68, 68];
+            } else if (level === 'warning') {
+              data.cell.styles.textColor = [245, 158, 11];
+            } else {
+              data.cell.styles.textColor = [59, 130, 246];
+            }
+          }
+        },
       });
+      yPos = (doc as any).lastAutoTable.finalY + 8;
     }
 
-    // Bottlenecks
+    // Bottlenecks - using table
     if (aiInsight.bottlenecks.length > 0) {
-      checkPageBreak(30);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(0);
-      doc.text('Hambatan Terdeteksi:', 14, yPos);
-      yPos += 6;
+      checkPageBreak(40);
 
-      aiInsight.bottlenecks.forEach((bottleneck) => {
-        checkPageBreak(15);
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`• ${bottleneck.area}:`, 18, yPos);
-        doc.setFont('helvetica', 'normal');
-        const issueX = 18 + doc.getTextWidth(`• ${bottleneck.area}: `);
-        doc.text(bottleneck.issue, issueX, yPos);
-        yPos += 5;
-        doc.setFontSize(9);
-        doc.setTextColor(100);
-        doc.text(`Dampak: ${bottleneck.impact}`, 22, yPos);
-        doc.setTextColor(0);
-        yPos += 5;
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Area/OPD', 'Masalah', 'Dampak']],
+        body: aiInsight.bottlenecks.map(b => [
+          b.area,
+          b.issue,
+          b.impact,
+        ]),
+        theme: 'striped',
+        headStyles: {
+          fillColor: [249, 115, 22], // orange
+          fontSize: 9,
+        },
+        bodyStyles: {
+          fontSize: 9,
+        },
+        columnStyles: {
+          0: { cellWidth: 45, fontStyle: 'bold' },
+          1: { cellWidth: 60 },
+          2: { cellWidth: 60 },
+        },
+        margin: { left: 14, right: 14 },
       });
+      yPos = (doc as any).lastAutoTable.finalY + 8;
     }
 
-    // Trends
+    // Trends - using table
     if (aiInsight.trends.length > 0) {
-      checkPageBreak(30);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Interpretasi Tren:', 14, yPos);
-      yPos += 6;
+      checkPageBreak(40);
 
-      aiInsight.trends.forEach((trend) => {
-        checkPageBreak(10);
-        const arrow = trend.direction === 'up' ? '↑' : trend.direction === 'down' ? '↓' : '→';
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`${arrow} ${trend.indicator}: ${trend.interpretation}`, 18, yPos);
-        yPos += 5;
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Indikator', 'Arah', 'Interpretasi']],
+        body: aiInsight.trends.map(t => {
+          const arrow = t.direction === 'up' ? 'Naik' : t.direction === 'down' ? 'Turun' : 'Stabil';
+          return [t.indicator, arrow, t.interpretation];
+        }),
+        theme: 'striped',
+        headStyles: {
+          fillColor: [59, 130, 246], // blue
+          fontSize: 9,
+        },
+        bodyStyles: {
+          fontSize: 9,
+        },
+        columnStyles: {
+          0: { cellWidth: 40, fontStyle: 'bold' },
+          1: { cellWidth: 25 },
+          2: { cellWidth: 100 },
+        },
+        margin: { left: 14, right: 14 },
+        didParseCell: (data) => {
+          // Color code the direction column
+          if (data.column.index === 1 && data.section === 'body') {
+            const dir = data.cell.raw?.toString();
+            if (dir === 'Naik') {
+              data.cell.styles.textColor = [239, 68, 68]; // red for up (usually bad)
+            } else if (dir === 'Turun') {
+              data.cell.styles.textColor = [34, 197, 94]; // green for down (usually good)
+            }
+          }
+        },
       });
+      yPos = (doc as any).lastAutoTable.finalY + 8;
     }
 
-    // Recommendations Today
+    // Recommendations Today - using table
     if (aiInsight.recommendations_today.length > 0) {
-      checkPageBreak(30);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Rekomendasi Hari Ini:', 14, yPos);
-      yPos += 6;
+      checkPageBreak(40);
 
-      aiInsight.recommendations_today.forEach((rec, idx) => {
-        checkPageBreak(10);
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        const recLines = doc.splitTextToSize(`${idx + 1}. ${rec}`, pageWidth - 36);
-        doc.text(recLines, 18, yPos);
-        yPos += recLines.length * 5;
+      autoTable(doc, {
+        startY: yPos,
+        head: [['No', 'Rekomendasi Hari Ini']],
+        body: aiInsight.recommendations_today.map((rec, idx) => [
+          (idx + 1).toString(),
+          rec,
+        ]),
+        theme: 'striped',
+        headStyles: {
+          fillColor: [34, 197, 94], // green
+          fontSize: 9,
+        },
+        bodyStyles: {
+          fontSize: 9,
+        },
+        columnStyles: {
+          0: { cellWidth: 15, halign: 'center', fontStyle: 'bold' },
+          1: { cellWidth: 150 },
+        },
+        margin: { left: 14, right: 14 },
       });
+      yPos = (doc as any).lastAutoTable.finalY + 10;
     }
-
-    yPos += 10;
   }
 
   // Section: Summary Statistics
