@@ -10,6 +10,7 @@ import {
   RecommendationSummary,
   ReportWithLocation,
 } from '@/hooks/use-executive-dashboard';
+import { DashboardAIInsight, getStoredAIInsight } from '@/components/admin/dashboard/executive/AIRecommendationsSummary';
 
 interface DashboardExportData {
   dateRange?: { from?: Date; to?: Date };
@@ -20,12 +21,17 @@ interface DashboardExportData {
   urgentIssues: UrgentIssue[];
   recommendations: RecommendationSummary[];
   allReports: ReportWithLocation[];
+  aiInsight?: DashboardAIInsight | null;
 }
 
 export async function exportDashboardToPDF(data: DashboardExportData): Promise<void> {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   let yPos = 20;
+  let sectionNumber = 1;
+
+  // Get AI insight from localStorage if not provided
+  const aiInsight = data.aiInsight ?? getStoredAIInsight();
 
   // Helper function to add new page if needed
   const checkPageBreak = (neededHeight: number) => {
@@ -57,10 +63,128 @@ export async function exportDashboardToPDF(data: DashboardExportData): Promise<v
   doc.setTextColor(0);
   yPos += 15;
 
-  // Section 1: Summary Statistics
+  // Section: AI Executive Summary (if available)
+  if (aiInsight) {
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${sectionNumber}. Ringkasan AI Eksekutif`, 14, yPos);
+    sectionNumber++;
+    yPos += 8;
+
+    // Executive Summary
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const summaryLines = doc.splitTextToSize(aiInsight.executive_summary, pageWidth - 28);
+    doc.text(summaryLines, 14, yPos);
+    yPos += summaryLines.length * 5 + 5;
+
+    // Priority Alerts
+    if (aiInsight.priority_alerts.length > 0) {
+      checkPageBreak(40);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Priority Alerts:', 14, yPos);
+      yPos += 6;
+
+      aiInsight.priority_alerts.forEach((alert, idx) => {
+        checkPageBreak(20);
+        const levelColor: { [key: string]: [number, number, number] } = {
+          critical: [239, 68, 68],
+          warning: [245, 158, 11],
+          info: [59, 130, 246],
+        };
+        const color = levelColor[alert.level] || levelColor.info;
+
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(color[0], color[1], color[2]);
+        doc.text(`[${alert.level.toUpperCase()}] ${alert.title}`, 18, yPos);
+        yPos += 5;
+
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(0);
+        const msgLines = doc.splitTextToSize(alert.message, pageWidth - 36);
+        doc.text(msgLines, 22, yPos);
+        yPos += msgLines.length * 4 + 2;
+
+        doc.setFontSize(9);
+        doc.setTextColor(100);
+        doc.text(`→ ${alert.action}`, 22, yPos);
+        doc.setTextColor(0);
+        yPos += 6;
+      });
+    }
+
+    // Bottlenecks
+    if (aiInsight.bottlenecks.length > 0) {
+      checkPageBreak(30);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0);
+      doc.text('Hambatan Terdeteksi:', 14, yPos);
+      yPos += 6;
+
+      aiInsight.bottlenecks.forEach((bottleneck) => {
+        checkPageBreak(15);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`• ${bottleneck.area}:`, 18, yPos);
+        doc.setFont('helvetica', 'normal');
+        const issueX = 18 + doc.getTextWidth(`• ${bottleneck.area}: `);
+        doc.text(bottleneck.issue, issueX, yPos);
+        yPos += 5;
+        doc.setFontSize(9);
+        doc.setTextColor(100);
+        doc.text(`Dampak: ${bottleneck.impact}`, 22, yPos);
+        doc.setTextColor(0);
+        yPos += 5;
+      });
+    }
+
+    // Trends
+    if (aiInsight.trends.length > 0) {
+      checkPageBreak(30);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Interpretasi Tren:', 14, yPos);
+      yPos += 6;
+
+      aiInsight.trends.forEach((trend) => {
+        checkPageBreak(10);
+        const arrow = trend.direction === 'up' ? '↑' : trend.direction === 'down' ? '↓' : '→';
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${arrow} ${trend.indicator}: ${trend.interpretation}`, 18, yPos);
+        yPos += 5;
+      });
+    }
+
+    // Recommendations Today
+    if (aiInsight.recommendations_today.length > 0) {
+      checkPageBreak(30);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Rekomendasi Hari Ini:', 14, yPos);
+      yPos += 6;
+
+      aiInsight.recommendations_today.forEach((rec, idx) => {
+        checkPageBreak(10);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        const recLines = doc.splitTextToSize(`${idx + 1}. ${rec}`, pageWidth - 36);
+        doc.text(recLines, 18, yPos);
+        yPos += recLines.length * 5;
+      });
+    }
+
+    yPos += 10;
+  }
+
+  // Section: Summary Statistics
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text('1. Ringkasan Statistik', 14, yPos);
+  doc.text(`${sectionNumber}. Ringkasan Statistik`, 14, yPos);
+  sectionNumber++;
   yPos += 8;
 
   const totalReports = data.allReports.length;
@@ -87,11 +211,12 @@ export async function exportDashboardToPDF(data: DashboardExportData): Promise<v
   });
   yPos = (doc as any).lastAutoTable.finalY + 15;
 
-  // Section 2: Today's Snapshot
+  // Section: Today's Snapshot
   checkPageBreak(60);
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text('2. Snapshot Hari Ini', 14, yPos);
+  doc.text(`${sectionNumber}. Snapshot Hari Ini`, 14, yPos);
+  sectionNumber++;
   yPos += 8;
 
   autoTable(doc, {
@@ -126,12 +251,13 @@ export async function exportDashboardToPDF(data: DashboardExportData): Promise<v
   });
   yPos = (doc as any).lastAutoTable.finalY + 15;
 
-  // Section 3: Urgent Issues
+  // Section: Urgent Issues
   if (data.urgentIssues.length > 0) {
     checkPageBreak(60);
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text('3. Isu Mendesak', 14, yPos);
+    doc.text(`${sectionNumber}. Isu Mendesak`, 14, yPos);
+    sectionNumber++;
     yPos += 8;
 
     autoTable(doc, {
@@ -153,11 +279,12 @@ export async function exportDashboardToPDF(data: DashboardExportData): Promise<v
     yPos = (doc as any).lastAutoTable.finalY + 15;
   }
 
-  // Section 4: Trending
+  // Section: Trending
   checkPageBreak(60);
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text('4. Tren Minggu Ini', 14, yPos);
+  doc.text(`${sectionNumber}. Tren Minggu Ini`, 14, yPos);
+  sectionNumber++;
   yPos += 8;
 
   const trendingData = [...data.trendingByType, ...data.trendingByOPD].filter(t => t.change !== 0);
@@ -183,12 +310,13 @@ export async function exportDashboardToPDF(data: DashboardExportData): Promise<v
     yPos += 15;
   }
 
-  // Section 5: Slow OPDs
+  // Section: Slow OPDs
   if (data.slowOPDs.length > 0) {
     checkPageBreak(60);
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text('5. OPD Perlu Perhatian', 14, yPos);
+    doc.text(`${sectionNumber}. OPD Perlu Perhatian`, 14, yPos);
+    sectionNumber++;
     yPos += 8;
 
     autoTable(doc, {
@@ -207,12 +335,13 @@ export async function exportDashboardToPDF(data: DashboardExportData): Promise<v
     yPos = (doc as any).lastAutoTable.finalY + 15;
   }
 
-  // Section 6: AI Recommendations
+  // Section: AI Recommendations (from individual reports)
   if (data.recommendations.length > 0) {
     checkPageBreak(60);
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text('6. Rekomendasi AI', 14, yPos);
+    doc.text(`${sectionNumber}. Rekomendasi AI (per Laporan)`, 14, yPos);
+    sectionNumber++;
     yPos += 8;
 
     autoTable(doc, {
@@ -233,11 +362,12 @@ export async function exportDashboardToPDF(data: DashboardExportData): Promise<v
     yPos = (doc as any).lastAutoTable.finalY + 15;
   }
 
-  // Section 7: Report Type Distribution
+  // Section: Report Type Distribution
   checkPageBreak(40);
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text('7. Distribusi Jenis Laporan', 14, yPos);
+  doc.text(`${sectionNumber}. Distribusi Jenis Laporan`, 14, yPos);
+  sectionNumber++;
   yPos += 8;
 
   const laporCount = data.allReports.filter(r => r.type === 'lapor').length;

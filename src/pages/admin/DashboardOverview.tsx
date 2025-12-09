@@ -327,7 +327,8 @@ const DashboardOverview = () => {
               todayStats={todayStats}
               slowOPDs={slowOPDs}
               trendingByType={trendingByType}
-              onInsightGenerated={refetchExecutive}
+              urgentIssues={urgentIssues}
+              periodLabel={periodStats.periodLabel}
             />
 
             <Separator className="my-6" />
