@@ -311,7 +311,8 @@ serve(async (req: Request) => {
       conversation_id: conversation.id,
       role: 'assistant',
       content: responseText,
-      message_index: messageIndex + 1
+      message_index: messageIndex + 1,
+      agent_flow_data: flowiseResponse.agentFlowExecutedData // Store AI thinking data for governance
     });
     perfMetrics.db_save_assistant_message = performance.now() - saveAssistantStart;
 

@@ -32,6 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
 import AttachmentDisplay from "@/components/AttachmentDisplay";
+import AIThinkingCollapsible from "@/components/admin/AIThinkingCollapsible";
 
 interface Conversation {
   id: string;
@@ -70,6 +71,7 @@ interface Message {
   has_attachment: boolean;
   created_at: string;
   attachments?: Attachment[];
+  agent_flow_data?: any[]; // Flowise agentFlowExecutedData for AI governance
 }
 
 const Conversations = () => {
@@ -455,6 +457,10 @@ const Conversations = () => {
                             />
                           ))}
                         </div>
+                      )}
+                      {/* AI Governance: Show AI thinking for assistant messages */}
+                      {message.role === 'assistant' && message.agent_flow_data && (
+                        <AIThinkingCollapsible agentFlowData={message.agent_flow_data} />
                       )}
                     </div>
                   </div>

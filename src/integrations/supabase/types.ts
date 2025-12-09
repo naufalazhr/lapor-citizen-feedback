@@ -424,6 +424,7 @@ export type Database = {
       }
       messages: {
         Row: {
+          agent_flow_data: Json | null
           attachment_filename: string | null
           attachment_type: string | null
           attachment_url: string | null
@@ -438,6 +439,7 @@ export type Database = {
           token_count: number | null
         }
         Insert: {
+          agent_flow_data?: Json | null
           attachment_filename?: string | null
           attachment_type?: string | null
           attachment_url?: string | null
@@ -452,6 +454,7 @@ export type Database = {
           token_count?: number | null
         }
         Update: {
+          agent_flow_data?: Json | null
           attachment_filename?: string | null
           attachment_type?: string | null
           attachment_url?: string | null

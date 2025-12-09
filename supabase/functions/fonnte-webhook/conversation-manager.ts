@@ -182,6 +182,7 @@ export async function saveMessage(params: {
   attachment_url?: string;
   attachment_type?: string;
   attachment_filename?: string;
+  agent_flow_data?: any[]; // Flowise agentFlowExecutedData for AI governance
 }): Promise<Message> {
   const { data, error } = await supabase
     .from('messages')
@@ -193,7 +194,8 @@ export async function saveMessage(params: {
       has_attachment: params.has_attachment || false,
       attachment_url: params.attachment_url,
       attachment_type: params.attachment_type,
-      attachment_filename: params.attachment_filename
+      attachment_filename: params.attachment_filename,
+      agent_flow_data: params.agent_flow_data || null
     })
     .select()
     .single();
