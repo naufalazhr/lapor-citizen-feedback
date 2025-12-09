@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Sparkles, CheckCircle, Lightbulb, RefreshCw, Wand2 } from "lucide-react";
+import { Sparkles, RefreshCw, Wand2, Brain, TrendingUp, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { RecommendationSummary, ReportWithLocation, TodayStats, SlowOPD, TrendingItem } from "@/hooks/use-executive-dashboard";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -42,7 +41,7 @@ export function AIRecommendationsSummary({
         return;
       }
 
-      // Prepare summary data for AI
+      // Prepare comprehensive summary data for AI
       const summaryData = {
         total_reports: allReports.length,
         reports_by_status: {
@@ -63,7 +62,8 @@ export function AIRecommendationsSummary({
           completion_rate: opd.completion_rate
         })),
         trending: trendingByType,
-        existing_recommendations: recommendations.slice(0, 5).map(r => r.action),
+        // Include top recommendations for context
+        top_recommendations: recommendations.slice(0, 5).map(r => r.action),
       };
 
       // Call edge function for overall insight
@@ -92,7 +92,7 @@ export function AIRecommendationsSummary({
         setOverallInsight(result.data.summary_analysis);
         toast({
           title: "Berhasil",
-          description: "Insight dashboard berhasil di-generate",
+          description: "Ringkasan AI dashboard berhasil di-generate",
         });
         onInsightGenerated?.();
       }
@@ -108,140 +108,153 @@ export function AIRecommendationsSummary({
     }
   };
 
-  if (recommendations.length === 0 && !overallInsight) {
-    return (
-      <Card className="border-purple-200 dark:border-purple-800">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-purple-500" />
-              Rekomendasi AI
-            </CardTitle>
-            {allReports.length > 0 && (
-              <Button
-                onClick={generateOverallInsight}
-                disabled={generating}
-                size="sm"
-                className="bg-purple-600 hover:bg-purple-700"
-              >
-                {generating ? (
-                  <>
-                    <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Wand2 className="h-3 w-3 mr-1" />
-                    Generate Insight
-                  </>
-                )}
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center py-6 text-center">
-            <div className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center mb-3">
-              <Lightbulb className="h-6 w-6 text-purple-500" />
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Belum ada rekomendasi AI. Klik "Generate Insight" untuk mendapatkan analisis keseluruhan.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  // Calculate quick stats for display
+  const totalReports = allReports.length;
+  const pendingCount = allReports.filter(r => r.status === 'pending').length;
+  const resolvedCount = allReports.filter(r => r.status === 'resolved').length;
+  const completionRate = totalReports > 0 ? Math.round((resolvedCount / totalReports) * 100) : 0;
 
   return (
     <Card className="border-purple-200 dark:border-purple-800">
-      <CardHeader className="pb-2">
+      <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-purple-500" />
-            Rekomendasi Tindak Lanjut AI
-            {recommendations.length > 0 && (
-              <Badge variant="outline" className="ml-2 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border-purple-200 dark:border-purple-800">
-                {recommendations.length} Aksi
-              </Badge>
-            )}
+            <Brain className="h-5 w-5 text-purple-500" />
+            Ringkasan AI Dashboard
           </CardTitle>
-          {allReports.length > 0 && (
-            <Button
-              onClick={generateOverallInsight}
-              disabled={generating}
-              variant="outline"
-              size="sm"
-              className="border-purple-300 text-purple-700 hover:bg-purple-50 dark:border-purple-700 dark:text-purple-400 dark:hover:bg-purple-900/20"
-            >
-              {generating ? (
-                <>
-                  <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Wand2 className="h-3 w-3 mr-1" />
-                  Ringkasan AI
-                </>
-              )}
-            </Button>
-          )}
+          <Button
+            onClick={generateOverallInsight}
+            disabled={generating || allReports.length === 0}
+            size="sm"
+            className="bg-purple-600 hover:bg-purple-700"
+          >
+            {generating ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Menganalisis...
+              </>
+            ) : (
+              <>
+                <Wand2 className="h-4 w-4 mr-2" />
+                {overallInsight ? "Refresh Analisis" : "Generate Analisis"}
+              </>
+            )}
+          </Button>
         </div>
       </CardHeader>
-      <CardContent>
-        {/* Overall Insight Section */}
-        {overallInsight && (
-          <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg border-l-4 border-purple-500">
-            <div className="flex items-start gap-2">
-              <Sparkles className="h-4 w-4 text-purple-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-xs font-semibold text-purple-700 dark:text-purple-400 uppercase tracking-wide mb-1">
-                  Ringkasan Analisis Dashboard
-                </p>
-                <p className="text-sm text-foreground leading-relaxed">
+      <CardContent className="space-y-4">
+        {/* Quick Stats Row */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold text-slate-700 dark:text-slate-200">{totalReports}</p>
+            <p className="text-xs text-muted-foreground">Total Laporan</p>
+          </div>
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{pendingCount}</p>
+            <p className="text-xs text-muted-foreground">Pending</p>
+          </div>
+          <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold text-green-600 dark:text-green-400">{resolvedCount}</p>
+            <p className="text-xs text-muted-foreground">Selesai</p>
+          </div>
+          <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 text-center">
+            <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{completionRate}%</p>
+            <p className="text-xs text-muted-foreground">Tingkat Penyelesaian</p>
+          </div>
+        </div>
+
+        {/* Overall AI Insight Section */}
+        {overallInsight ? (
+          <div className="p-4 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/30 dark:to-indigo-900/30 rounded-lg border border-purple-200 dark:border-purple-700">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-800 flex items-center justify-center flex-shrink-0">
+                <Sparkles className="h-5 w-5 text-purple-600 dark:text-purple-300" />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-semibold text-purple-800 dark:text-purple-200 mb-2">
+                  Analisis Keseluruhan Dashboard
+                </h4>
+                <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
                   {overallInsight}
                 </p>
               </div>
             </div>
           </div>
-        )}
-
-        {/* Individual Recommendations */}
-        {recommendations.length > 0 && (
-          <div className="grid gap-2 md:grid-cols-2">
-            {recommendations.map((rec, index) => (
-              <div
-                key={index}
-                className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-100 dark:border-purple-800"
-              >
-                <div className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-purple-500 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground leading-snug">
-                      {rec.action}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge
-                        variant="secondary"
-                        className="text-[10px] px-1.5 py-0"
-                      >
-                        {rec.count}x disarankan
-                      </Badge>
-                      <span className="text-[10px] text-muted-foreground">
-                        dari {rec.reports.length} laporan
-                      </span>
-                    </div>
-                  </div>
-                </div>
+        ) : (
+          <div className="p-6 bg-slate-50 dark:bg-slate-800/30 rounded-lg border-2 border-dashed border-slate-200 dark:border-slate-700">
+            <div className="flex flex-col items-center justify-center text-center">
+              <div className="w-14 h-14 rounded-full bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center mb-3">
+                <Brain className="h-7 w-7 text-purple-500" />
               </div>
-            ))}
+              <h4 className="font-medium text-foreground mb-1">
+                Belum Ada Analisis AI
+              </h4>
+              <p className="text-sm text-muted-foreground mb-4 max-w-md">
+                Klik tombol "Generate Analisis" untuk mendapatkan ringkasan AI berdasarkan data dashboard saat ini, termasuk tren laporan, performa OPD, dan rekomendasi tindak lanjut.
+              </p>
+              {allReports.length === 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Tidak ada data laporan untuk dianalisis
+                </p>
+              )}
+            </div>
           </div>
         )}
 
-        <div className="mt-3 pt-3 border-t text-xs text-muted-foreground flex items-center gap-2">
+        {/* Key Insights Summary - only show if we have data */}
+        {(slowOPDs.length > 0 || (trendingByType.length > 0 && trendingByType.some(t => t.change !== 0))) && (
+          <div className="grid gap-3 md:grid-cols-2">
+            {/* Slow OPD Alert */}
+            {slowOPDs.length > 0 && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  <span className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                    OPD Perlu Perhatian
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {slowOPDs.length} OPD dengan respons lambat atau tingkat penyelesaian rendah
+                </p>
+              </div>
+            )}
+
+            {/* Trending Alert */}
+            {trendingByType.length > 0 && trendingByType.some(t => t.change > 0) && (
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="h-4 w-4 text-blue-500" />
+                  <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
+                    Tren Naik Minggu Ini
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {trendingByType.filter(t => t.change > 0).map(t => `${t.name} (+${t.change})`).join(', ')}
+                </p>
+              </div>
+            )}
+
+            {/* Completion Rate Alert */}
+            {completionRate >= 70 && (
+              <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                    Performa Baik
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Tingkat penyelesaian {completionRate}% - di atas target
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="pt-3 border-t text-xs text-muted-foreground flex items-center gap-2">
           <Sparkles className="h-3 w-3 text-purple-500" />
-          Rekomendasi digenerate dari analisis AI pada setiap laporan
+          Ringkasan ini dianalisis AI berdasarkan seluruh data laporan pada dashboard
         </div>
       </CardContent>
     </Card>

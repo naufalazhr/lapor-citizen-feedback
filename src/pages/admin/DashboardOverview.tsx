@@ -70,6 +70,7 @@ const DashboardOverview = () => {
     allReports,
     reportsWithLocation,
     todayStats,
+    periodStats,
     trendingByType,
     trendingByStatus,
     trendingByOPD,
@@ -302,7 +303,7 @@ const DashboardOverview = () => {
 
             {/* Row 1: Today Snapshot + Urgent Issues */}
             <div className="grid gap-4 md:grid-cols-2">
-              <TodaySnapshotCard data={todayStats} />
+              <TodaySnapshotCard data={periodStats} />
               <UrgentIssuesCard issues={urgentIssues} />
             </div>
 

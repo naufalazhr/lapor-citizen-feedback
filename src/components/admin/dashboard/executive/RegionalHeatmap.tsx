@@ -202,26 +202,7 @@ export function RegionalHeatmap({ reports }: RegionalHeatmapProps) {
     }
   }, [viewMode, validReports, heatmapData, isMapReady]);
 
-  if (reports.length === 0) {
-    return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Map className="h-4 w-4 text-blue-500" />
-            Peta Sebaran Wilayah
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center h-[300px] bg-muted/50 rounded-lg">
-            <MapPin className="h-12 w-12 text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground">
-              Belum ada data lokasi laporan
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const hasData = reports.length > 0 && totalPoints > 0;
 
   return (
     <Card>
@@ -231,58 +212,72 @@ export function RegionalHeatmap({ reports }: RegionalHeatmapProps) {
             <Map className="h-4 w-4 text-blue-500" />
             Peta Sebaran Wilayah
           </CardTitle>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-xs">
-              {totalPoints} lokasi
-            </Badge>
-            <div className="flex border rounded-md">
-              <Button
-                variant={viewMode === "markers" ? "secondary" : "ghost"}
-                size="sm"
-                className="h-7 px-2 rounded-r-none"
-                onClick={() => setViewMode("markers")}
-                title="Tampilan Marker"
-              >
-                <CircleDot className="h-3 w-3" />
-              </Button>
-              <Button
-                variant={viewMode === "heatmap" ? "secondary" : "ghost"}
-                size="sm"
-                className="h-7 px-2 rounded-l-none"
-                onClick={() => setViewMode("heatmap")}
-                title="Tampilan Heatmap"
-              >
-                <Layers className="h-3 w-3" />
-              </Button>
+          {hasData && (
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-xs">
+                {totalPoints} lokasi
+              </Badge>
+              <div className="flex border rounded-md">
+                <Button
+                  variant={viewMode === "markers" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-7 px-2 rounded-r-none"
+                  onClick={() => setViewMode("markers")}
+                  title="Tampilan Marker"
+                >
+                  <CircleDot className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant={viewMode === "heatmap" ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-7 px-2 rounded-l-none"
+                  onClick={() => setViewMode("heatmap")}
+                  title="Tampilan Heatmap"
+                >
+                  <Layers className="h-3 w-3" />
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </CardHeader>
       <CardContent className="p-0">
         <div className="relative">
+          {/* Always render map container to ensure initialization */}
           <div
             ref={mapContainerRef}
             style={{ height: "300px", width: "100%" }}
             className="rounded-b-lg"
           />
-          {/* Legend */}
-          <div className="absolute bottom-3 right-3 bg-background/90 backdrop-blur-sm p-2 rounded-md shadow-md border text-xs z-[1000]">
-            <div className="font-medium mb-1">Status:</div>
-            <div className="flex flex-col gap-0.5">
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-red-500" />
-                <span>Pending</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-orange-500" />
-                <span>Proses</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-green-500" />
-                <span>Selesai</span>
+          {/* Empty state overlay - shown when no data */}
+          {!hasData && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/80 backdrop-blur-sm rounded-b-lg z-[1001]">
+              <MapPin className="h-12 w-12 text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">
+                Belum ada data lokasi laporan
+              </p>
+            </div>
+          )}
+          {/* Legend - only show when there's data */}
+          {hasData && (
+            <div className="absolute bottom-3 right-3 bg-background/90 backdrop-blur-sm p-2 rounded-md shadow-md border text-xs z-[1000]">
+              <div className="font-medium mb-1">Status:</div>
+              <div className="flex flex-col gap-0.5">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-red-500" />
+                  <span>Pending</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-orange-500" />
+                  <span>Proses</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-green-500" />
+                  <span>Selesai</span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </CardContent>
     </Card>

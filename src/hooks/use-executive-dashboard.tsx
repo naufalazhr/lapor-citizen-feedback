@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "./use-user-role";
-import { startOfWeek, subWeeks, startOfDay, subDays, isWithinInterval, parseISO } from "date-fns";
+import { startOfWeek, subWeeks, startOfDay, endOfDay, subDays, parseISO } from "date-fns";
 
 export interface ReportWithLocation {
   id: string;
@@ -49,6 +49,22 @@ export interface TodayStats {
   totalYesterday: number;
   pendingYesterday: number;
   resolvedYesterday: number;
+}
+
+// Stats for the filtered period (adapts to date filter)
+export interface PeriodStats {
+  total: number;
+  pending: number;
+  inProgress: number;
+  resolved: number;
+  rejected: number;
+  // Comparison with previous equivalent period
+  previousTotal: number;
+  previousPending: number;
+  previousResolved: number;
+  // Label for the period
+  periodLabel: string;
+  comparisonLabel: string;
 }
 
 export interface TrendingItem {
@@ -205,6 +221,7 @@ export const useExecutiveDashboard = () => {
   }, [fetchData, role]);
 
   // Filter reports by date range
+  // Note: DateRangeFilter already normalizes dates with startOfDay/endOfDay
   const reports = useMemo(() => {
     if (!dateRange.from && !dateRange.to) {
       return allReportsData;
@@ -213,8 +230,9 @@ export const useExecutiveDashboard = () => {
     return allReportsData.filter(report => {
       const reportDate = parseISO(report.created_at);
 
+      // DateRangeFilter already applies startOfDay for 'from' and endOfDay for 'to'
       if (dateRange.from && dateRange.to) {
-        return isWithinInterval(reportDate, { start: dateRange.from, end: dateRange.to });
+        return reportDate >= dateRange.from && reportDate <= dateRange.to;
       } else if (dateRange.from) {
         return reportDate >= dateRange.from;
       } else if (dateRange.to) {
@@ -224,23 +242,30 @@ export const useExecutiveDashboard = () => {
     });
   }, [allReportsData, dateRange]);
 
-  // Calculate today's stats
+  // Calculate today's stats - uses parseISO for consistent date parsing
   const todayStats = useMemo((): TodayStats => {
     const today = startOfDay(new Date());
     const yesterday = startOfDay(subDays(new Date(), 1));
+    const todayEnd = endOfDay(new Date());
 
-    const todayReports = reports.filter(r => new Date(r.created_at) >= today);
+    const todayReports = reports.filter(r => {
+      const createdDate = parseISO(r.created_at);
+      return createdDate >= today && createdDate <= todayEnd;
+    });
     const yesterdayReports = reports.filter(r => {
-      const date = new Date(r.created_at);
-      return date >= yesterday && date < today;
+      const createdDate = parseISO(r.created_at);
+      return createdDate >= yesterday && createdDate < today;
     });
 
-    const resolvedTodayReports = reports.filter(r =>
-      r.status === 'resolved' && new Date(r.updated_at) >= today
-    );
+    const resolvedTodayReports = reports.filter(r => {
+      if (r.status !== 'resolved') return false;
+      const updatedDate = parseISO(r.updated_at);
+      return updatedDate >= today && updatedDate <= todayEnd;
+    });
     const resolvedYesterdayReports = reports.filter(r => {
-      const date = new Date(r.updated_at);
-      return r.status === 'resolved' && date >= yesterday && date < today;
+      if (r.status !== 'resolved') return false;
+      const updatedDate = parseISO(r.updated_at);
+      return updatedDate >= yesterday && updatedDate < today;
     });
 
     return {
@@ -254,15 +279,99 @@ export const useExecutiveDashboard = () => {
     };
   }, [reports]);
 
-  // Calculate trending data
+  // Calculate period stats - adapts to date filter
+  const periodStats = useMemo((): PeriodStats => {
+    // Current period stats (from filtered reports)
+    const total = reports.length;
+    const pending = reports.filter(r => r.status === 'pending').length;
+    const inProgress = reports.filter(r => r.status === 'in_progress').length;
+    const resolved = reports.filter(r => r.status === 'resolved').length;
+    const rejected = reports.filter(r => r.status === 'rejected').length;
+
+    // Determine period label and calculate comparison period
+    let periodLabel = 'Semua Data';
+    let comparisonLabel = '';
+    let previousTotal = 0;
+    let previousPending = 0;
+    let previousResolved = 0;
+
+    if (dateRange.from && dateRange.to) {
+      // Calculate the duration of the selected period
+      const periodDays = Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+      // Calculate previous period of same duration
+      const previousPeriodEnd = new Date(dateRange.from.getTime() - 1); // Day before current period starts
+      const previousPeriodStart = new Date(previousPeriodEnd.getTime() - (periodDays - 1) * 24 * 60 * 60 * 1000);
+
+      // Filter reports for previous period
+      const previousReports = allReportsData.filter(r => {
+        const createdDate = parseISO(r.created_at);
+        return createdDate >= startOfDay(previousPeriodStart) && createdDate <= endOfDay(previousPeriodEnd);
+      });
+
+      previousTotal = previousReports.length;
+      previousPending = previousReports.filter(r => r.status === 'pending').length;
+      previousResolved = previousReports.filter(r => r.status === 'resolved').length;
+
+      // Format period label
+      const today = startOfDay(new Date());
+      const fromDate = startOfDay(dateRange.from);
+      const toDate = startOfDay(dateRange.to);
+
+      if (fromDate.getTime() === toDate.getTime()) {
+        // Single day
+        if (fromDate.getTime() === today.getTime()) {
+          periodLabel = 'Hari Ini';
+          comparisonLabel = 'dari kemarin';
+        } else if (fromDate.getTime() === startOfDay(subDays(new Date(), 1)).getTime()) {
+          periodLabel = 'Kemarin';
+          comparisonLabel = 'dari 2 hari lalu';
+        } else {
+          periodLabel = 'Tanggal Terpilih';
+          comparisonLabel = 'dari periode sebelumnya';
+        }
+      } else if (periodDays === 7) {
+        periodLabel = '7 Hari Terakhir';
+        comparisonLabel = 'dari 7 hari sebelumnya';
+      } else if (periodDays === 30 || periodDays === 31) {
+        periodLabel = '30 Hari Terakhir';
+        comparisonLabel = 'dari 30 hari sebelumnya';
+      } else {
+        periodLabel = `${periodDays} Hari`;
+        comparisonLabel = `dari ${periodDays} hari sebelumnya`;
+      }
+    } else {
+      // All data - compare with nothing
+      periodLabel = 'Semua Data';
+      comparisonLabel = '';
+    }
+
+    return {
+      total,
+      pending,
+      inProgress,
+      resolved,
+      rejected,
+      previousTotal,
+      previousPending,
+      previousResolved,
+      periodLabel,
+      comparisonLabel,
+    };
+  }, [reports, allReportsData, dateRange]);
+
+  // Calculate trending data - uses parseISO for consistent date parsing
   const calculateTrending = useMemo(() => {
     const thisWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
     const lastWeekStart = subWeeks(thisWeekStart, 1);
 
-    const thisWeekReports = reports.filter(r => new Date(r.created_at) >= thisWeekStart);
+    const thisWeekReports = reports.filter(r => {
+      const createdDate = parseISO(r.created_at);
+      return createdDate >= thisWeekStart;
+    });
     const lastWeekReports = reports.filter(r => {
-      const date = new Date(r.created_at);
-      return date >= lastWeekStart && date < thisWeekStart;
+      const createdDate = parseISO(r.created_at);
+      return createdDate >= lastWeekStart && createdDate < thisWeekStart;
     });
 
     // By Type
@@ -361,12 +470,14 @@ export const useExecutiveDashboard = () => {
       }
     });
 
-    // Calculate response times from dispositions
+    // Calculate response times from dispositions - uses parseISO for consistent date parsing
     dispositions.forEach(d => {
       if (d.action_type === 'disposition' || d.action_type === 'assigned') {
         const report = reports.find(r => r.id === d.report_id);
         if (report && d.opd_id) {
-          const responseTime = new Date(d.assigned_at).getTime() - new Date(report.created_at).getTime();
+          const assignedDate = parseISO(d.assigned_at);
+          const createdDate = parseISO(report.created_at);
+          const responseTime = assignedDate.getTime() - createdDate.getTime();
           const hours = responseTime / (1000 * 60 * 60);
 
           const existing = opdStats.get(d.opd_id);
@@ -487,6 +598,7 @@ export const useExecutiveDashboard = () => {
     aiInsights,
     dispositions,
     todayStats,
+    periodStats,
     trendingByType: calculateTrending.trendingByType,
     trendingByStatus: calculateTrending.trendingByStatus,
     trendingByOPD: calculateTrending.trendingByOPD,

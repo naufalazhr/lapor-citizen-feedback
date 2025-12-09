@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { format, subDays, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
+import { format, subDays, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfDay } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { Calendar as CalendarIcon, X } from "lucide-react";
 import { DateRange } from "react-day-picker";
@@ -44,39 +44,44 @@ export function DateRangeFilter({ dateRange, onDateRangeChange }: DateRangeFilte
 
   const handlePresetChange = (preset: PresetKey) => {
     setSelectedPreset(preset);
-    const today = new Date();
+    const now = new Date();
+    const todayStart = startOfDay(now);
+    const todayEnd = endOfDay(now);
 
     switch (preset) {
       case "all":
         onDateRangeChange({ from: undefined, to: undefined });
         break;
       case "today":
-        onDateRangeChange({ from: today, to: today });
+        onDateRangeChange({ from: todayStart, to: todayEnd });
         break;
       case "yesterday":
-        const yesterday = subDays(today, 1);
-        onDateRangeChange({ from: yesterday, to: yesterday });
+        const yesterdayStart = startOfDay(subDays(now, 1));
+        const yesterdayEnd = endOfDay(subDays(now, 1));
+        onDateRangeChange({ from: yesterdayStart, to: yesterdayEnd });
         break;
       case "last7days":
-        onDateRangeChange({ from: subDays(today, 6), to: today });
+        // Include today and 6 days before = 7 days total
+        onDateRangeChange({ from: startOfDay(subDays(now, 6)), to: todayEnd });
         break;
       case "last30days":
-        onDateRangeChange({ from: subDays(today, 29), to: today });
+        // Include today and 29 days before = 30 days total
+        onDateRangeChange({ from: startOfDay(subDays(now, 29)), to: todayEnd });
         break;
       case "thisWeek":
         onDateRangeChange({
-          from: startOfWeek(today, { weekStartsOn: 1 }),
-          to: endOfWeek(today, { weekStartsOn: 1 }),
+          from: startOfWeek(now, { weekStartsOn: 1 }),
+          to: endOfWeek(now, { weekStartsOn: 1 }),
         });
         break;
       case "thisMonth":
         onDateRangeChange({
-          from: startOfMonth(today),
-          to: endOfMonth(today),
+          from: startOfMonth(now),
+          to: endOfMonth(now),
         });
         break;
       case "lastMonth":
-        const lastMonth = subMonths(today, 1);
+        const lastMonth = subMonths(now, 1);
         onDateRangeChange({
           from: startOfMonth(lastMonth),
           to: endOfMonth(lastMonth),
@@ -89,9 +94,10 @@ export function DateRangeFilter({ dateRange, onDateRangeChange }: DateRangeFilte
   };
 
   const handleCalendarSelect = (range: DateRange | undefined) => {
+    // Normalize calendar selections to full day boundaries
     onDateRangeChange({
-      from: range?.from,
-      to: range?.to,
+      from: range?.from ? startOfDay(range.from) : undefined,
+      to: range?.to ? endOfDay(range.to) : undefined,
     });
     if (range?.from && range?.to) {
       setIsCalendarOpen(false);
