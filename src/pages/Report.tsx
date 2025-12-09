@@ -1,7 +1,7 @@
 import ReportForm from "@/components/ReportForm";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Shield } from "lucide-react";
+import { Shield, Search } from "lucide-react";
 
 const Index = () => {
   return (
@@ -11,12 +11,20 @@ const Index = () => {
           <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary-light bg-clip-text text-transparent">
             Lapor
           </h1>
-          <Link to="/auth">
-            <Button variant="outline" size="sm">
-              <Shield className="h-4 w-4 mr-2" />
-              Admin Login
-            </Button>
-          </Link>
+          <div className="flex gap-2">
+            <Link to="/lacak">
+              <Button variant="outline" size="sm">
+                <Search className="h-4 w-4 mr-2" />
+                Lacak Laporan
+              </Button>
+            </Link>
+            <Link to="/auth">
+              <Button variant="outline" size="sm">
+                <Shield className="h-4 w-4 mr-2" />
+                Admin Login
+              </Button>
+            </Link>
+          </div>
         </div>
       </nav>
 

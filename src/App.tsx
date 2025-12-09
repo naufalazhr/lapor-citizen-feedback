@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Report from "./pages/Report";
+import TrackReport from "./pages/TrackReport";
 import Auth from "./pages/Auth";
 import ProfileSetup from "./pages/ProfileSetup";
 import PendingApproval from "./pages/PendingApproval";
@@ -29,6 +30,8 @@ const App = () => (
           <Route path="/" element={<Auth />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/lapor" element={<Report />} />
+          <Route path="/lacak" element={<TrackReport />} />
+          <Route path="/lacak/:ticketId" element={<TrackReport />} />
           <Route path="/admin/dashboard" element={<DashboardOverview />} />
           <Route path="/admin/reports" element={<Reports />} />
           <Route path="/admin/reports/:id" element={<ReportDetail />} />
