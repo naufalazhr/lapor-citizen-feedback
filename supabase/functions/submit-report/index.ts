@@ -19,6 +19,19 @@ interface ReportPayload {
   session_id?: string | null  // NEW: Optional session_id from Flowise
 }
 
+// Status translation map (English to Indonesian)
+const statusTranslation: Record<string, string> = {
+  'pending': 'Ditinjau',
+  'in_progress': 'Dalam Proses',
+  'resolved': 'Selesai',
+  'rejected': 'Ditolak'
+}
+
+// Helper to format date (extract date only from ISO timestamp)
+const formatDateOnly = (isoDate: string): string => {
+  return isoDate.split('T')[0]
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -280,8 +293,8 @@ Deno.serve(async (req) => {
         message: 'Report submitted successfully',
         data: {
           ticket_id: reportData.ticket_id,
-          status: reportData.status,
-          created_at: reportData.created_at
+          status: statusTranslation[reportData.status] || reportData.status,
+          created_at: formatDateOnly(reportData.created_at)
         }
       }),
       {

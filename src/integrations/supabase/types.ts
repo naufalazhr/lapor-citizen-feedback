@@ -1262,6 +1262,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      update_report_status: {
+        Args: {
+          p_report_id: string
+          p_new_status: string
+          p_notes?: string | null
+        }
+        Returns: Json
+      }
     }
     Enums: {
       agent_status: "draft" | "published" | "archived"
