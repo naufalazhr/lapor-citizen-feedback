@@ -30,6 +30,37 @@ export async function getFonnteConfig(): Promise<FonnteConfig> {
 }
 
 // -----------------------------------------------------------------------------
+// Get AI Assistant Configuration (Human-in-the-Loop Control)
+// Returns AI enabled status and preset reply text
+// -----------------------------------------------------------------------------
+export interface AIAssistantConfig {
+  is_ai_enabled: boolean;
+  preset_reply_text: string;
+}
+
+export async function getAIAssistantConfig(): Promise<AIAssistantConfig> {
+  const { data, error } = await supabase
+    .from('ai_assistant_config')
+    .select('is_ai_enabled, preset_reply_text')
+    .eq('config_name', 'default')
+    .single();
+
+  if (error || !data) {
+    // Default: AI enabled with standard message if no config exists
+    console.log('No AI assistant config found, using defaults (AI enabled)');
+    return {
+      is_ai_enabled: true,
+      preset_reply_text: 'Terima kasih telah menghubungi kami. Saat ini layanan AI asisten sedang tidak aktif. Silakan hubungi admin atau coba lagi nanti.'
+    };
+  }
+
+  return {
+    is_ai_enabled: data.is_ai_enabled,
+    preset_reply_text: data.preset_reply_text
+  };
+}
+
+// -----------------------------------------------------------------------------
 // Find or Create Conversation
 // -----------------------------------------------------------------------------
 export async function findOrCreateConversation(

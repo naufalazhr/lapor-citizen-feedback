@@ -17,7 +17,8 @@ import {
   getConversationHistory,
   updateConversationSessionId,
   logWebhookError,
-  getFonnteConfig
+  getFonnteConfig,
+  getAIAssistantConfig
 } from './conversation-manager.ts';
 
 import {
@@ -260,6 +261,109 @@ serve(async (req: Request) => {
 
     // Remove the last message (current user message) from history for Flowise
     const historyForFlowise = history.slice(0, -1);
+
+    // ============================================================================
+    // AI GOVERNANCE CHECK - Human-in-the-Loop Control
+    // Check if AI is enabled before calling Flowise
+    // ============================================================================
+    const aiConfig = await getAIAssistantConfig();
+
+    if (!aiConfig.is_ai_enabled) {
+      console.log('🤖 AI Assistant is DISABLED - using preset reply (Human-in-the-Loop)');
+
+      const presetResponseText = aiConfig.preset_reply_text;
+
+      // Save preset response as assistant message
+      const savePresetStart = performance.now();
+      await saveMessage({
+        conversation_id: conversation.id,
+        role: 'assistant',
+        content: presetResponseText,
+        message_index: messageIndex + 1,
+        agent_flow_data: null // No AI flow data for preset response
+      });
+      perfMetrics.db_save_assistant_message = performance.now() - savePresetStart;
+
+      console.log('Preset response saved, sending to WhatsApp...');
+
+      // Send preset response via Fonnte
+      const fonntePresetStart = performance.now();
+      try {
+        const fonnteConfig = await getFonnteConfig();
+
+        if (!fonnteConfig.api_token) {
+          throw new Error('Fonnte API token not configured');
+        }
+
+        const sendResult = await sendFonnteMessageWithRetry({
+          target: normalized.sender,
+          message: presetResponseText,
+          token: fonnteConfig.api_token
+        });
+        perfMetrics.fonnte_send = performance.now() - fonntePresetStart;
+
+        if (!sendResult.status) {
+          console.error('Failed to send preset message to WhatsApp:', sendResult.error);
+          await logWebhookError({
+            source: 'fonnte-send-preset',
+            error_type: 'FonnteSendError',
+            error_message: sendResult.error || 'Failed to send preset message to WhatsApp',
+            payload: { target: '***' + normalized.sender.slice(-4) },
+            conversation_id: conversationId
+          });
+        } else {
+          console.log('Preset message sent to WhatsApp successfully');
+        }
+      } catch (sendError) {
+        perfMetrics.fonnte_send = performance.now() - fonntePresetStart;
+        console.error('Error sending preset message to WhatsApp:', sendError);
+        await logWebhookError({
+          source: 'fonnte-send-preset',
+          error_type: 'FonnteSendException',
+          error_message: sendError instanceof Error ? sendError.message : 'Unknown error',
+          payload: { target: '***' + normalized.sender.slice(-4) },
+          conversation_id: conversationId
+        });
+      }
+
+      // Log performance metrics for AI-bypassed request
+      const totalDuration = performance.now() - startTime;
+      console.log('📊 PERFORMANCE METRICS (AI Bypassed):', {
+        total: `${totalDuration.toFixed(0)}ms`,
+        fonnte: `${perfMetrics.fonnte_send?.toFixed(0) || 0}ms`,
+        db: `${((perfMetrics.db_find_conversation || 0) + (perfMetrics.db_get_history || 0) + (perfMetrics.db_save_user_message || 0) + (perfMetrics.db_save_assistant_message || 0)).toFixed(0)}ms`
+      });
+
+      await logPerformanceMetrics(
+        tenantId,
+        conversationId,
+        'webhook_total_ai_bypassed',
+        totalDuration,
+        {
+          ai_enabled: false,
+          message_length: messageContent.length
+        }
+      );
+
+      // Return success response for AI-bypassed request
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Webhook processed successfully (AI bypassed)',
+          ai_bypassed: true
+        }),
+        {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+    }
+
+    // AI is enabled - continue with Flowise flow
+    console.log('🤖 AI Assistant is ENABLED - processing with Flowise');
 
     // 10. Build Flowise request
     const flowiseRequest = buildFlowiseRequest({

@@ -10,12 +10,13 @@ import { RequestParametersDocs } from "@/components/admin/RequestParametersDocs"
 import { FlowiseConfigManager } from "@/components/admin/FlowiseConfigManager";
 import { FonnteConfigManager } from "@/components/admin/FonnteConfigManager";
 import { LoginConfigManager } from "@/components/admin/LoginConfigManager";
+import { AIAssistantConfigManager } from "@/components/admin/AIAssistantConfigManager";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Copy, Check, Code, Key, BookOpen, ChevronDown, Settings, FileCode, MessageSquare } from "lucide-react";
+import { Copy, Check, Code, Key, BookOpen, ChevronDown, Settings, FileCode, MessageSquare, Bot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/use-user-role";
 
@@ -60,6 +61,7 @@ const Integration = () => {
   };
   const [copied, setCopied] = useState<string | null>(null);
   const [loginConfigOpen, setLoginConfigOpen] = useState(true);
+  const [aiConfigOpen, setAiConfigOpen] = useState(true);
   const [configOpen, setConfigOpen] = useState(true);
   const [fieldConfigOpen, setFieldConfigOpen] = useState(true);
   const [docsOpen, setDocsOpen] = useState(true);
@@ -283,6 +285,31 @@ try {
             <CollapsibleContent>
               <CardContent className="pt-6">
                 <LoginConfigManager />
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+
+        {/* AI Assistant Configuration - Human-in-the-Loop Control */}
+        <Collapsible open={aiConfigOpen} onOpenChange={setAiConfigOpen}>
+          <Card>
+            <CollapsibleTrigger className="w-full">
+              <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Bot className="h-5 w-5" />
+                    <div className="text-left">
+                      <CardTitle>Konfigurasi AI Asisten</CardTitle>
+                      <CardDescription>Kontrol status AI dan pesan balasan preset (Human-in-the-Loop)</CardDescription>
+                    </div>
+                  </div>
+                  <ChevronDown className={`h-5 w-5 transition-transform ${aiConfigOpen ? "rotate-180" : ""}`} />
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-6">
+                <AIAssistantConfigManager />
               </CardContent>
             </CollapsibleContent>
           </Card>

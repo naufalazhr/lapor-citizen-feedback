@@ -5,6 +5,7 @@ import { User } from "@supabase/supabase-js";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/admin/AppSidebar";
 import { ProfileMenu } from "@/components/admin/ProfileMenu";
+import { AIStatusIndicator } from "@/components/admin/AIStatusIndicator";
 import { useUserRole } from "@/hooks/use-user-role";
 
 interface DashboardProps {
@@ -134,7 +135,10 @@ const Dashboard = ({ children }: DashboardProps) => {
               <SidebarTrigger className="mr-4" />
               <h1 className="text-lg font-semibold">{getDashboardTitle()}</h1>
             </div>
-            <ProfileMenu />
+            <div className="flex items-center gap-3">
+              <AIStatusIndicator />
+              <ProfileMenu />
+            </div>
           </div>
         </header>
         <div className="flex flex-1">

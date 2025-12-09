@@ -94,6 +94,53 @@ export type Database = {
           },
         ]
       }
+      ai_assistant_config: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          config_name: string
+          is_ai_enabled: boolean
+          ai_disabled_at: string | null
+          ai_disabled_by: string | null
+          preset_reply_text: string
+          created_at: string
+          updated_at: string
+          created_by: string | null
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          config_name?: string
+          is_ai_enabled?: boolean
+          ai_disabled_at?: string | null
+          ai_disabled_by?: string | null
+          preset_reply_text?: string
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          config_name?: string
+          is_ai_enabled?: boolean
+          ai_disabled_at?: string | null
+          ai_disabled_by?: string | null
+          preset_reply_text?: string
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_assistant_config_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attachments: {
         Row: {
           base64_data: string | null
