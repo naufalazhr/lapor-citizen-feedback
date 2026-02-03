@@ -9,7 +9,15 @@
       "Bash(npm run build:*)",
       "Bash(find:*)",
       "Bash(npm install:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__get_edge_function",
+      "WebFetch(domain:www.twilio.com)",
+      "Bash(git -C \"c:\\\\Users\\\\yugie\\\\lapor ai\\\\lapor-citizen-feedback\" status --short)",
+      "Bash(ls:*)",
+      "Bash(git rm:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run:*)"
     ],
     "deny": [],
     "ask": []
