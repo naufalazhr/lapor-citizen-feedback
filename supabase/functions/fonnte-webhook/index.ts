@@ -17,7 +17,6 @@ import {
   getConversationHistory,
   updateConversationSessionId,
   logWebhookError,
-  getFonnteConfig,
   getAIAssistantConfig
 } from './conversation-manager.ts';
 
@@ -33,8 +32,8 @@ import {
 } from './flowise-client.ts';
 
 import {
-  sendFonnteMessageWithRetry
-} from './fonnte-client.ts';
+  createWhatsAppProvider
+} from './providers/provider-factory.ts';
 
 // =============================================================================
 // Debug Utility
@@ -286,40 +285,35 @@ serve(async (req: Request) => {
 
       console.log('Preset response saved, sending to WhatsApp...');
 
-      // Send preset response via Fonnte
-      const fonntePresetStart = performance.now();
+      // Send preset response via WhatsApp provider
+      const whatsappSendPresetStart = performance.now();
       try {
-        const fonnteConfig = await getFonnteConfig();
+        const whatsappProvider = await createWhatsAppProvider();
 
-        if (!fonnteConfig.api_token) {
-          throw new Error('Fonnte API token not configured');
-        }
-
-        const sendResult = await sendFonnteMessageWithRetry({
+        const sendResult = await whatsappProvider.sendMessageWithRetry({
           target: normalized.sender,
-          message: presetResponseText,
-          token: fonnteConfig.api_token
+          message: presetResponseText
         });
-        perfMetrics.fonnte_send = performance.now() - fonntePresetStart;
+        perfMetrics.whatsapp_send = performance.now() - whatsappSendPresetStart;
 
         if (!sendResult.status) {
-          console.error('Failed to send preset message to WhatsApp:', sendResult.error);
+          console.error(`Failed to send preset message to WhatsApp via ${sendResult.provider}:`, sendResult.error);
           await logWebhookError({
-            source: 'fonnte-send-preset',
-            error_type: 'FonnteSendError',
+            source: `whatsapp-send-preset-${sendResult.provider}`,
+            error_type: 'WhatsAppSendError',
             error_message: sendResult.error || 'Failed to send preset message to WhatsApp',
-            payload: { target: '***' + normalized.sender.slice(-4) },
+            payload: { target: '***' + normalized.sender.slice(-4), provider: sendResult.provider },
             conversation_id: conversationId
           });
         } else {
-          console.log('Preset message sent to WhatsApp successfully');
+          console.log(`Preset message sent to WhatsApp successfully via ${sendResult.provider}`);
         }
       } catch (sendError) {
-        perfMetrics.fonnte_send = performance.now() - fonntePresetStart;
+        perfMetrics.whatsapp_send = performance.now() - whatsappSendPresetStart;
         console.error('Error sending preset message to WhatsApp:', sendError);
         await logWebhookError({
-          source: 'fonnte-send-preset',
-          error_type: 'FonnteSendException',
+          source: 'whatsapp-send-preset',
+          error_type: 'WhatsAppSendException',
           error_message: sendError instanceof Error ? sendError.message : 'Unknown error',
           payload: { target: '***' + normalized.sender.slice(-4) },
           conversation_id: conversationId
@@ -330,7 +324,7 @@ serve(async (req: Request) => {
       const totalDuration = performance.now() - startTime;
       console.log('📊 PERFORMANCE METRICS (AI Bypassed):', {
         total: `${totalDuration.toFixed(0)}ms`,
-        fonnte: `${perfMetrics.fonnte_send?.toFixed(0) || 0}ms`,
+        whatsapp: `${perfMetrics.whatsapp_send?.toFixed(0) || 0}ms`,
         db: `${((perfMetrics.db_find_conversation || 0) + (perfMetrics.db_get_history || 0) + (perfMetrics.db_save_user_message || 0) + (perfMetrics.db_save_assistant_message || 0)).toFixed(0)}ms`
       });
 
@@ -431,50 +425,46 @@ serve(async (req: Request) => {
     }
 
     // ============================================================================
-    // PERF: Send response to WhatsApp via Fonnte API
+    // PERF: Send response to WhatsApp via Provider (Fonnte/Twilio)
     // ============================================================================
-    console.log('Sending message to WhatsApp via Fonnte...');
+    console.log('Sending message to WhatsApp...');
 
-    const fonnteStart = performance.now();
+    const whatsappSendStart = performance.now();
     try {
-      const fonnteConfig = await getFonnteConfig();
+      const whatsappProvider = await createWhatsAppProvider();
 
-      if (!fonnteConfig.api_token) {
-        throw new Error('Fonnte API token not configured');
-      }
-
-      const sendResult = await sendFonnteMessageWithRetry({
+      const sendResult = await whatsappProvider.sendMessageWithRetry({
         target: normalized.sender,
-        message: finalResponseText,
-        token: fonnteConfig.api_token
+        message: finalResponseText
       });
-      perfMetrics.fonnte_send = performance.now() - fonnteStart;
+      perfMetrics.whatsapp_send = performance.now() - whatsappSendStart;
 
       if (!sendResult.status) {
-        console.error('Failed to send message to WhatsApp:', sendResult.error);
+        console.error(`Failed to send message to WhatsApp via ${sendResult.provider}:`, sendResult.error);
 
         // Log error but don't throw - message is already saved in DB
         await logWebhookError({
-          source: 'fonnte-send',
-          error_type: 'FonnteSendError',
+          source: `whatsapp-send-${sendResult.provider}`,
+          error_type: 'WhatsAppSendError',
           error_message: sendResult.error || 'Failed to send message to WhatsApp',
           payload: {
             target: '***' + normalized.sender.slice(-4),
-            messageLength: finalResponseText.length
+            messageLength: finalResponseText.length,
+            provider: sendResult.provider
           },
           conversation_id: conversationId
         });
       } else {
-        console.log('Message sent to WhatsApp successfully');
+        console.log(`Message sent to WhatsApp successfully via ${sendResult.provider}`, sendResult.messageId ? `(ID: ${sendResult.messageId})` : '');
       }
     } catch (sendError) {
-      perfMetrics.fonnte_send = performance.now() - fonnteStart;
+      perfMetrics.whatsapp_send = performance.now() - whatsappSendStart;
       console.error('Error sending message to WhatsApp:', sendError);
 
       // Log error but don't crash webhook
       await logWebhookError({
-        source: 'fonnte-send',
-        error_type: 'FonnteSendException',
+        source: 'whatsapp-send',
+        error_type: 'WhatsAppSendException',
         error_message: sendError instanceof Error ? sendError.message : 'Unknown error',
         error_stack: sendError instanceof Error ? sendError.stack : undefined,
         payload: { target: '***' + normalized.sender.slice(-4) },
@@ -490,7 +480,7 @@ serve(async (req: Request) => {
     console.log('📊 PERFORMANCE METRICS:', {
       total: `${totalDuration.toFixed(0)}ms`,
       flowise: `${perfMetrics.flowise_api?.toFixed(0) || 0}ms (${((perfMetrics.flowise_api / totalDuration) * 100).toFixed(1)}%)`,
-      fonnte: `${perfMetrics.fonnte_send?.toFixed(0) || 0}ms`,
+      whatsapp: `${perfMetrics.whatsapp_send?.toFixed(0) || 0}ms`,
       db: `${(
         (perfMetrics.db_find_conversation || 0) +
         (perfMetrics.db_get_history || 0) +
@@ -512,9 +502,9 @@ serve(async (req: Request) => {
       (perfMetrics.db_update_session || 0)
     );
     const flowiseDuration = perfMetrics.flowise_api || 0;
-    const fonnteDuration = perfMetrics.fonnte_send || 0;
+    const whatsappDuration = perfMetrics.whatsapp_send || 0;
     const attachmentDuration = perfMetrics.attachment_processing || 0;
-    const otherDuration = totalDuration - dbDuration - flowiseDuration - fonnteDuration - attachmentDuration;
+    const otherDuration = totalDuration - dbDuration - flowiseDuration - whatsappDuration - attachmentDuration;
 
     // Log webhook_total metric with component breakdown
     await logPerformanceMetrics(
@@ -533,14 +523,14 @@ serve(async (req: Request) => {
         components: {
           flowise: Math.round(flowiseDuration),
           database: Math.round(dbDuration),
-          fonnte_send: Math.round(fonnteDuration),
+          whatsapp_send: Math.round(whatsappDuration),
           attachment: Math.round(attachmentDuration),
           other: Math.round(Math.max(0, otherDuration))
         },
         breakdown_pct: {
           flowise: parseFloat(((flowiseDuration / totalDuration) * 100).toFixed(1)),
           database: parseFloat(((dbDuration / totalDuration) * 100).toFixed(1)),
-          fonnte_send: parseFloat(((fonnteDuration / totalDuration) * 100).toFixed(1)),
+          whatsapp_send: parseFloat(((whatsappDuration / totalDuration) * 100).toFixed(1)),
           attachment: parseFloat(((attachmentDuration / totalDuration) * 100).toFixed(1)),
           other: parseFloat(((Math.max(0, otherDuration) / totalDuration) * 100).toFixed(1))
         }
@@ -561,12 +551,12 @@ serve(async (req: Request) => {
       );
     }
 
-    if (perfMetrics.fonnte_send) {
+    if (perfMetrics.whatsapp_send) {
       await logPerformanceMetrics(
         tenantId,
         conversationId,
-        'fonnte_send',
-        perfMetrics.fonnte_send,
+        'whatsapp_send',
+        perfMetrics.whatsapp_send,
         {
           message_length: finalResponseText.length
         }

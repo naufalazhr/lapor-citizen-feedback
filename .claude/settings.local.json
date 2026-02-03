@@ -17,7 +17,15 @@
       "Bash(ls:*)",
       "Bash(git rm:*)",
       "Bash(npm run typecheck:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(supabase secrets:*)",
+      "Bash(supabase db push:*)",
+      "Bash(supabase functions deploy:*)",
+      "Bash(supabase db execute:*)",
+      "Bash(supabase functions list:*)",
+      "Bash(supabase functions logs:*)",
+      "Bash(supabase functions serve:*)",
+      "Bash(npm run dev)"
     ],
     "deny": [],
     "ask": []
