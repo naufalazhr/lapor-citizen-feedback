@@ -51,20 +51,49 @@ END $$;
 CREATE INDEX IF NOT EXISTS idx_profiles_tenant_id ON public.profiles(tenant_id);
 
 -- ============================================================================
--- PART 3: Add tenant_id to reports table
+-- PART 3: Add tenant_id to ALL tables that have it on production
 -- ============================================================================
+-- These columns were added manually on production but never captured in
+-- migration files. We add them here so subsequent migrations can reference them.
+-- Uses safe pattern: checks BOTH table existence and column existence.
 
 DO $$
+DECLARE
+  tbl TEXT;
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public'
-    AND table_name = 'reports'
-    AND column_name = 'tenant_id'
-  ) THEN
-    ALTER TABLE public.reports ADD COLUMN tenant_id UUID;
-  END IF;
+  FOR tbl IN SELECT unnest(ARRAY[
+    'reports',
+    'conversations',
+    'messages',
+    'attachments',
+    'api_keys',
+    'flowise_config',
+    'fonnte_config',
+    'webhook_errors',
+    'report_comments',
+    'user_approvals'
+  ])
+  LOOP
+    IF EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = tbl
+    ) AND NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = tbl AND column_name = 'tenant_id'
+    ) THEN
+      EXECUTE format('ALTER TABLE public.%I ADD COLUMN tenant_id UUID', tbl);
+      RAISE NOTICE 'Added tenant_id to %', tbl;
+    ELSE
+      RAISE NOTICE 'Skipping % (table missing or tenant_id already exists)', tbl;
+    END IF;
+  END LOOP;
 END $$;
+
+-- Create indexes for tenant_id on key tables
+CREATE INDEX IF NOT EXISTS idx_reports_tenant_id ON public.reports(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_tenant_id ON public.conversations(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_messages_tenant_id ON public.messages(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_attachments_tenant_id ON public.attachments(tenant_id);
 
 -- ============================================================================
 -- PART 4: Create get_user_tenant_id() function
