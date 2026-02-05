@@ -53,7 +53,47 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- PART 2b: Create tenant-restricted policies for Non-OPD users
+-- PART 2b: Create deferred tenant policies from 20251112050000
+-- (These were skipped because tenant_id didn't exist yet)
+-- ============================================================================
+
+-- Profile tenant policies
+DROP POLICY IF EXISTS "Admins can view own tenant profiles" ON profiles;
+CREATE POLICY "Admins can view own tenant profiles"
+  ON profiles FOR SELECT
+  TO authenticated
+  USING (
+    (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'owner'))
+    AND tenant_id = get_user_tenant_id(auth.uid())
+    AND tenant_id IS NOT NULL
+  );
+
+DROP POLICY IF EXISTS "Admins can update own tenant profiles" ON profiles;
+CREATE POLICY "Admins can update own tenant profiles"
+  ON profiles FOR UPDATE
+  TO authenticated
+  USING (
+    (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'owner'))
+    AND tenant_id = get_user_tenant_id(auth.uid())
+    AND tenant_id IS NOT NULL
+  );
+
+-- User_roles tenant policy
+DROP POLICY IF EXISTS "Admins can view own tenant user roles" ON user_roles;
+CREATE POLICY "Admins can view own tenant user roles"
+  ON user_roles FOR SELECT
+  TO authenticated
+  USING (
+    (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'owner'))
+    AND user_id IN (
+      SELECT id FROM profiles
+      WHERE tenant_id = get_user_tenant_id(auth.uid())
+      AND tenant_id IS NOT NULL
+    )
+  );
+
+-- ============================================================================
+-- PART 2c: Create tenant-restricted policies for Non-OPD users
 -- (These were deferred from migration 20251112041554 because tenant_id didn't exist yet)
 -- ============================================================================
 
