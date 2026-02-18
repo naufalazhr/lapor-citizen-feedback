@@ -67,7 +67,8 @@ const Users = () => {
           user.email?.toLowerCase().includes(query) ||
           user.full_name?.toLowerCase().includes(query) ||
           user.organization?.toLowerCase().includes(query) ||
-          user.department?.toLowerCase().includes(query)
+          user.department?.toLowerCase().includes(query) ||
+          user.opd_name?.toLowerCase().includes(query)
       );
       setFilteredUsers(filtered);
     }
@@ -131,7 +132,7 @@ const Users = () => {
 
       const isSuperadmin = roleData?.role === 'superadmin';
 
-      // Build query with tenant filtering
+      // Build query with tenant filtering — join profiles in a single query to avoid N+1
       let approvalsQuery = supabase
         .from('user_approvals')
         .select(`
@@ -144,7 +145,8 @@ const Users = () => {
           department,
           position,
           requested_at,
-          tenant:tenants(id, name, slug)
+          tenant:tenants(id, name, slug),
+          user:profiles!user_approvals_user_id_fkey(email, full_name)
         `)
         .eq('status', 'pending')
         .order('requested_at', { ascending: false });
@@ -161,23 +163,12 @@ const Users = () => {
         return;
       }
 
-      // Fetch user details for each approval
-      const approvalsWithUsers = await Promise.all(
-        (data || []).map(async (approval) => {
-          const { data: userData } = await supabase
-            .from('profiles')
-            .select('email, full_name')
-            .eq('id', approval.user_id)
-            .single();
-
-          return {
-            ...approval,
-            user: userData || { email: 'Unknown' },
-          };
-        })
+      setPendingApprovals(
+        (data || []).map((approval) => ({
+          ...approval,
+          user: (approval.user as { email: string; full_name?: string } | null) || { email: 'Unknown' },
+        }))
       );
-
-      setPendingApprovals(approvalsWithUsers);
     } catch (error) {
       console.error('Error in fetchPendingApprovals:', error);
     }
@@ -238,11 +229,7 @@ const Users = () => {
         .select('user_id, opd:opds(name)')
         .eq('is_active', true);
 
-      console.log("Fetched roles:", roles);
-      console.log("Fetched profiles:", profiles);
-
       const roleMap = new Map(roles?.map(r => [r.user_id, r.role]) || []);
-      console.log("Role map:", Array.from(roleMap.entries()));
 
       const opdMap = new Map(
         (opdAssignments || []).map(a => [a.user_id, (a.opd as { name: string } | null)?.name ?? null])
@@ -253,8 +240,6 @@ const Users = () => {
         role: roleMap.get(profile.id) || null,
         opd_name: opdMap.get(profile.id) ?? null,
       })) || [];
-
-      console.log("Users with roles:", usersWithRoles);
 
       setUsers(usersWithRoles);
       setFilteredUsers(usersWithRoles);

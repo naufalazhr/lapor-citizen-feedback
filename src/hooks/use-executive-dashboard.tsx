@@ -525,6 +525,7 @@ export const useExecutiveDashboard = () => {
       .map(ai => {
         const report = reports.find(r => r.id === ai.report_id);
         if (!report) return null;
+        if (report.status === 'resolved' || report.status === 'selesai') return null;
         return {
           report_id: report.id,
           ticket_id: report.ticket_id,

@@ -19,3 +19,6 @@ verify_jwt = false
 
 [functions.get-webhook-errors]
 verify_jwt = false
+
+[functions.generate-ai-insight]
+verify_jwt = false
