@@ -3,8 +3,10 @@
 -- users from other tenants. It adds proper tenant isolation to profiles and user_roles tables.
 --
 -- NOTE: This migration requires profiles.tenant_id and get_user_tenant_id() function,
--- which are created in migration 20251201120000. If they don't exist yet, this migration
--- will skip the tenant-isolation policies and they will be created in that later migration.
+-- which are created in migration 20251111000000_create_tenant_infrastructure.sql (earlier timestamp).
+-- On a fresh database that migration runs first, so these objects already exist.
+-- The conditional DO $$ blocks below are a safety net for databases that predate 20251111000000.
+-- If tenant_id doesn't exist yet, policies are deferred and finalized in migration 20251201120000.
 
 -- ============================================================================
 -- PART 1: Drop old broken policies (always safe)

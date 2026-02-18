@@ -1,6 +1,8 @@
 -- Restrict tenant-wide SELECT policies to exclude OPD members
--- NOTE: This migration references profiles.tenant_id which is created in a later migration (20251201120000)
--- These policies will be properly created in that later migration when tenant_id exists
+-- NOTE: This migration references profiles.tenant_id which is created in migration 20251111000000_create_tenant_infrastructure.sql
+-- That migration runs before this one (earlier timestamp), so on a fresh database the column always exists.
+-- The conditional DO $$ block below is a safety net for databases that predate 20251111000000.
+-- If the column doesn't exist yet, policies are deferred and re-applied in migration 20251201120000.
 
 -- Only drop old policies (safe regardless of column existence)
 DROP POLICY IF EXISTS "Users can view own tenant reports" ON public.reports;
