@@ -112,6 +112,7 @@ export interface FonnteConfig {
   device_numbers: string[];
   auto_reply_enabled: boolean;
   session_timeout_minutes: number;
+  tenant_id?: string | null;
 }
 
 // -----------------------------------------------------------------------------
