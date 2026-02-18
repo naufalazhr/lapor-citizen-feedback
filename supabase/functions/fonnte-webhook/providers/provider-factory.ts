@@ -20,22 +20,27 @@ const debugLog = (...args: any[]) => {
  * Create a WhatsApp provider based on database configuration
  * Falls back to Fonnte if no configuration exists (backward compatibility)
  */
-export async function createWhatsAppProvider(): Promise<IWhatsAppProvider> {
+export async function createWhatsAppProvider(tenantId?: string | null): Promise<IWhatsAppProvider> {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  // Try to get provider configuration
-  const { data: providerConfig, error } = await supabase
+  // Try to get provider configuration scoped to tenant
+  let providerQuery = supabase
     .from('whatsapp_provider_config')
     .select('*')
-    .eq('is_active', true)
-    .single();
+    .eq('is_active', true);
+
+  if (tenantId) {
+    providerQuery = providerQuery.eq('tenant_id', tenantId);
+  }
+
+  const { data: providerConfig, error } = await providerQuery.limit(1).maybeSingle();
 
   // If no config found or error, fall back to Fonnte
   if (error || !providerConfig) {
     debugLog('No WhatsApp provider config found, falling back to Fonnte');
-    return await createFonnteProvider(supabase);
+    return await createFonnteProvider(supabase, tenantId);
   }
 
   const config = providerConfig as WhatsAppProviderConfig;
@@ -47,19 +52,24 @@ export async function createWhatsAppProvider(): Promise<IWhatsAppProvider> {
       return await createTwilioProvider(config);
     case 'fonnte':
     default:
-      return await createFonnteProvider(supabase);
+      return await createFonnteProvider(supabase, tenantId);
   }
 }
 
 /**
  * Create Fonnte provider with credentials from database
  */
-async function createFonnteProvider(supabase: ReturnType<typeof createClient>): Promise<FonnteProvider> {
-  const { data, error } = await supabase
+async function createFonnteProvider(supabase: ReturnType<typeof createClient>, tenantId?: string | null): Promise<FonnteProvider> {
+  let query = supabase
     .from('fonnte_config')
     .select('api_token')
-    .eq('is_active', true)
-    .single();
+    .eq('is_active', true);
+
+  if (tenantId) {
+    query = query.eq('tenant_id', tenantId);
+  }
+
+  const { data, error } = await query.limit(1).maybeSingle();
 
   if (error || !data?.api_token) {
     throw new Error('No active Fonnte configuration found. Please configure Fonnte API token.');

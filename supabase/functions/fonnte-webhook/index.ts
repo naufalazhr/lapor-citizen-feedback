@@ -288,7 +288,7 @@ serve(async (req: Request) => {
       // Send preset response via WhatsApp provider
       const whatsappSendPresetStart = performance.now();
       try {
-        const whatsappProvider = await createWhatsAppProvider();
+        const whatsappProvider = await createWhatsAppProvider(tenantId);
 
         const sendResult = await whatsappProvider.sendMessageWithRetry({
           target: normalized.sender,

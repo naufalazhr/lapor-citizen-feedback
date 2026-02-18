@@ -15,18 +15,35 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 // -----------------------------------------------------------------------------
 // Get Active Fonnte Configuration
 // -----------------------------------------------------------------------------
-export async function getFonnteConfig(): Promise<FonnteConfig> {
-  const { data, error } = await supabase
+export async function getFonnteConfig(deviceNumber?: string): Promise<FonnteConfig> {
+  // Primary: match by device number to route to the correct tenant
+  if (deviceNumber) {
+    const { data, error } = await supabase
+      .from('fonnte_config')
+      .select('*')
+      .eq('is_active', true)
+      .contains('device_numbers', [deviceNumber])
+      .limit(1)
+      .maybeSingle();
+
+    if (!error && data) {
+      return data as FonnteConfig;
+    }
+  }
+
+  // Fallback: no device match (device_numbers not yet configured), take first active config
+  const { data: fallback, error: fbError } = await supabase
     .from('fonnte_config')
     .select('*')
     .eq('is_active', true)
-    .single();
+    .limit(1)
+    .maybeSingle();
 
-  if (error || !data) {
+  if (fbError || !fallback) {
     throw new Error('No active Fonnte configuration found');
   }
 
-  return data as FonnteConfig;
+  return fallback as FonnteConfig;
 }
 
 // -----------------------------------------------------------------------------
@@ -68,7 +85,7 @@ export async function findOrCreateConversation(
   deviceNumber: string,
   senderName?: string
 ): Promise<Conversation> {
-  const config = await getFonnteConfig();
+  const config = await getFonnteConfig(deviceNumber);
   const timeoutMinutes = config.session_timeout_minutes;
 
   // Calculate cutoff time for active sessions
@@ -152,7 +169,8 @@ export async function findOrCreateConversation(
       status: 'active',
       channel: 'whatsapp',
       last_message_at: new Date().toISOString(),
-      started_at: new Date().toISOString()
+      started_at: new Date().toISOString(),
+      tenant_id: config.tenant_id || null
     })
     .select()
     .single();
