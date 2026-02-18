@@ -447,7 +447,7 @@ serve(async (req: Request) => {
 
     const whatsappSendStart = performance.now();
     try {
-      const whatsappProvider = await createWhatsAppProvider();
+      const whatsappProvider = await createWhatsAppProvider(tenantId);
 
       const sendResult = await whatsappProvider.sendMessageWithRetry({
         target: normalized.sender,
