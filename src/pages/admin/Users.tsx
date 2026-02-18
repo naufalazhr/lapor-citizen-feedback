@@ -21,6 +21,7 @@ interface UserProfile {
   department: string | null;
   position: string | null;
   role: string | null;
+  opd_name: string | null;
 }
 
 interface PendingApproval {
@@ -66,7 +67,8 @@ const Users = () => {
           user.email?.toLowerCase().includes(query) ||
           user.full_name?.toLowerCase().includes(query) ||
           user.organization?.toLowerCase().includes(query) ||
-          user.department?.toLowerCase().includes(query)
+          user.department?.toLowerCase().includes(query) ||
+          user.opd_name?.toLowerCase().includes(query)
       );
       setFilteredUsers(filtered);
     }
@@ -130,7 +132,7 @@ const Users = () => {
 
       const isSuperadmin = roleData?.role === 'superadmin';
 
-      // Build query with tenant filtering
+      // Build query with tenant filtering — join profiles in a single query to avoid N+1
       let approvalsQuery = supabase
         .from('user_approvals')
         .select(`
@@ -143,7 +145,8 @@ const Users = () => {
           department,
           position,
           requested_at,
-          tenant:tenants(id, name, slug)
+          tenant:tenants(id, name, slug),
+          user:profiles!user_approvals_user_id_fkey(email, full_name)
         `)
         .eq('status', 'pending')
         .order('requested_at', { ascending: false });
@@ -160,23 +163,12 @@ const Users = () => {
         return;
       }
 
-      // Fetch user details for each approval
-      const approvalsWithUsers = await Promise.all(
-        (data || []).map(async (approval) => {
-          const { data: userData } = await supabase
-            .from('profiles')
-            .select('email, full_name')
-            .eq('id', approval.user_id)
-            .single();
-
-          return {
-            ...approval,
-            user: userData || { email: 'Unknown' },
-          };
-        })
+      setPendingApprovals(
+        (data || []).map((approval) => ({
+          ...approval,
+          user: (approval.user as { email: string; full_name?: string } | null) || { email: 'Unknown' },
+        }))
       );
-
-      setPendingApprovals(approvalsWithUsers);
     } catch (error) {
       console.error('Error in fetchPendingApprovals:', error);
     }
@@ -232,18 +224,22 @@ const Users = () => {
         throw rolesError;
       }
 
-      console.log("Fetched roles:", roles);
-      console.log("Fetched profiles:", profiles);
+      const { data: opdAssignments } = await supabase
+        .from('user_opd_assignments')
+        .select('user_id, opd:opds(name)')
+        .eq('is_active', true);
 
       const roleMap = new Map(roles?.map(r => [r.user_id, r.role]) || []);
-      console.log("Role map:", Array.from(roleMap.entries()));
+
+      const opdMap = new Map(
+        (opdAssignments || []).map(a => [a.user_id, (a.opd as { name: string } | null)?.name ?? null])
+      );
 
       const usersWithRoles = profiles?.map(profile => ({
         ...profile,
         role: roleMap.get(profile.id) || null,
+        opd_name: opdMap.get(profile.id) ?? null,
       })) || [];
-
-      console.log("Users with roles:", usersWithRoles);
 
       setUsers(usersWithRoles);
       setFilteredUsers(usersWithRoles);
@@ -384,6 +380,7 @@ const Users = () => {
                   <th className="text-left p-4 font-medium">Organisasi</th>
                   <th className="text-left p-4 font-medium">Departemen</th>
                   <th className="text-left p-4 font-medium">Posisi</th>
+                  <th className="text-left p-4 font-medium">OPD</th>
                   <th className="text-left p-4 font-medium">Role</th>
                   <th className="text-left p-4 font-medium">Aksi</th>
                 </tr>
@@ -391,7 +388,7 @@ const Users = () => {
               <tbody>
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center p-8 text-muted-foreground">
+                    <td colSpan={8} className="text-center p-8 text-muted-foreground">
                       {searchQuery ? "Tidak ada pengguna yang cocok dengan pencarian." : "Belum ada pengguna terdaftar."}
                     </td>
                   </tr>
@@ -403,6 +400,7 @@ const Users = () => {
                       <td className="p-4">{user.organization || "-"}</td>
                       <td className="p-4">{user.department || "-"}</td>
                       <td className="p-4">{user.position || "-"}</td>
+                      <td className="p-4">{user.opd_name || "-"}</td>
                       <td className="p-4">{getRoleBadge(user.role)}</td>
                       <td className="p-4">
                         <div className="flex items-center gap-2">

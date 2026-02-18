@@ -1,9 +1,15 @@
 -- Fix User Management Tenant Isolation
 -- This migration fixes a critical security issue where tenant admins could see and manage
 -- users from other tenants. It adds proper tenant isolation to profiles and user_roles tables.
+--
+-- NOTE: This migration requires profiles.tenant_id and get_user_tenant_id() function,
+-- which are created in migration 20251111000000_create_tenant_infrastructure.sql (earlier timestamp).
+-- On a fresh database that migration runs first, so these objects already exist.
+-- The conditional DO $$ blocks below are a safety net for databases that predate 20251111000000.
+-- If tenant_id doesn't exist yet, policies are deferred and finalized in migration 20251201120000.
 
 -- ============================================================================
--- PART 1: Fix Profiles Table RLS Policies
+-- PART 1: Drop old broken policies (always safe)
 -- ============================================================================
 
 -- Drop the 3 broken admin policies that allow cross-tenant access
@@ -11,61 +17,102 @@ DROP POLICY IF EXISTS "Admins and owners can view all profiles for management" O
 DROP POLICY IF EXISTS "Admins can view all profiles" ON profiles;
 DROP POLICY IF EXISTS "Admins can update all profiles" ON profiles;
 
--- Create tenant-scoped admin policies
--- Admins can only view profiles in their own tenant (excluding superadmins)
-CREATE POLICY "Admins can view own tenant profiles"
-  ON profiles FOR SELECT
-  TO authenticated
-  USING (
-    (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'owner'))
-    AND tenant_id = get_user_tenant_id(auth.uid())
-    AND tenant_id IS NOT NULL  -- Exclude superadmins (tenant_id = null)
-  );
+-- ============================================================================
+-- PART 2: Create tenant-scoped policies only if tenant_id exists
+-- ============================================================================
 
--- Admins can only update profiles in their own tenant (excluding superadmins)
-CREATE POLICY "Admins can update own tenant profiles"
-  ON profiles FOR UPDATE
-  TO authenticated
-  USING (
-    (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'owner'))
-    AND tenant_id = get_user_tenant_id(auth.uid())
-    AND tenant_id IS NOT NULL
-  );
+DO $$
+BEGIN
+  -- Check if profiles.tenant_id column exists
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+    AND table_name = 'profiles'
+    AND column_name = 'tenant_id'
+  ) THEN
+    -- Create tenant-scoped admin policies
+    -- Admins can only view profiles in their own tenant (excluding superadmins)
+    EXECUTE 'CREATE POLICY "Admins can view own tenant profiles"
+      ON profiles FOR SELECT
+      TO authenticated
+      USING (
+        (has_role(auth.uid(), ''admin'') OR has_role(auth.uid(), ''owner''))
+        AND tenant_id = get_user_tenant_id(auth.uid())
+        AND tenant_id IS NOT NULL
+      )';
+
+    -- Admins can only update profiles in their own tenant (excluding superadmins)
+    EXECUTE 'CREATE POLICY "Admins can update own tenant profiles"
+      ON profiles FOR UPDATE
+      TO authenticated
+      USING (
+        (has_role(auth.uid(), ''admin'') OR has_role(auth.uid(), ''owner''))
+        AND tenant_id = get_user_tenant_id(auth.uid())
+        AND tenant_id IS NOT NULL
+      )';
+
+    RAISE NOTICE 'Created tenant-scoped profile policies (tenant_id exists)';
+  ELSE
+    RAISE NOTICE 'Skipping profile tenant policies (profiles.tenant_id not yet available)';
+  END IF;
+END $$;
 
 -- ============================================================================
--- PART 2: Enable RLS on user_roles Table
+-- PART 3: Enable RLS on user_roles Table (always safe)
 -- ============================================================================
 
 -- Enable Row Level Security on user_roles table
 ALTER TABLE user_roles ENABLE ROW LEVEL SECURITY;
 
--- Users can view their own roles
+-- Users can view their own roles (no tenant_id needed)
+DROP POLICY IF EXISTS "Users can view own roles" ON user_roles;
 CREATE POLICY "Users can view own roles"
   ON user_roles FOR SELECT
   TO authenticated
   USING (user_id = auth.uid());
 
--- Admins can view roles of users in their tenant only
-CREATE POLICY "Admins can view own tenant user roles"
-  ON user_roles FOR SELECT
-  TO authenticated
-  USING (
-    (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'owner'))
-    AND user_id IN (
-      SELECT id FROM profiles
-      WHERE tenant_id = get_user_tenant_id(auth.uid())
-      AND tenant_id IS NOT NULL
-    )
-  );
-
--- Superadmins can view all roles across all tenants
+-- Superadmins can view all roles across all tenants (no tenant_id needed)
+DROP POLICY IF EXISTS "Superadmins can view all user roles" ON user_roles;
 CREATE POLICY "Superadmins can view all user roles"
   ON user_roles FOR SELECT
   TO authenticated
   USING (has_role(auth.uid(), 'superadmin'));
 
 -- ============================================================================
--- PART 3: Fix assign_user_role() Function with Tenant Validation
+-- PART 4: Create tenant-scoped user_roles policy only if tenant_id exists
+-- ============================================================================
+
+DO $$
+BEGIN
+  -- Check if profiles.tenant_id column exists
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+    AND table_name = 'profiles'
+    AND column_name = 'tenant_id'
+  ) THEN
+    -- Admins can view roles of users in their tenant only
+    EXECUTE 'CREATE POLICY "Admins can view own tenant user roles"
+      ON user_roles FOR SELECT
+      TO authenticated
+      USING (
+        (has_role(auth.uid(), ''admin'') OR has_role(auth.uid(), ''owner''))
+        AND user_id IN (
+          SELECT id FROM profiles
+          WHERE tenant_id = get_user_tenant_id(auth.uid())
+          AND tenant_id IS NOT NULL
+        )
+      )';
+
+    RAISE NOTICE 'Created tenant-scoped user_roles policy (tenant_id exists)';
+  ELSE
+    RAISE NOTICE 'Skipping user_roles tenant policy (profiles.tenant_id not yet available)';
+  END IF;
+END $$;
+
+-- ============================================================================
+-- PART 5: Fix assign_user_role() Function with Tenant Validation
+-- This function is safe to create - it checks for tenant_id at runtime
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.assign_user_role(
@@ -82,6 +129,7 @@ DECLARE
   caller_tenant_id UUID;
   target_tenant_id UUID;
   admin_count INTEGER;
+  has_tenant_support BOOLEAN;
 BEGIN
   -- Check if caller has admin or owner role
   SELECT has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'owner')
@@ -94,10 +142,18 @@ BEGIN
     );
   END IF;
 
+  -- Check if tenant_id column exists (for backwards compatibility)
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+    AND table_name = 'profiles'
+    AND column_name = 'tenant_id'
+  ) INTO has_tenant_support;
+
   -- TENANT ISOLATION: Verify same tenant (unless caller is superadmin)
-  IF NOT has_role(auth.uid(), 'superadmin') THEN
-    SELECT get_user_tenant_id(auth.uid()) INTO caller_tenant_id;
-    SELECT get_user_tenant_id(target_user_id) INTO target_tenant_id;
+  IF has_tenant_support AND NOT has_role(auth.uid(), 'superadmin') THEN
+    SELECT tenant_id INTO caller_tenant_id FROM profiles WHERE id = auth.uid();
+    SELECT tenant_id INTO target_tenant_id FROM profiles WHERE id = target_user_id;
 
     -- Prevent cross-tenant role assignment
     IF caller_tenant_id IS NULL OR target_tenant_id IS NULL
@@ -153,9 +209,12 @@ $$;
 -- MIGRATION COMPLETE
 -- ============================================================================
 -- Summary of changes:
--- 1. Replaced 3 cross-tenant admin policies on profiles with tenant-scoped policies
--- 2. Enabled RLS on user_roles table with tenant-scoped policies
--- 3. Added tenant validation to assign_user_role() function
+-- 1. Dropped 3 cross-tenant admin policies on profiles
+-- 2. Created tenant-scoped policies IF tenant_id exists (otherwise deferred)
+-- 3. Enabled RLS on user_roles table with basic policies
+-- 4. Added tenant-scoped user_roles policy IF tenant_id exists
+-- 5. Created assign_user_role() function with runtime tenant validation
 --
--- Result: Tenant admins can now only see and manage users in their own tenant
+-- Note: If tenant_id doesn't exist yet, the tenant-scoped policies will be
+-- created in migration 20251201120000_fix_rls_disposition_notes.sql
 -- ============================================================================

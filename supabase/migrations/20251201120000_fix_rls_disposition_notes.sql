@@ -53,6 +53,101 @@ BEGIN
 END $$;
 
 -- ============================================================================
+-- PART 2b: Create deferred tenant policies from 20251112050000
+-- (These were skipped because tenant_id didn't exist yet)
+-- ============================================================================
+
+-- Profile tenant policies
+DROP POLICY IF EXISTS "Admins can view own tenant profiles" ON profiles;
+CREATE POLICY "Admins can view own tenant profiles"
+  ON profiles FOR SELECT
+  TO authenticated
+  USING (
+    (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'owner'))
+    AND tenant_id = get_user_tenant_id(auth.uid())
+    AND tenant_id IS NOT NULL
+  );
+
+DROP POLICY IF EXISTS "Admins can update own tenant profiles" ON profiles;
+CREATE POLICY "Admins can update own tenant profiles"
+  ON profiles FOR UPDATE
+  TO authenticated
+  USING (
+    (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'owner'))
+    AND tenant_id = get_user_tenant_id(auth.uid())
+    AND tenant_id IS NOT NULL
+  );
+
+-- User_roles tenant policy
+DROP POLICY IF EXISTS "Admins can view own tenant user roles" ON user_roles;
+CREATE POLICY "Admins can view own tenant user roles"
+  ON user_roles FOR SELECT
+  TO authenticated
+  USING (
+    (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'owner'))
+    AND user_id IN (
+      SELECT id FROM profiles
+      WHERE tenant_id = get_user_tenant_id(auth.uid())
+      AND tenant_id IS NOT NULL
+    )
+  );
+
+-- ============================================================================
+-- PART 2c: Create tenant-restricted policies for Non-OPD users
+-- (These were deferred from migration 20251112041554 because tenant_id didn't exist yet)
+-- ============================================================================
+
+-- Drop if exists (in case they were created elsewhere)
+DROP POLICY IF EXISTS "Non-OPD users can view own tenant reports" ON public.reports;
+DROP POLICY IF EXISTS "Non-OPD users can view own tenant conversations" ON public.conversations;
+DROP POLICY IF EXISTS "Non-OPD users can view own tenant messages" ON public.messages;
+DROP POLICY IF EXISTS "Non-OPD users can view own tenant attachments" ON public.attachments;
+
+-- Reports: non-OPD users only
+CREATE POLICY "Non-OPD users can view own tenant reports"
+ON public.reports
+FOR SELECT
+USING (
+  (tenant_id IN (
+    SELECT p.tenant_id FROM public.profiles p WHERE p.id = auth.uid()
+  ))
+  AND NOT has_role(auth.uid(), 'opd_member'::app_role)
+);
+
+-- Conversations: non-OPD users only
+CREATE POLICY "Non-OPD users can view own tenant conversations"
+ON public.conversations
+FOR SELECT
+USING (
+  (tenant_id IN (
+    SELECT p.tenant_id FROM public.profiles p WHERE p.id = auth.uid()
+  ))
+  AND NOT has_role(auth.uid(), 'opd_member'::app_role)
+);
+
+-- Messages: non-OPD users only
+CREATE POLICY "Non-OPD users can view own tenant messages"
+ON public.messages
+FOR SELECT
+USING (
+  (tenant_id IN (
+    SELECT p.tenant_id FROM public.profiles p WHERE p.id = auth.uid()
+  ))
+  AND NOT has_role(auth.uid(), 'opd_member'::app_role)
+);
+
+-- Attachments: non-OPD users only
+CREATE POLICY "Non-OPD users can view own tenant attachments"
+ON public.attachments
+FOR SELECT
+USING (
+  (tenant_id IN (
+    SELECT p.tenant_id FROM public.profiles p WHERE p.id = auth.uid()
+  ))
+  AND NOT has_role(auth.uid(), 'opd_member'::app_role)
+);
+
+-- ============================================================================
 -- PART 3: Fix OPDs RLS Policies - Add explicit superadmin SELECT policy
 -- ============================================================================
 

@@ -1,4 +1,12 @@
+[remotes.production]
 project_id = "ykaawgnggvwleiyzvilf"
+
+[remotes.staging]
+project_id = "cxauavfcyfscjnatxino"
+
+[db.seed]
+enabled = true
+sql_paths = ['./seed.sql']
 
 [functions.submit-report]
 verify_jwt = false
@@ -10,4 +18,7 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.get-webhook-errors]
+verify_jwt = false
+
+[functions.generate-ai-insight]
 verify_jwt = false

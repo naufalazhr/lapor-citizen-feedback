@@ -118,9 +118,10 @@ CREATE TRIGGER update_profiles_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION public.update_updated_at_column();
 
--- Create storage bucket for report photos
+-- Create storage bucket for report photos (idempotent)
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('report-photos', 'report-photos', true);
+VALUES ('report-photos', 'report-photos', true)
+ON CONFLICT (id) DO NOTHING;
 
 -- Storage policies for report photos
 CREATE POLICY "Anyone can upload report photos"
