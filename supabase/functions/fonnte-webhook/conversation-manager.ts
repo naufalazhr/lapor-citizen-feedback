@@ -55,12 +55,17 @@ export interface AIAssistantConfig {
   preset_reply_text: string;
 }
 
-export async function getAIAssistantConfig(): Promise<AIAssistantConfig> {
-  const { data, error } = await supabase
+export async function getAIAssistantConfig(tenantId?: string | null): Promise<AIAssistantConfig> {
+  let query = supabase
     .from('ai_assistant_config')
     .select('is_ai_enabled, preset_reply_text')
-    .eq('config_name', 'default')
-    .single();
+    .eq('config_name', 'default');
+
+  if (tenantId) {
+    query = query.eq('tenant_id', tenantId);
+  }
+
+  const { data, error } = await query.limit(1).maybeSingle();
 
   if (error || !data) {
     // Default: AI enabled with standard message if no config exists

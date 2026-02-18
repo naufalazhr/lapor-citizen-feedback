@@ -265,7 +265,7 @@ serve(async (req: Request) => {
     // AI GOVERNANCE CHECK - Human-in-the-Loop Control
     // Check if AI is enabled before calling Flowise
     // ============================================================================
-    const aiConfig = await getAIAssistantConfig();
+    const aiConfig = await getAIAssistantConfig(tenantId);
 
     if (!aiConfig.is_ai_enabled) {
       console.log('🤖 AI Assistant is DISABLED - using preset reply (Human-in-the-Loop)');
@@ -379,7 +379,7 @@ serve(async (req: Request) => {
     // PERF: Call Flowise API with retry (PRIMARY BOTTLENECK)
     // ============================================================================
     const flowiseStart = performance.now();
-    const { response: flowiseResponse, attempts, totalTime } = await callFlowiseWithRetry(flowiseRequest);
+    const { response: flowiseResponse, attempts, totalTime } = await callFlowiseWithRetry(flowiseRequest, 3, tenantId);
     perfMetrics.flowise_api = performance.now() - flowiseStart;
     perfMetrics.flowise_attempts = attempts;
 
