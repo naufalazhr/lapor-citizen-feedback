@@ -17,7 +17,8 @@ import {
   getConversationHistory,
   updateConversationSessionId,
   logWebhookError,
-  getAIAssistantConfig
+  getAIAssistantConfig,
+  isDuplicateMessage
 } from './conversation-manager.ts';
 
 import {
@@ -172,6 +173,21 @@ serve(async (req: Request) => {
     // The actual image URL will be appended in buildFlowiseRequest
     const messageContent = normalized.message ||
       (normalized.hasAttachment ? '[Gambar]' : '');
+
+    // ============================================================================
+    // DEDUPLICATION CHECK - Fonnte multi-device / webhook retry guard
+    // When multiple Fonnte devices share one webhook, the same message fires
+    // simultaneously from each device. Also covers Fonnte retries (30s timeout).
+    // Return 200 immediately so Fonnte does not retry.
+    // ============================================================================
+    const duplicate = await isDuplicateMessage(conversation.id, messageContent);
+    if (duplicate) {
+      console.log(`Duplicate webhook detected (device: ${normalized.device}) — already processed, skipping`);
+      return new Response(
+        JSON.stringify({ success: true, duplicate: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // ============================================================================
     // PERF: Save user message
@@ -605,10 +621,25 @@ serve(async (req: Request) => {
 
   } catch (error) {
     hasError = true;
-    console.error('Webhook processing error:', error);
 
     // Type-safe error handling
     const err = error instanceof Error ? error : new Error(String(error));
+
+    // ============================================================================
+    // RACE CONDITION GUARD — concurrent duplicate webhook
+    // If two webhook instances pass the dedup check simultaneously, only one
+    // saves the message. The other hits a unique constraint error.
+    // Return 200 so Fonnte does not retry this as a failed webhook.
+    // ============================================================================
+    if (err.message?.includes('duplicate key value')) {
+      console.log('Concurrent duplicate webhook (race condition) — returning 200 to suppress retry');
+      return new Response(
+        JSON.stringify({ success: true, duplicate: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.error('Webhook processing error:', error);
 
     // ============================================================================
     // PERFORMANCE TRACKING - Log Error Case

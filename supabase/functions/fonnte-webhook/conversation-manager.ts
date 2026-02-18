@@ -31,11 +31,15 @@ export async function getFonnteConfig(deviceNumber?: string): Promise<FonnteConf
     }
   }
 
-  // Fallback: no device match (device_numbers not yet configured), take first active config
+  // Fallback: device_numbers not yet configured — pick oldest active config (default org)
+  // WARNING: this cannot distinguish tenants; populate device_numbers in Integration settings
+  console.warn(`⚠️ Device ${deviceNumber || 'unknown'} not matched to any tenant via device_numbers — using fallback config. Configure device_numbers in Integration settings.`);
+
   const { data: fallback, error: fbError } = await supabase
     .from('fonnte_config')
     .select('*')
     .eq('is_active', true)
+    .order('created_at', { ascending: true }) // oldest row = default org
     .limit(1)
     .maybeSingle();
 
@@ -80,6 +84,32 @@ export async function getAIAssistantConfig(tenantId?: string | null): Promise<AI
     is_ai_enabled: data.is_ai_enabled,
     preset_reply_text: data.preset_reply_text
   };
+}
+
+// -----------------------------------------------------------------------------
+// Duplicate Message Detection
+// Fonnte retries the webhook after ~30s if no 200 response is received.
+// Flowise can take 10-30s, causing concurrent webhook calls for the same message.
+// Check if the same user message was already saved to this conversation recently.
+// -----------------------------------------------------------------------------
+export async function isDuplicateMessage(
+  conversationId: string,
+  content: string
+): Promise<boolean> {
+  const dedupeWindowMs = 90_000; // 90-second window covers Fonnte's retry interval
+  const since = new Date(Date.now() - dedupeWindowMs).toISOString();
+
+  const { data } = await supabase
+    .from('messages')
+    .select('id')
+    .eq('conversation_id', conversationId)
+    .eq('role', 'user')
+    .eq('content', content)
+    .gte('created_at', since)
+    .limit(1)
+    .maybeSingle();
+
+  return !!data;
 }
 
 // -----------------------------------------------------------------------------
