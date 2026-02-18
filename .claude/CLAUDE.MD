@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+Important Instruction: Keep other features and functions that are already working properly intact. 
+
+Think deeper and step by step, make sure you understand, then create a plan to fix it. 
+
+
 ## Project Overview
 
 **Lapor** is a multi-tenant civic tech platform for Indonesian local government (Pemda/Pemkot). Citizens submit reports ("laporan") or aspirations ("aspirasi") and track them via ticket IDs. Government staff (admins, OPD members) manage reports, dispositions, and WhatsApp conversations in an admin dashboard. Integrates with Flowise (AI chatflow) and Fonnte (WhatsApp Business gateway).

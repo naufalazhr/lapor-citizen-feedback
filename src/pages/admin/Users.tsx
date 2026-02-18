@@ -21,6 +21,7 @@ interface UserProfile {
   department: string | null;
   position: string | null;
   role: string | null;
+  opd_name: string | null;
 }
 
 interface PendingApproval {
@@ -232,15 +233,25 @@ const Users = () => {
         throw rolesError;
       }
 
+      const { data: opdAssignments } = await supabase
+        .from('user_opd_assignments')
+        .select('user_id, opd:opds(name)')
+        .eq('is_active', true);
+
       console.log("Fetched roles:", roles);
       console.log("Fetched profiles:", profiles);
 
       const roleMap = new Map(roles?.map(r => [r.user_id, r.role]) || []);
       console.log("Role map:", Array.from(roleMap.entries()));
 
+      const opdMap = new Map(
+        (opdAssignments || []).map(a => [a.user_id, (a.opd as { name: string } | null)?.name ?? null])
+      );
+
       const usersWithRoles = profiles?.map(profile => ({
         ...profile,
         role: roleMap.get(profile.id) || null,
+        opd_name: opdMap.get(profile.id) ?? null,
       })) || [];
 
       console.log("Users with roles:", usersWithRoles);
@@ -384,6 +395,7 @@ const Users = () => {
                   <th className="text-left p-4 font-medium">Organisasi</th>
                   <th className="text-left p-4 font-medium">Departemen</th>
                   <th className="text-left p-4 font-medium">Posisi</th>
+                  <th className="text-left p-4 font-medium">OPD</th>
                   <th className="text-left p-4 font-medium">Role</th>
                   <th className="text-left p-4 font-medium">Aksi</th>
                 </tr>
@@ -391,7 +403,7 @@ const Users = () => {
               <tbody>
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center p-8 text-muted-foreground">
+                    <td colSpan={8} className="text-center p-8 text-muted-foreground">
                       {searchQuery ? "Tidak ada pengguna yang cocok dengan pencarian." : "Belum ada pengguna terdaftar."}
                     </td>
                   </tr>
@@ -403,6 +415,7 @@ const Users = () => {
                       <td className="p-4">{user.organization || "-"}</td>
                       <td className="p-4">{user.department || "-"}</td>
                       <td className="p-4">{user.position || "-"}</td>
+                      <td className="p-4">{user.opd_name || "-"}</td>
                       <td className="p-4">{getRoleBadge(user.role)}</td>
                       <td className="p-4">
                         <div className="flex items-center gap-2">
