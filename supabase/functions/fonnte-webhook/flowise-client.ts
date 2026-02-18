@@ -153,7 +153,7 @@ async function callFlowiseAPI(
 
   const requestBody = {
     ...request,
-    streaming: config.streaming,
+    streaming: false, // Webhook handler cannot parse SSE; always request plain JSON
     overrideConfig: mergedOverrideConfig
   };
 
