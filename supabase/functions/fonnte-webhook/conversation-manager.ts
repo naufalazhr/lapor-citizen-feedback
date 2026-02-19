@@ -127,10 +127,13 @@ export async function findOrCreateConversation(
   const cutoffTime = new Date(Date.now() - timeoutMinutes * 60000).toISOString();
 
   // Find active session within timeout window
+  // IMPORTANT: scope by device_number so the same sender messaging two different
+  // tenant devices (e.g. default + baznas) gets two separate conversations
   const { data: existing, error: findError } = await supabase
     .from('conversations')
     .select('*')
     .eq('phone_number', phoneNumber)
+    .eq('device_number', deviceNumber)
     .eq('status', 'active')
     .gte('last_message_at', cutoffTime)
     .order('last_message_at', { ascending: false })
@@ -161,6 +164,7 @@ export async function findOrCreateConversation(
       .from('conversations')
       .select('id, report_id')
       .eq('phone_number', phoneNumber)
+      .eq('device_number', deviceNumber)
       .eq('status', 'active')
       .lt('last_message_at', cutoffTime); // Older than timeout
 
