@@ -15,6 +15,35 @@ UI is in Bahasa Indonesia. "OPD" = Organisasi Perangkat Daerah (government depar
 
 ---
 
+## Two-Codebase Architecture (CRITICAL)
+
+This SaaS product is split across **two separate codebases** that share the same Supabase database:
+
+### 1. `lapor-citizen-feedback` (THIS REPO)
+**Path**: `C:\Users\yugie\lapor ai\lapor-citizen-feedback`
+
+This is the **primary codebase** and the **source of truth** for:
+- Citizen-facing pages (`/lapor`, `/lacak`)
+- Tenant admin/member dashboard (`/admin/*`) — used by government staff (admins, OPDs, members)
+- WhatsApp integration (Fonnte, Edge Functions, AI chatbot)
+- **ALL Supabase migrations** — this is the ONLY place migrations should be written and run
+- All Supabase Edge Functions (`supabase/functions/`)
+
+### 2. `citizen-admin-hub` (SEPARATE REPO)
+**Path**: `C:\Users\yugie\superadmin\citizen-admin-hub`
+
+This is the **SaaS owner/superadmin dashboard** for us (the product builders) to manage the multi-tenant platform:
+- Manage tenants (create, suspend, configure)
+- Cross-tenant visibility and settings
+- Consumes the **same Supabase database** as lapor-citizen-feedback
+
+⚠️ **CRITICAL RULE — MIGRATIONS**:
+- **NEVER write or run Supabase migrations from `citizen-admin-hub`**
+- All schema changes MUST be written as migration files in `lapor-citizen-feedback/supabase/migrations/`
+- Past mistake: migrations were accidentally authored from `citizen-admin-hub` — this caused schema drift confusion. Always check which repo you are in before creating migrations.
+
+---
+
 ## Commands
 
 ```bash

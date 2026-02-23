@@ -11,6 +11,7 @@ import {
   ReportWithLocation,
 } from '@/hooks/use-executive-dashboard';
 import { DashboardAIInsight, getStoredAIInsight } from '@/components/admin/dashboard/executive/AIRecommendationsSummary';
+import { maskName, getDefaultMaskingLevel, UserRole } from '@/utils/pii-masking';
 
 interface DashboardExportData {
   dateRange?: { from?: Date; to?: Date };
@@ -22,6 +23,7 @@ interface DashboardExportData {
   recommendations: RecommendationSummary[];
   allReports: ReportWithLocation[];
   aiInsight?: DashboardAIInsight | null;
+  exporterRole?: UserRole;
 }
 
 export async function exportDashboardToPDF(data: DashboardExportData): Promise<void> {
@@ -316,12 +318,13 @@ export async function exportDashboardToPDF(data: DashboardExportData): Promise<v
     sectionNumber++;
     yPos += 8;
 
+    const exportLevel = getDefaultMaskingLevel(data.exporterRole ?? null);
     autoTable(doc, {
       startY: yPos,
       head: [['Ticket ID', 'Pelapor', 'Deskripsi', 'Tanggal']],
       body: data.urgentIssues.map(issue => [
         issue.ticket_id,
-        issue.reporter_name,
+        maskName(issue.reporter_name, exportLevel),
         issue.description.substring(0, 50) + '...',
         format(new Date(issue.created_at), 'd MMM yyyy', { locale: idLocale }),
       ]),

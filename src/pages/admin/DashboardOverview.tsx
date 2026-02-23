@@ -36,6 +36,7 @@ import {
   DateRangeFilter,
 } from "@/components/admin/dashboard/executive";
 import { exportDashboardToPDF } from "@/utils/dashboard-pdf-export";
+import { usePIIMasking } from "@/hooks/use-pii-masking";
 
 type DashboardStats = {
   total_reports: number;
@@ -83,6 +84,7 @@ const DashboardOverview = () => {
     refetch: refetchExecutive,
   } = useExecutiveDashboard();
   const [exportingPDF, setExportingPDF] = useState(false);
+  const { level: maskingLevel } = usePIIMasking();
 
   useEffect(() => {
     fetchDashboardData();
@@ -201,6 +203,7 @@ const DashboardOverview = () => {
         urgentIssues,
         recommendations,
         allReports,
+        exporterRole: role,
       });
       toast({
         title: "Berhasil",
@@ -314,7 +317,7 @@ const DashboardOverview = () => {
                 byStatus={trendingByStatus}
                 byOPD={trendingByOPD}
               />
-              <RegionalHeatmap reports={reportsWithLocation} />
+              <RegionalHeatmap reports={reportsWithLocation} maskingLevel={maskingLevel} />
             </div>
 
             {/* Row 3: Slow OPD Alert */}
