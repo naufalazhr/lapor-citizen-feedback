@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MapPin, Map, Layers, CircleDot } from "lucide-react";
 import { ReportWithLocation } from "@/hooks/use-executive-dashboard";
+import { maskName, MaskingLevel } from "@/utils/pii-masking";
 
 // Fix default marker icons
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -18,6 +19,7 @@ L.Icon.Default.mergeOptions({
 
 interface RegionalHeatmapProps {
   reports: ReportWithLocation[];
+  maskingLevel?: MaskingLevel;
 }
 
 type ViewMode = "heatmap" | "markers";
@@ -32,7 +34,7 @@ const getStatusColor = (status: string) => {
   }
 };
 
-export function RegionalHeatmap({ reports }: RegionalHeatmapProps) {
+export function RegionalHeatmap({ reports, maskingLevel = 'L0' }: RegionalHeatmapProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const heatLayerRef = useRef<L.HeatLayer | null>(null);
@@ -179,11 +181,12 @@ export function RegionalHeatmap({ reports }: RegionalHeatmapProps) {
 
         const marker = L.marker([report.geo_location.lat, report.geo_location.lng], { icon });
 
+        const displayName = maskName(report.reporter_name, maskingLevel);
         const popupContent = `
           <div style="min-width: 150px;">
             <strong>${report.ticket_id}</strong><br/>
             <span style="color: ${color}; font-weight: 500;">${report.status}</span><br/>
-            <small>${report.reporter_name}</small><br/>
+            <small>${displayName}</small><br/>
             <small>${report.type}</small>
           </div>
         `;

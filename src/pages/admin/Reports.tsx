@@ -29,6 +29,7 @@ import { OPDMemberReturnDialog } from "@/components/admin/OPDMemberReturnDialog"
 import { ReturnRequestCard } from "@/components/admin/ReturnRequestCard";
 import { ReturnRequestApprovalDialog } from "@/components/admin/ReturnRequestApprovalDialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { usePIIMasking } from "@/hooks/use-pii-masking";
 import {
   Pagination,
   PaginationContent,
@@ -70,6 +71,7 @@ interface OPD {
 const Reports = () => {
   const navigate = useNavigate();
   const { role, isOPDMember, loading: roleLoading } = useUserRole();
+  const { level, maskReport } = usePIIMasking();
   const [reports, setReports] = useState<Report[]>([]);
   const [filteredReports, setFilteredReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
@@ -216,13 +218,14 @@ const Reports = () => {
 
     // Apply search filter
     if (searchTerm) {
-      filtered = filtered.filter(
-        (report) =>
-          report.ticket_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          report.reporter_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          report.phone.includes(searchTerm) ||
-          report.address.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      filtered = filtered.filter((report) => {
+        const ticketMatch = report.ticket_id?.toLowerCase().includes(searchTerm.toLowerCase());
+        const nameMatch = report.reporter_name.toLowerCase().includes(searchTerm.toLowerCase());
+        // Phone search only available at L0 (admin/owner/superadmin) — not for L1/L2 masked roles
+        const phoneMatch = level === 'L0' ? report.phone.includes(searchTerm) : false;
+        const addressMatch = report.address.toLowerCase().includes(searchTerm.toLowerCase());
+        return ticketMatch || nameMatch || phoneMatch || addressMatch;
+      });
     }
 
     // Apply status filter
@@ -345,7 +348,7 @@ const Reports = () => {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Cari ID Tiket, Nama, Telepon..."
+                  placeholder={level === 'L0' ? "Cari ID Tiket, Nama, Telepon..." : "Cari ID Tiket, Nama..."}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -464,7 +467,9 @@ const Reports = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginatedReports.map((report) => (
+                    {paginatedReports.map((report) => {
+                      const maskedReport = maskReport(report);
+                      return (
                       <TableRow key={report.id}>
                         <TableCell>
                           <Checkbox
@@ -495,7 +500,7 @@ const Reports = () => {
                             </Button>
                           </div>
                         </TableCell>
-                        <TableCell className="font-medium">{report.reporter_name}</TableCell>
+                        <TableCell className="font-medium">{maskedReport.reporter_name}</TableCell>
                         <TableCell>
                           <div className="flex gap-2 flex-wrap">
                             <Badge className={getTypeColor(report.type)} variant="outline">
@@ -632,7 +637,8 @@ const Reports = () => {
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
 

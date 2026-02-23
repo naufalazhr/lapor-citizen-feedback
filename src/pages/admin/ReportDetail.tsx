@@ -18,6 +18,7 @@ import { ReportDispositionDialog } from "@/components/admin/ReportDispositionDia
 import { OPDMemberReturnDialog } from "@/components/admin/OPDMemberReturnDialog";
 import { AIInsightSection } from "@/components/admin/AIInsightSection";
 import { useUserRole } from "@/hooks/use-user-role";
+import { usePIIMasking } from "@/hooks/use-pii-masking";
 
 const LeafletMap = lazy(() => import("@/components/LeafletMap"));
 
@@ -72,6 +73,7 @@ const ReportDetail = () => {
   const [showImageModal, setShowImageModal] = useState(false);
   const { toast } = useToast();
   const { isOPDMember, role } = useUserRole();
+  const { level, maskReport, logAccess } = usePIIMasking();
 
   console.log("🎨 ReportDetail render - ID:", id, "Loading:", loading, "Report:", report ? "exists" : "null");
 
@@ -83,6 +85,13 @@ const ReportDetail = () => {
       console.error("❌ No ID provided in URL params");
     }
   }, [id]);
+
+  // Audit log: record PII access whenever the report is loaded
+  useEffect(() => {
+    if (report?.id) {
+      logAccess(report.id, 'view');
+    }
+  }, [report?.id]);
 
   const fetchReport = async () => {
     console.log("🔍 Fetching report with ID:", id);
@@ -397,6 +406,16 @@ const ReportDetail = () => {
     );
   }
 
+  // Apply PII masking based on current user's role (L0=full, L1=partial, L2=de-id)
+  const displayReport = maskReport(report);
+
+  const maskingLevelBadge = {
+    L0: { label: 'Akses Penuh', className: 'bg-green-100 text-green-700 border border-green-200' },
+    L1: { label: 'Data Disamarkan', className: 'bg-amber-100 text-amber-700 border border-amber-200' },
+    L2: { label: 'Anonim', className: 'bg-red-100 text-red-700 border border-red-200' },
+    L3: { label: 'Anonim', className: 'bg-red-100 text-red-700 border border-red-200' },
+  }[level];
+
   return (
     <Dashboard>
       <div className="max-w-7xl mx-auto space-y-6">
@@ -446,17 +465,26 @@ const ReportDetail = () => {
             {/* Reporter Information Card - Compact */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Informasi Pelapor</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">Informasi Pelapor</CardTitle>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${maskingLevelBadge.className}`}>
+                    {maskingLevelBadge.label}
+                  </span>
+                </div>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                   <div>
                     <p className="text-xs font-medium text-muted-foreground">Nama Pelapor</p>
-                    <p className="text-sm font-semibold">{report.reporter_name}</p>
+                    <p className="text-sm font-semibold">{displayReport.reporter_name}</p>
                   </div>
                   <div>
                     <p className="text-xs font-medium text-muted-foreground">Nomor Kontak</p>
-                    <p className="text-sm font-mono">{conversation?.device_number || report.phone || "-"}</p>
+                    <p className="text-sm font-mono">
+                      {level === 'L0'
+                        ? (conversation?.device_number || report.phone || '-')
+                        : displayReport.phone}
+                    </p>
                   </div>
                   {conversation?.phone_number && (
                     <div>
@@ -467,7 +495,7 @@ const ReportDetail = () => {
                 </div>
                 <div className="pt-2 border-t">
                   <p className="text-xs font-medium text-muted-foreground mb-1">Alamat</p>
-                  <p className="text-sm">{report.address}</p>
+                  <p className="text-sm">{displayReport.address}</p>
                 </div>
               </CardContent>
             </Card>
@@ -490,9 +518,9 @@ const ReportDetail = () => {
               reportData={{
                 id: report.id,
                 ticket_id: report.ticket_id,
-                reporter_name: report.reporter_name,
-                phone: report.phone,
-                address: report.address,
+                reporter_name: displayReport.reporter_name,
+                phone: displayReport.phone,
+                address: displayReport.address,
                 description: report.description,
                 type: report.type,
                 status: report.status,
@@ -511,16 +539,16 @@ const ReportDetail = () => {
                 <CardTitle className="text-base">Lokasi</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {report.geo_location && report.geo_location.lat !== null && report.geo_location.lng !== null ? (
+                {displayReport.geo_location && displayReport.geo_location.lat !== null && displayReport.geo_location.lng !== null ? (
                   <>
                     <div className="grid grid-cols-2 gap-3 p-3 bg-muted/50 rounded-lg">
                       <div>
                         <p className="text-xs font-medium text-muted-foreground">Latitude</p>
-                        <p className="text-sm font-mono">{report.geo_location.lat.toFixed(6)}</p>
+                        <p className="text-sm font-mono">{displayReport.geo_location.lat.toFixed(level === 'L0' ? 6 : 2)}</p>
                       </div>
                       <div>
                         <p className="text-xs font-medium text-muted-foreground">Longitude</p>
-                        <p className="text-sm font-mono">{report.geo_location.lng.toFixed(6)}</p>
+                        <p className="text-sm font-mono">{displayReport.geo_location.lng.toFixed(level === 'L0' ? 6 : 2)}</p>
                       </div>
                     </div>
                     <div className="h-[280px] rounded-lg overflow-hidden border">
@@ -531,7 +559,7 @@ const ReportDetail = () => {
                           </div>
                         }
                       >
-                        <LeafletMap latitude={report.geo_location.lat} longitude={report.geo_location.lng} />
+                        <LeafletMap latitude={displayReport.geo_location.lat} longitude={displayReport.geo_location.lng} />
                       </Suspense>
                     </div>
                   </>
