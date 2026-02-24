@@ -16,15 +16,12 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useDashboardData } from "@/hooks/use-dashboard-data";
 import { useExecutiveDashboard } from "@/hooks/use-executive-dashboard";
-import { OPDDistributionChart } from "@/components/admin/dashboard/OPDDistributionChart";
 import { OPDProgressChart } from "@/components/admin/dashboard/OPDProgressChart";
 import { DispositionTimelineChart } from "@/components/admin/dashboard/DispositionTimelineChart";
 import { OPDResponseTimeChart } from "@/components/admin/dashboard/OPDResponseTimeChart";
-import { DispositionActionChart } from "@/components/admin/dashboard/DispositionActionChart";
 import { TopOPDsCard } from "@/components/admin/dashboard/TopOPDsCard";
 import {
   TodaySnapshotCard,
@@ -140,38 +137,6 @@ const DashboardOverview = () => {
       setLoading(false);
     }
   };
-
-  const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "hsl(var(--success))", "hsl(var(--destructive))"];
-
-  const typeDataForChart = [
-    {
-      name: "Lapor",
-      value: stats?.lapor_count || 0,
-    },
-    {
-      name: "Aspirasi",
-      value: stats?.aspirasi_count || 0,
-    },
-  ];
-
-  const statusDataForChart = [
-    {
-      name: "Pending",
-      count: stats?.pending_reports || 0,
-    },
-    {
-      name: "Proses",
-      count: stats?.in_progress_reports || 0,
-    },
-    {
-      name: "Selesai",
-      count: stats?.resolved_reports || 0,
-    },
-    {
-      name: "Ditolak",
-      count: stats?.rejected_reports || 0,
-    },
-  ];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -463,20 +428,14 @@ const DashboardOverview = () => {
             {/* Admin/Member View - Full Analytics */}
             {(role === 'admin' || role === 'member' || role === 'owner') && (
               <>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <OPDDistributionChart reports={reports} />
-                  <OPDProgressChart reports={reports} />
-                </div>
+                <OPDProgressChart reports={reports} />
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <DispositionTimelineChart dispositions={dispositions} />
                   <TopOPDsCard reports={reports} />
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <OPDResponseTimeChart reports={reports} dispositions={dispositions} />
-                  <DispositionActionChart dispositions={dispositions} />
-                </div>
+                <OPDResponseTimeChart reports={reports} dispositions={dispositions} />
               </>
             )}
 
@@ -488,187 +447,12 @@ const DashboardOverview = () => {
                   <OPDResponseTimeChart reports={reports} dispositions={dispositions} />
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <DispositionTimelineChart dispositions={dispositions} />
-                  <DispositionActionChart dispositions={dispositions} />
-                </div>
+                <DispositionTimelineChart dispositions={dispositions} />
               </>
             )}
           </>
         )}
 
-        {/* Analytics Charts */}
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Laporan Berdasarkan Jenis</CardTitle>
-              <CardDescription>Distribusi Lapor vs Aspirasi</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={typeDataForChart}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="hsl(var(--primary))"
-                    dataKey="value"
-                  >
-                    {typeDataForChart.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Laporan Berdasarkan Status</CardTitle>
-              <CardDescription>Status terkini dari semua laporan</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={statusDataForChart}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="name" className="text-muted-foreground" />
-                  <YAxis className="text-muted-foreground" />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="count" fill="hsl(var(--primary))" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Status Distribution Details */}
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Detail Distribusi Status</CardTitle>
-              <CardDescription>Pembagian laporan berdasarkan status</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Pending</span>
-                  <span className="font-medium">{stats?.pending_reports || 0}</span>
-                </div>
-                <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-secondary-foreground"
-                    style={{
-                      width: `${
-                        stats?.total_reports
-                          ? ((stats?.pending_reports || 0) / stats.total_reports) * 100
-                          : 0
-                      }%`,
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Dalam Proses</span>
-                  <span className="font-medium">{stats?.in_progress_reports || 0}</span>
-                </div>
-                <div className="h-2 bg-primary/20 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary"
-                    style={{
-                      width: `${
-                        stats?.total_reports
-                          ? ((stats?.in_progress_reports || 0) / stats.total_reports) * 100
-                          : 0
-                      }%`,
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Selesai</span>
-                  <span className="font-medium">{stats?.resolved_reports || 0}</span>
-                </div>
-                <div className="h-2 bg-success/20 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-success"
-                    style={{
-                      width: `${
-                        stats?.total_reports
-                          ? ((stats?.resolved_reports || 0) / stats.total_reports) * 100
-                          : 0
-                      }%`,
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Ditolak</span>
-                  <span className="font-medium">{stats?.rejected_reports || 0}</span>
-                </div>
-                <div className="h-2 bg-destructive/20 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-destructive"
-                    style={{
-                      width: `${
-                        stats?.total_reports
-                          ? ((stats?.rejected_reports || 0) / stats.total_reports) * 100
-                          : 0
-                      }%`,
-                    }}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Jenis Laporan</CardTitle>
-              <CardDescription>Pembagian laporan berdasarkan jenis</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 rounded-lg bg-primary/5 border border-primary/20">
-                  <div>
-                    <p className="text-sm font-medium">Lapor</p>
-                    <p className="text-2xl font-bold text-primary">{stats?.lapor_count || 0}</p>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {stats?.total_reports
-                      ? Math.round(((stats?.lapor_count || 0) / stats.total_reports) * 100)
-                      : 0}
-                    %
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between p-4 rounded-lg bg-accent/10 border border-accent/20">
-                  <div>
-                    <p className="text-sm font-medium">Aspirasi</p>
-                    <p className="text-2xl font-bold text-accent-foreground">{stats?.aspirasi_count || 0}</p>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {stats?.total_reports
-                      ? Math.round(((stats?.aspirasi_count || 0) / stats.total_reports) * 100)
-                      : 0}
-                    %
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
       </div>
     </Dashboard>
   );

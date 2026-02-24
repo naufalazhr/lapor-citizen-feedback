@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Sparkles,
   RefreshCw,
@@ -16,7 +17,8 @@ import {
   CheckCircle2,
   ArrowRight,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Circle,
 } from "lucide-react";
 import { RecommendationSummary, ReportWithLocation, TodayStats, SlowOPD, TrendingItem, UrgentIssue } from "@/hooks/use-executive-dashboard";
 import { supabase } from "@/integrations/supabase/client";
@@ -90,6 +92,7 @@ export function AIRecommendationsSummary({
   const [generating, setGenerating] = useState(false);
   const [insight, setInsight] = useState<DashboardAIInsight | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [alertsExpanded, setAlertsExpanded] = useState(false);
   const { toast } = useToast();
 
   // Load insight and collapsed state from localStorage on mount
@@ -130,6 +133,14 @@ export function AIRecommendationsSummary({
 
   const toggleCollapse = () => {
     setIsCollapsed(!isCollapsed);
+  };
+
+  // Derive system condition from priority alerts
+  const getSystemCondition = () => {
+    if (!insight) return null;
+    if (insight.priority_alerts.some(a => a.level === 'critical')) return 'critical';
+    if (insight.priority_alerts.some(a => a.level === 'warning')) return 'warning';
+    return 'good';
   };
 
   const generateOverallInsight = async () => {
@@ -224,60 +235,89 @@ export function AIRecommendationsSummary({
   const getAlertIcon = (level: string) => {
     switch (level) {
       case 'critical':
-        return <AlertTriangle className="h-4 w-4 text-red-500" />;
+        return <AlertTriangle className="h-3.5 w-3.5 text-red-500" />;
       case 'warning':
-        return <AlertCircle className="h-4 w-4 text-amber-500" />;
+        return <AlertCircle className="h-3.5 w-3.5 text-amber-500" />;
       default:
-        return <Info className="h-4 w-4 text-blue-500" />;
+        return <Info className="h-3.5 w-3.5 text-blue-500" />;
     }
   };
 
-  const getAlertStyles = (level: string) => {
+  const getPillStyles = (level: string) => {
     switch (level) {
       case 'critical':
-        return "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800";
+        return "bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400";
       case 'warning':
-        return "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800";
+        return "bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400";
       default:
-        return "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800";
-    }
-  };
-
-  const getAlertTitleColor = (level: string) => {
-    switch (level) {
-      case 'critical':
-        return "text-red-700 dark:text-red-400";
-      case 'warning':
-        return "text-amber-700 dark:text-amber-400";
-      default:
-        return "text-blue-700 dark:text-blue-400";
+        return "bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400";
     }
   };
 
   const getTrendIcon = (direction: string) => {
     switch (direction) {
       case 'up':
-        return <TrendingUp className="h-4 w-4 text-red-500" />;
+        return <TrendingUp className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />;
       case 'down':
-        return <TrendingDown className="h-4 w-4 text-green-500" />;
+        return <TrendingDown className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />;
       default:
-        return <Minus className="h-4 w-4 text-gray-400" />;
+        return <Minus className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />;
     }
   };
+
+  const systemCondition = getSystemCondition();
+
+  const conditionConfig = {
+    good: {
+      dot: "bg-green-500",
+      text: "text-green-700 dark:text-green-400",
+      label: "Sistem berjalan baik",
+    },
+    warning: {
+      dot: "bg-amber-500",
+      text: "text-amber-700 dark:text-amber-400",
+      label: "Perlu perhatian",
+    },
+    critical: {
+      dot: "bg-red-500",
+      text: "text-red-700 dark:text-red-400",
+      label: "Butuh tindakan segera",
+    },
+  };
+
+  const condition = systemCondition ? conditionConfig[systemCondition] : null;
+
+  // For alerts: show pills if ≤3, show first 3 + expand if >3
+  const ALERT_PILL_LIMIT = 3;
+  const visibleAlerts = insight
+    ? alertsExpanded
+      ? insight.priority_alerts
+      : insight.priority_alerts.slice(0, ALERT_PILL_LIMIT)
+    : [];
+  const hasMoreAlerts = insight && insight.priority_alerts.length > ALERT_PILL_LIMIT;
 
   return (
     <Card className="border-purple-200 dark:border-purple-800">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Brain className="h-5 w-5 text-purple-500" />
-            Ringkasan AI Dashboard
-            {insight && (
-              <span className="text-xs font-normal text-muted-foreground ml-2">
-                (tersimpan)
+          <div className="flex items-center gap-2 flex-wrap">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Brain className="h-5 w-5 text-purple-500" />
+              Ringkasan AI Dashboard
+              {insight && (
+                <span className="text-xs font-normal text-muted-foreground">
+                  (tersimpan)
+                </span>
+              )}
+            </CardTitle>
+            {/* Kondisi Sistem pill */}
+            {condition && (
+              <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", condition.text)}>
+                <span className={cn("w-2 h-2 rounded-full flex-shrink-0", condition.dot, "animate-pulse")} />
+                {condition.label}
               </span>
             )}
-          </CardTitle>
+          </div>
           <div className="flex items-center gap-2">
             {insight && (
               <Button
@@ -318,121 +358,149 @@ export function AIRecommendationsSummary({
       <CardContent className={cn("space-y-4", isCollapsed && insight && "hidden")}>
         {insight ? (
           <>
-            {/* Executive Summary */}
-            <div className="p-4 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/30 dark:to-indigo-900/30 rounded-lg border border-purple-200 dark:border-purple-700">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-800 flex items-center justify-center flex-shrink-0">
-                  <Sparkles className="h-5 w-5 text-purple-600 dark:text-purple-300" />
-                </div>
-                <div className="flex-1">
-                  <h4 className="font-semibold text-purple-800 dark:text-purple-200 mb-2">
-                    Ringkasan Eksekutif
-                  </h4>
-                  <p className="text-sm text-foreground leading-relaxed">
-                    {insight.executive_summary}
-                  </p>
-                </div>
-              </div>
+            {/* Executive Summary — compact with left border accent */}
+            <div className="pl-4 border-l-4 border-purple-400 dark:border-purple-600">
+              <p className="text-sm text-foreground leading-relaxed">
+                {insight.executive_summary}
+              </p>
             </div>
 
-            {/* Priority Alerts */}
+            {/* Priority Alerts — pill row */}
             {insight.priority_alerts.length > 0 && (
               <div className="space-y-2">
-                <h4 className="text-sm font-semibold flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
                   Priority Alerts
                 </h4>
-                <div className="space-y-2">
-                  {insight.priority_alerts.map((alert, idx) => (
+                <div className="flex flex-wrap gap-2">
+                  {visibleAlerts.map((alert, idx) => (
                     <div
                       key={idx}
                       className={cn(
-                        "p-3 rounded-lg border",
-                        getAlertStyles(alert.level)
+                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border",
+                        getPillStyles(alert.level)
                       )}
+                      title={`${alert.message}\n→ ${alert.action}`}
                     >
-                      <div className="flex items-center gap-2 mb-1">
-                        {getAlertIcon(alert.level)}
-                        <span className={cn("font-semibold text-sm", getAlertTitleColor(alert.level))}>
-                          {alert.title}
-                        </span>
-                      </div>
-                      <p className="text-sm text-foreground ml-6">{alert.message}</p>
-                      <p className="text-xs text-muted-foreground ml-6 mt-2 flex items-center gap-1">
-                        <ArrowRight className="h-3 w-3" />
-                        {alert.action}
-                      </p>
+                      {getAlertIcon(alert.level)}
+                      {alert.title}
                     </div>
                   ))}
+                  {hasMoreAlerts && (
+                    <button
+                      onClick={() => setAlertsExpanded(!alertsExpanded)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border border-dashed border-muted-foreground/50 text-muted-foreground hover:border-muted-foreground transition-colors"
+                    >
+                      {alertsExpanded ? (
+                        <>
+                          <ChevronUp className="h-3 w-3" />
+                          Sembunyikan
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="h-3 w-3" />
+                          +{insight.priority_alerts.length - ALERT_PILL_LIMIT} lainnya
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
+                {/* Expanded alert details */}
+                {alertsExpanded && (
+                  <div className="space-y-1.5 pt-1">
+                    {insight.priority_alerts.map((alert, idx) => (
+                      <div key={idx} className="text-xs text-muted-foreground flex items-start gap-2 pl-1">
+                        <ArrowRight className="h-3 w-3 mt-0.5 flex-shrink-0 text-muted-foreground/60" />
+                        <span>
+                          <span className="font-medium text-foreground">{alert.title}:</span>{" "}
+                          {alert.message}{" "}
+                          <span className="text-muted-foreground/70">— {alert.action}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Bottlenecks and Trends Row */}
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* Bottlenecks */}
-              {insight.bottlenecks.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-sm font-semibold flex items-center gap-2">
-                    <XCircle className="h-4 w-4 text-orange-500" />
-                    Hambatan Terdeteksi
-                  </h4>
-                  <div className="space-y-2 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
-                    {insight.bottlenecks.map((bottleneck, idx) => (
-                      <div key={idx} className="text-sm">
-                        <div className="flex items-start gap-2">
-                          <span className="font-medium text-orange-700 dark:text-orange-400">
-                            {bottleneck.area}:
-                          </span>
-                          <span className="text-foreground">{bottleneck.issue}</span>
+            {/* Bottlenecks + Trends — tabbed */}
+            {(insight.bottlenecks.length > 0 || insight.trends.length > 0) && (
+              <Tabs defaultValue={insight.bottlenecks.length > 0 ? "hambatan" : "tren"} className="w-full">
+                <TabsList className="h-8 text-xs">
+                  <TabsTrigger value="hambatan" className="text-xs h-7 flex items-center gap-1.5">
+                    <XCircle className="h-3.5 w-3.5 text-orange-500" />
+                    Hambatan
+                    {insight.bottlenecks.length > 0 && (
+                      <span className="ml-0.5 text-muted-foreground">({insight.bottlenecks.length})</span>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger value="tren" className="text-xs h-7 flex items-center gap-1.5">
+                    <TrendingUp className="h-3.5 w-3.5 text-blue-500" />
+                    Tren
+                    {insight.trends.length > 0 && (
+                      <span className="ml-0.5 text-muted-foreground">({insight.trends.length})</span>
+                    )}
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="hambatan" className="mt-2">
+                  {insight.bottlenecks.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic py-2">Tidak ada hambatan terdeteksi.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {insight.bottlenecks.map((bottleneck, idx) => (
+                        <div key={idx} className="flex items-start gap-2 text-sm">
+                          <Circle className="h-1.5 w-1.5 mt-2 flex-shrink-0 fill-orange-400 text-orange-400" />
+                          <div>
+                            <span className="font-medium text-orange-700 dark:text-orange-400">
+                              {bottleneck.area}:
+                            </span>{" "}
+                            <span className="text-foreground">{bottleneck.issue}</span>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Dampak: {bottleneck.impact}
+                            </p>
+                          </div>
                         </div>
-                        <p className="text-xs text-muted-foreground ml-0 mt-0.5">
-                          Dampak: {bottleneck.impact}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
 
-              {/* Trends */}
-              {insight.trends.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-sm font-semibold flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-blue-500" />
-                    Interpretasi Tren
-                  </h4>
-                  <div className="space-y-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                    {insight.trends.map((trend, idx) => (
-                      <div key={idx} className="flex items-center gap-2 text-sm">
-                        {getTrendIcon(trend.direction)}
-                        <span className="text-foreground">
-                          <span className="font-medium">{trend.indicator}:</span>{' '}
-                          {trend.interpretation}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+                <TabsContent value="tren" className="mt-2">
+                  {insight.trends.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic py-2">Tidak ada tren signifikan.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {insight.trends.map((trend, idx) => (
+                        <div key={idx} className="flex items-start gap-2 text-sm">
+                          {getTrendIcon(trend.direction)}
+                          <span className="text-foreground">
+                            <span className="font-medium">{trend.indicator}:</span>{" "}
+                            {trend.interpretation}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            )}
 
-            {/* Recommendations Today */}
+            {/* Recommendations — clean checklist, no box */}
             {insight.recommendations_today.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-sm font-semibold flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <div className="space-y-1.5">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
                   Rekomendasi Hari Ini
                 </h4>
-                <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                  <ol className="list-decimal list-inside space-y-2">
-                    {insight.recommendations_today.map((rec, idx) => (
-                      <li key={idx} className="text-sm text-foreground">
-                        {rec}
-                      </li>
-                    ))}
-                  </ol>
-                </div>
+                <ul className="space-y-1.5">
+                  {insight.recommendations_today.map((rec, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-sm text-foreground">
+                      <Circle className="h-1.5 w-1.5 mt-2 flex-shrink-0 fill-green-500 text-green-500" />
+                      {rec}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
           </>
