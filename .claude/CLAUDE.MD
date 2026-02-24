@@ -44,6 +44,24 @@ This is the **SaaS owner/superadmin dashboard** for us (the product builders) to
 
 ---
 
+## Supabase Project IDs (CRITICAL — Do Not Confuse)
+
+Configured in `supabase/config.toml`:
+
+| Environment | Project ID | Git Branch |
+|-------------|-----------|------------|
+| **Production** | `ykaawgnggvwleiyzvilf` | `main` |
+| **Staging** | `cxauavfcyfscjnatxino` | `staging` |
+
+⚠️ **CRITICAL RULES**:
+- Always confirm which environment you are targeting before running `supabase db push`, `supabase functions deploy`, or any Supabase CLI command that mutates remote state.
+- Use `--project-ref ykaawgnggvwleiyzvilf` for production, `--project-ref cxauavfcyfscjnatxino` for staging.
+- **NEVER deploy to production without explicit confirmation from the user.**
+- When on the `staging` git branch, default all Supabase CLI operations to the **staging** project unless the user explicitly says otherwise.
+- Migrations tested on staging MUST be verified before being promoted to production.
+
+---
+
 ## Commands
 
 ```bash
