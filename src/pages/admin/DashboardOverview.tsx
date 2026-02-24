@@ -37,6 +37,7 @@ import {
 } from "@/components/admin/dashboard/executive";
 import { exportDashboardToPDF } from "@/utils/dashboard-pdf-export";
 import { usePIIMasking } from "@/hooks/use-pii-masking";
+import { maskName } from "@/utils/pii-masking";
 
 type DashboardStats = {
   total_reports: number;
@@ -438,7 +439,7 @@ const DashboardOverview = () => {
                       onClick={() => navigate("/admin/reports")}
                     >
                       <TableCell className="font-mono text-sm">{report.ticket_id}</TableCell>
-                      <TableCell className="font-medium">{report.reporter_name}</TableCell>
+                      <TableCell className="font-medium">{maskName(report.reporter_name, maskingLevel)}</TableCell>
                       <TableCell>
                         <Badge className={getTypeColor(report.type)} variant="outline">
                           {report.type}

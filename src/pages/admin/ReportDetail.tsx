@@ -19,6 +19,7 @@ import { OPDMemberReturnDialog } from "@/components/admin/OPDMemberReturnDialog"
 import { AIInsightSection } from "@/components/admin/AIInsightSection";
 import { useUserRole } from "@/hooks/use-user-role";
 import { usePIIMasking } from "@/hooks/use-pii-masking";
+import { maskPhone } from "@/utils/pii-masking";
 
 const LeafletMap = lazy(() => import("@/components/LeafletMap"));
 
@@ -478,18 +479,10 @@ const ReportDetail = () => {
                     <p className="text-xs font-medium text-muted-foreground">Nama Pelapor</p>
                     <p className="text-sm font-semibold">{displayReport.reporter_name}</p>
                   </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">Nomor Kontak</p>
-                    <p className="text-sm font-mono">
-                      {level === 'L0'
-                        ? (conversation?.device_number || report.phone || '-')
-                        : displayReport.phone}
-                    </p>
-                  </div>
                   {conversation?.phone_number && (
                     <div>
                       <p className="text-xs font-medium text-muted-foreground">Nomor WhatsApp</p>
-                      <p className="text-sm font-mono">{conversation.phone_number}</p>
+                      <p className="text-sm font-mono">{maskPhone(conversation.phone_number, level)}</p>
                     </div>
                   )}
                 </div>

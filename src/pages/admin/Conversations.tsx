@@ -31,6 +31,8 @@ import { MessageSquare, Search, RefreshCw, Phone, Calendar, Filter, FileText } f
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
+import { usePIIMasking } from "@/hooks/use-pii-masking";
+import { maskPhone, maskName } from "@/utils/pii-masking";
 import AttachmentDisplay from "@/components/AttachmentDisplay";
 import AIThinkingCollapsible from "@/components/admin/AIThinkingCollapsible";
 
@@ -86,6 +88,7 @@ const Conversations = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { level } = usePIIMasking();
 
   const fetchConversations = async () => {
     try {
@@ -347,10 +350,10 @@ const Conversations = () => {
                         <TableCell className="font-mono text-sm">
                           <div className="flex items-center gap-2">
                             <Phone className="h-4 w-4 text-muted-foreground" />
-                            {conversation.phone_number}
+                            {maskPhone(conversation.phone_number, level)}
                           </div>
                         </TableCell>
-                        <TableCell>{conversation.sender_name || 'Unknown'}</TableCell>
+                        <TableCell>{conversation.sender_name ? maskName(conversation.sender_name, level) : 'Unknown'}</TableCell>
                         <TableCell>{getStatusBadge(conversation.status)}</TableCell>
                         <TableCell>{getChannelBadge(conversation.channel)}</TableCell>
                         <TableCell>
@@ -408,7 +411,7 @@ const Conversations = () => {
                   <div className="space-y-1 mt-2">
                     <div className="flex items-center gap-2">
                       <Phone className="h-4 w-4" />
-                      <span className="font-mono">{selectedConversation.phone_number}</span>
+                      <span className="font-mono">{maskPhone(selectedConversation.phone_number, level)}</span>
                       {getStatusBadge(selectedConversation.status)}
                     </div>
                     <p className="text-sm">
