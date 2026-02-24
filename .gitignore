@@ -37,6 +37,7 @@ bun.lockb
 # Temp files
 **/temp_*
 *.tmp
+docs/
 
 # Supabase CLI runtime cache
 supabase/.temp/
