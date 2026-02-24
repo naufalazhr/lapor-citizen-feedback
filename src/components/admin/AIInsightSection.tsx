@@ -5,6 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -127,6 +134,7 @@ export function AIInsightSection({ reportId, reportData }: AIInsightSectionProps
   const [insight, setInsight] = useState<AIInsight | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [updatingUrgency, setUpdatingUrgency] = useState(false);
   const { toast } = useToast();
   const { isSuperadmin, isAdmin, isMember } = useUserRole();
 
@@ -244,6 +252,31 @@ export function AIInsightSection({ reportId, reportData }: AIInsightSectionProps
     } finally {
       setGenerating(false);
     }
+  };
+
+  const updateUrgency = async (newUrgency: 'critical' | 'moderate' | 'minor') => {
+    setUpdatingUrgency(true);
+    const { error } = await supabase
+      .from("report_ai_insights")
+      .update({
+        urgency: newUrgency,
+        urgency_reason: "Diubah secara manual",
+      })
+      .eq("report_id", reportId);
+
+    if (error) {
+      toast({
+        title: "Gagal mengubah urgensi",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      setInsight((prev) =>
+        prev ? { ...prev, urgency: newUrgency, urgency_reason: "Diubah secara manual" } : prev
+      );
+      toast({ title: "Urgensi berhasil diperbarui" });
+    }
+    setUpdatingUrgency(false);
   };
 
   // Don't show the section if user doesn't have permission
@@ -368,24 +401,58 @@ export function AIInsightSection({ reportId, reportData }: AIInsightSectionProps
 
                 {/* Urgency and Sentiment Row */}
                 <div className="flex flex-wrap gap-3">
-                  {/* Urgency */}
-                  {urgency && (
+                  {/* Urgency - Editable Select */}
+                  {insight.urgency && (
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">Urgensi:</span>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Badge
-                            variant="outline"
-                            className={`gap-1 cursor-help ${urgency.className}`}
+                      <div className="flex items-center gap-1.5">
+                        <Select
+                          value={insight.urgency}
+                          onValueChange={(v) => updateUrgency(v as 'critical' | 'moderate' | 'minor')}
+                          disabled={updatingUrgency}
+                        >
+                          <SelectTrigger
+                            className={`h-7 text-xs px-2 py-0 min-w-[90px] border font-medium ${urgencyConfig[insight.urgency].className}`}
                           >
-                            <urgency.icon className={`h-3 w-3 ${urgency.iconClassName}`} />
-                            {urgency.label}
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" className="max-w-[250px]">
-                          <p className="text-xs">{insight.urgency_reason || "Tidak ada penjelasan"}</p>
-                        </TooltipContent>
-                      </Tooltip>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="critical">
+                              <div className="flex items-center gap-1.5">
+                                <AlertTriangle className="h-3 w-3 text-red-600" />
+                                Kritis
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="moderate">
+                              <div className="flex items-center gap-1.5">
+                                <AlertCircle className="h-3 w-3 text-yellow-600" />
+                                Sedang
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="minor">
+                              <div className="flex items-center gap-1.5">
+                                <CheckCircle2 className="h-3 w-3 text-green-600" />
+                                Ringan
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {updatingUrgency && (
+                          <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />
+                        )}
+                      </div>
+                      {insight.urgency_reason && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="text-[10px] text-muted-foreground cursor-help underline decoration-dotted">
+                              {insight.urgency_reason === "Diubah secara manual" ? "manual" : "AI"}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="max-w-[250px]">
+                            <p className="text-xs">{insight.urgency_reason}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                     </div>
                   )}
 

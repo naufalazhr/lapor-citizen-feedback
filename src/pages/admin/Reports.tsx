@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Eye, RefreshCw, Copy, Search, ChevronLeft, ChevronRight, Building2, CheckSquare, Square } from "lucide-react";
+import { Trash2, Eye, RefreshCw, Copy, Search, ChevronLeft, ChevronRight, Building2, CheckSquare, Square, Sparkles, AlertTriangle, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ReportDispositionDialog } from "@/components/admin/ReportDispositionDialog";
 import { OPDMemberReturnDialog } from "@/components/admin/OPDMemberReturnDialog";
@@ -38,6 +38,12 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Report = {
   id: string;
@@ -89,6 +95,14 @@ const Reports = () => {
   const [showReturnApprovalDialog, setShowReturnApprovalDialog] = useState(false);
   const [selectedReturnRequest, setSelectedReturnRequest] = useState<any>(null);
   const [userOpdIds, setUserOpdIds] = useState<string[]>([]);
+  // Date range filter
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  // AI Summary dialog
+  const [showAISummaryDialog, setShowAISummaryDialog] = useState(false);
+  const [aiSummaryReport, setAiSummaryReport] = useState<Report | null>(null);
+  const [aiSummaryInsight, setAiSummaryInsight] = useState<any>(null);
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -114,7 +128,7 @@ const Reports = () => {
 
   useEffect(() => {
     filterReports();
-  }, [reports, searchTerm, statusFilter, typeFilter, opdFilter]);
+  }, [reports, searchTerm, statusFilter, typeFilter, opdFilter, dateFrom, dateTo]);
 
   const fetchUserOPDs = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -247,6 +261,20 @@ const Reports = () => {
       }
     }
 
+    // Apply date range filter
+    if (dateFrom) {
+      filtered = filtered.filter(
+        (report) => new Date(report.created_at) >= new Date(dateFrom)
+      );
+    }
+    if (dateTo) {
+      const toDate = new Date(dateTo);
+      toDate.setDate(toDate.getDate() + 1);
+      filtered = filtered.filter(
+        (report) => new Date(report.created_at) < toDate
+      );
+    }
+
     setFilteredReports(filtered);
     setCurrentPage(1); // Reset to first page when filters change
   };
@@ -299,6 +327,29 @@ const Reports = () => {
     });
   };
 
+  const fetchAISummary = async (report: Report) => {
+    setAiSummaryReport(report);
+    setAiSummaryInsight(null);
+    setAiSummaryLoading(true);
+    setShowAISummaryDialog(true);
+
+    const { data } = await supabase
+      .from("report_ai_insights")
+      .select("summary_analysis, key_insights, urgency, urgency_reason")
+      .eq("report_id", report.id)
+      .maybeSingle();
+
+    if (data) {
+      setAiSummaryInsight({
+        ...data,
+        key_insights: Array.isArray(data.key_insights)
+          ? data.key_insights
+          : JSON.parse((data.key_insights as string) || "[]"),
+      });
+    }
+    setAiSummaryLoading(false);
+  };
+
   // Pagination calculations
   const totalPages = Math.ceil(filteredReports.length / pageSize);
   const startIndex = (currentPage - 1) * pageSize;
@@ -344,67 +395,90 @@ const Reports = () => {
             <CardTitle>Filter & Pencarian</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder={level === 'L0' ? "Cari ID Tiket, Nama, Telepon..." : "Cari ID Tiket, Nama..."}
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder={level === 'L0' ? "Cari ID Tiket, Nama, Telepon..." : "Cari ID Tiket, Nama..."}
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua Jenis" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Jenis</SelectItem>
+                    <SelectItem value="lapor">Lapor</SelectItem>
+                    <SelectItem value="aspirasi">Aspirasi</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Status</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="in_progress">Dalam Proses</SelectItem>
+                    <SelectItem value="resolved">Selesai</SelectItem>
+                    <SelectItem value="rejected">Ditolak</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={opdFilter} onValueChange={setOpdFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua OPD" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua OPD</SelectItem>
+                    <SelectItem value="unassigned">Belum Didisposisi</SelectItem>
+                    {opds.map((opd) => (
+                      <SelectItem key={opd.id} value={opd.id}>
+                        {opd.code} - {opd.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Semua Jenis" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Jenis</SelectItem>
-                  <SelectItem value="lapor">Lapor</SelectItem>
-                  <SelectItem value="aspirasi">Aspirasi</SelectItem>
-                </SelectContent>
-              </Select>
 
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Semua Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="in_progress">Dalam Proses</SelectItem>
-                  <SelectItem value="resolved">Selesai</SelectItem>
-                  <SelectItem value="rejected">Ditolak</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={opdFilter} onValueChange={setOpdFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Semua OPD" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua OPD</SelectItem>
-                  <SelectItem value="unassigned">Belum Didisposisi</SelectItem>
-                  {opds.map((opd) => (
-                    <SelectItem key={opd.id} value={opd.id}>
-                      {opd.code} - {opd.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(Number(v))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10 per halaman</SelectItem>
-                  <SelectItem value="20">20 per halaman</SelectItem>
-                  <SelectItem value="50">50 per halaman</SelectItem>
-                  <SelectItem value="100">100 per halaman</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-muted-foreground">Dari Tanggal</label>
+                  <Input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-muted-foreground">Sampai Tanggal</label>
+                  <Input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-muted-foreground">Tampilan</label>
+                  <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(Number(v))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10 per halaman</SelectItem>
+                      <SelectItem value="20">20 per halaman</SelectItem>
+                      <SelectItem value="50">50 per halaman</SelectItem>
+                      <SelectItem value="100">100 per halaman</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -622,14 +696,26 @@ const Reports = () => {
                               size="sm"
                               variant="outline"
                               onClick={() => navigate(`/admin/reports/${report.id}`)}
+                              title="Lihat Detail"
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
+                            {!isOPDMember && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => fetchAISummary(report)}
+                                title="Lihat Ringkasan AI"
+                              >
+                                <Sparkles className="h-4 w-4 text-purple-500" />
+                              </Button>
+                            )}
                             {(role === 'admin' || role === 'superadmin') && (
                               <Button
                                 size="sm"
                                 variant="destructive"
                                 onClick={() => deleteReport(report.id)}
+                                title="Hapus Laporan"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -746,6 +832,106 @@ const Reports = () => {
           fetchReports();
         }}
       />
+
+      {/* AI Summary Quick View Dialog */}
+      <Dialog open={showAISummaryDialog} onOpenChange={setShowAISummaryDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-purple-500" />
+              Ringkasan AI — {aiSummaryReport?.ticket_id}
+            </DialogTitle>
+          </DialogHeader>
+
+          {aiSummaryLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-sm text-muted-foreground">Memuat insight...</span>
+            </div>
+          ) : !aiSummaryInsight ? (
+            <div className="py-6 text-center space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Insight belum dibuat untuk laporan ini.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShowAISummaryDialog(false);
+                  if (aiSummaryReport) navigate(`/admin/reports/${aiSummaryReport.id}`);
+                }}
+              >
+                Buka Detail untuk Generate Insight
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Urgency Badge */}
+              {aiSummaryInsight.urgency && (() => {
+                const urgencyMap = {
+                  critical: { label: "Kritis", icon: AlertTriangle, className: "bg-red-100 text-red-700 border-red-200", iconClassName: "text-red-600" },
+                  moderate: { label: "Sedang", icon: AlertCircle, className: "bg-yellow-100 text-yellow-700 border-yellow-200", iconClassName: "text-yellow-600" },
+                  minor: { label: "Ringan", icon: CheckCircle2, className: "bg-green-100 text-green-700 border-green-200", iconClassName: "text-green-600" },
+                };
+                const cfg = urgencyMap[aiSummaryInsight.urgency as keyof typeof urgencyMap];
+                if (!cfg) return null;
+                const Icon = cfg.icon;
+                return (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Urgensi:</span>
+                    <Badge variant="outline" className={`gap-1 ${cfg.className}`}>
+                      <Icon className={`h-3 w-3 ${cfg.iconClassName}`} />
+                      {cfg.label}
+                    </Badge>
+                    {aiSummaryInsight.urgency_reason && (
+                      <span className="text-xs text-muted-foreground">
+                        — {aiSummaryInsight.urgency_reason}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Summary */}
+              {aiSummaryInsight.summary_analysis && (
+                <div className="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg border-l-4 border-purple-500">
+                  <p className="text-sm text-foreground leading-snug">
+                    {aiSummaryInsight.summary_analysis}
+                  </p>
+                </div>
+              )}
+
+              {/* Key Insights (top 3) */}
+              {aiSummaryInsight.key_insights?.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">Insights</p>
+                  <ul className="space-y-1">
+                    {aiSummaryInsight.key_insights.slice(0, 3).map((item: string, i: number) => (
+                      <li key={i} className="flex items-start gap-1.5 text-xs">
+                        <span className="text-amber-500 mt-0.5">•</span>
+                        <span className="text-foreground/80">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Open Detail link */}
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={() => {
+                  setShowAISummaryDialog(false);
+                  if (aiSummaryReport) navigate(`/admin/reports/${aiSummaryReport.id}`);
+                }}
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                Buka Detail
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Dashboard>
   );
 };
