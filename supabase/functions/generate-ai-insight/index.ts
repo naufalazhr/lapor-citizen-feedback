@@ -33,7 +33,14 @@ interface ClassificationResult {
   sentiment_reason: string
   suggested_opd_name: string
   suggested_opd_confidence: 'high' | 'medium' | 'low'
+  report_category: string
 }
+
+const VALID_REPORT_CATEGORIES = [
+  'flood', 'fire', 'accident', 'road_damage', 'waste',
+  'public_facility', 'security', 'health', 'education',
+  'drainage', 'street_lighting', 'licensing', 'aspiration', 'other'
+]
 
 interface AIInsightResponse {
   summary_analysis: string
@@ -374,7 +381,8 @@ Hasilkan JSON dengan format berikut. WAJIB singkat dan padat.
     "sentiment": "[positive|negative|neutral]",
     "sentiment_reason": "[1 kalimat alasan, maks 15 kata]",
     "suggested_opd_name": "[Nama OPD yang relevan, contoh: Dinas Kesehatan, Dinas Lingkungan Hidup, Dinas Pekerjaan Umum, dll]",
-    "suggested_opd_confidence": "[high|medium|low]"
+    "suggested_opd_confidence": "[high|medium|low]",
+    "report_category": "[WAJIB pilih tepat satu dari: flood, fire, accident, road_damage, waste, public_facility, security, health, education, drainage, street_lighting, licensing, aspiration, other]"
   }
 }
 
@@ -493,6 +501,11 @@ PANDUAN KLASIFIKASI:
     // Get suggested OPD name (no validation needed - AI provides the name)
     const suggestedOpdName = classification?.suggested_opd_name?.trim() || null
 
+    // Validate report_category - fall back to 'other' if AI returns an invalid value
+    const validReportCategory = classification?.report_category && VALID_REPORT_CATEGORIES.includes(classification.report_category)
+      ? classification.report_category
+      : 'other'
+
     // Save to database using upsert (update if exists, insert if not)
     const { data: savedInsight, error: saveError } = await supabaseAdmin
       .from('report_ai_insights')
@@ -508,6 +521,7 @@ PANDUAN KLASIFIKASI:
         sentiment_reason: classification?.sentiment_reason || null,
         suggested_opd_name: suggestedOpdName,
         suggested_opd_confidence: validConfidence,
+        report_category: validReportCategory,
         // Metadata
         model_used: 'google/gemini-2.5-flash',
         generated_by: user.id,

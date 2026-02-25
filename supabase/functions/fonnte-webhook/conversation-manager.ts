@@ -15,39 +15,20 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 // -----------------------------------------------------------------------------
 // Get Active Fonnte Configuration
 // -----------------------------------------------------------------------------
-export async function getFonnteConfig(deviceNumber?: string): Promise<FonnteConfig> {
-  // Primary: match by device number to route to the correct tenant
-  if (deviceNumber) {
-    const { data, error } = await supabase
-      .from('fonnte_config')
-      .select('*')
-      .eq('is_active', true)
-      .contains('device_numbers', [deviceNumber])
-      .limit(1)
-      .maybeSingle();
-
-    if (!error && data) {
-      return data as FonnteConfig;
-    }
-  }
-
-  // Fallback: device_numbers not yet configured — pick oldest active config (default org)
-  // WARNING: this cannot distinguish tenants; populate device_numbers in Integration settings
-  console.warn(`⚠️ Device ${deviceNumber || 'unknown'} not matched to any tenant via device_numbers — using fallback config. Configure device_numbers in Integration settings.`);
-
-  const { data: fallback, error: fbError } = await supabase
+export async function getFonnteConfig(): Promise<FonnteConfig> {
+  const { data, error } = await supabase
     .from('fonnte_config')
     .select('*')
     .eq('is_active', true)
-    .order('created_at', { ascending: true }) // oldest row = default org
+    .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
 
-  if (fbError || !fallback) {
-    throw new Error('No active Fonnte configuration found');
+  if (error || !data) {
+    throw new Error('No active Fonnte configuration found. Please configure it in Integration settings.');
   }
 
-  return fallback as FonnteConfig;
+  return data as FonnteConfig;
 }
 
 // -----------------------------------------------------------------------------
@@ -59,17 +40,13 @@ export interface AIAssistantConfig {
   preset_reply_text: string;
 }
 
-export async function getAIAssistantConfig(tenantId?: string | null): Promise<AIAssistantConfig> {
-  let query = supabase
+export async function getAIAssistantConfig(): Promise<AIAssistantConfig> {
+  const { data, error } = await supabase
     .from('ai_assistant_config')
     .select('is_ai_enabled, preset_reply_text')
-    .eq('config_name', 'default');
-
-  if (tenantId) {
-    query = query.eq('tenant_id', tenantId);
-  }
-
-  const { data, error } = await query.limit(1).maybeSingle();
+    .eq('config_name', 'default')
+    .limit(1)
+    .maybeSingle();
 
   if (error || !data) {
     // Default: AI enabled with standard message if no config exists
@@ -120,7 +97,7 @@ export async function findOrCreateConversation(
   deviceNumber: string,
   senderName?: string
 ): Promise<Conversation> {
-  const config = await getFonnteConfig(deviceNumber);
+  const config = await getFonnteConfig();
   const timeoutMinutes = config.session_timeout_minutes;
 
   // Calculate cutoff time for active sessions

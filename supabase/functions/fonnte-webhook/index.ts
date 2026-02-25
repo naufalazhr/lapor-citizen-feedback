@@ -281,7 +281,7 @@ serve(async (req: Request) => {
     // AI GOVERNANCE CHECK - Human-in-the-Loop Control
     // Check if AI is enabled before calling Flowise
     // ============================================================================
-    const aiConfig = await getAIAssistantConfig(tenantId);
+    const aiConfig = await getAIAssistantConfig();
 
     if (!aiConfig.is_ai_enabled) {
       console.log('🤖 AI Assistant is DISABLED - using preset reply (Human-in-the-Loop)');
@@ -304,7 +304,7 @@ serve(async (req: Request) => {
       // Send preset response via WhatsApp provider
       const whatsappSendPresetStart = performance.now();
       try {
-        const whatsappProvider = await createWhatsAppProvider(tenantId);
+        const whatsappProvider = await createWhatsAppProvider();
 
         const sendResult = await whatsappProvider.sendMessageWithRetry({
           target: normalized.sender,
@@ -395,7 +395,7 @@ serve(async (req: Request) => {
     // PERF: Call Flowise API with retry (PRIMARY BOTTLENECK)
     // ============================================================================
     const flowiseStart = performance.now();
-    const { response: flowiseResponse, attempts, totalTime } = await callFlowiseWithRetry(flowiseRequest, 3, tenantId);
+    const { response: flowiseResponse, attempts, totalTime } = await callFlowiseWithRetry(flowiseRequest, 3);
     perfMetrics.flowise_api = performance.now() - flowiseStart;
     perfMetrics.flowise_attempts = attempts;
 
@@ -447,7 +447,7 @@ serve(async (req: Request) => {
 
     const whatsappSendStart = performance.now();
     try {
-      const whatsappProvider = await createWhatsAppProvider(tenantId);
+      const whatsappProvider = await createWhatsAppProvider();
 
       const sendResult = await whatsappProvider.sendMessageWithRetry({
         target: normalized.sender,
