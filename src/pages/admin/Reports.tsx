@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Dashboard from "./Dashboard";
 import { useUserRole } from "@/hooks/use-user-role";
@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Eye, RefreshCw, Copy, Search, ChevronLeft, ChevronRight, Building2, CheckSquare, Square, Sparkles, AlertTriangle, AlertCircle, CheckCircle2, Tag, Loader2, X } from "lucide-react";
+import { Trash2, Eye, RefreshCw, Copy, Search, ChevronLeft, ChevronRight, Building2, CheckSquare, Square, Sparkles, AlertTriangle, AlertCircle, CheckCircle2, Tag, Loader2, X, CalendarDays } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ReportDispositionDialog } from "@/components/admin/ReportDispositionDialog";
 import { OPDMemberReturnDialog } from "@/components/admin/OPDMemberReturnDialog";
@@ -52,6 +52,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 type Report = {
   id: string;
@@ -113,6 +118,7 @@ const URGENCY_LABEL: Record<string, string> = {
 
 const Reports = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { role, isOPDMember, loading: roleLoading } = useUserRole();
   const { level, maskReport } = usePIIMasking();
   const [reports, setReports] = useState<Report[]>([]);
@@ -137,7 +143,7 @@ const Reports = () => {
   const [dateTo, setDateTo] = useState<string>("");
   // Urgency filter + map
   const [aiInsightsMap, setAiInsightsMap] = useState<Map<string, { urgency: string | null; urgency_reason: string | null }>>(new Map());
-  const [urgencyFilter, setUrgencyFilter] = useState<string>("all");
+  const [urgencyFilter, setUrgencyFilter] = useState<string>(searchParams.get("urgency") ?? "all");
   // AI Summary dialog
   const [showAISummaryDialog, setShowAISummaryDialog] = useState(false);
   const [aiSummaryReport, setAiSummaryReport] = useState<Report | null>(null);
@@ -150,6 +156,9 @@ const Reports = () => {
     report_category: string | null;
     summary_analysis: string;
   }>>(new Map());
+
+  // Date range popover
+  const [showDatePopover, setShowDatePopover] = useState(false);
 
   // Bulk generate state
   const [showBulkDialog, setShowBulkDialog] = useState(false);
@@ -373,6 +382,16 @@ const Reports = () => {
     }
   };
 
+  const clearAllFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("all");
+    setTypeFilter("all");
+    setOpdFilter("all");
+    setUrgencyFilter("all");
+    setDateFrom("");
+    setDateTo("");
+  };
+
   const filterReports = () => {
     let filtered = [...reports];
 
@@ -543,110 +562,168 @@ const Reports = () => {
           </Button>
         </div>
 
-        {/* Filters */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Filter & Pencarian</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder={level === 'L0' ? "Cari ID Tiket, Nama, Telepon..." : "Cari ID Tiket, Nama..."}
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
+        {/* Filter Toolbar */}
+        <div className="space-y-2">
+          {/* Row 1: Search bar */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder={level === 'L0' ? "Cari ID Tiket, Nama, Telepon, Alamat..." : "Cari ID Tiket, Nama, Alamat..."}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-9"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label="Hapus pencarian"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Row 2: Inline filter selects */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Status */}
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-8 w-auto min-w-[130px] text-sm">
+                <SelectValue placeholder="Semua Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Status</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="in_progress">Dalam Proses</SelectItem>
+                <SelectItem value="resolved">Selesai</SelectItem>
+                <SelectItem value="rejected">Ditolak</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Jenis */}
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="h-8 w-auto min-w-[110px] text-sm">
+                <SelectValue placeholder="Semua Jenis" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Jenis</SelectItem>
+                <SelectItem value="lapor">Lapor</SelectItem>
+                <SelectItem value="aspirasi">Aspirasi</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Urgensi */}
+            <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
+              <SelectTrigger className="h-8 w-auto min-w-[120px] text-sm">
+                <SelectValue placeholder="Semua Urgensi" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Urgensi</SelectItem>
+                <SelectItem value="critical">🔴 Kritis</SelectItem>
+                <SelectItem value="moderate">🟡 Sedang</SelectItem>
+                <SelectItem value="minor">🟢 Ringan</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* OPD */}
+            <Select value={opdFilter} onValueChange={setOpdFilter}>
+              <SelectTrigger className="h-8 w-auto min-w-[130px] text-sm">
+                <SelectValue placeholder="Semua OPD" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua OPD</SelectItem>
+                <SelectItem value="unassigned">Belum Didisposisi</SelectItem>
+                {opds.map((opd) => (
+                  <SelectItem key={opd.id} value={opd.id}>
+                    {opd.code} - {opd.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Rentang Tanggal — popover */}
+            <Popover open={showDatePopover} onOpenChange={setShowDatePopover}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={`h-8 gap-1.5 text-sm font-normal ${(dateFrom || dateTo) ? "border-primary text-primary" : "text-muted-foreground"}`}
+                >
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  {dateFrom || dateTo
+                    ? (() => {
+                        const fmt = (d: string) => new Date(d).toLocaleDateString("id-ID", { day: "2-digit", month: "short" });
+                        if (dateFrom && dateTo) return `${fmt(dateFrom)} – ${fmt(dateTo)}`;
+                        if (dateFrom) return `Dari ${fmt(dateFrom)}`;
+                        return `S/d ${fmt(dateTo)}`;
+                      })()
+                    : "Rentang Tanggal"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-3" align="start">
+                <div className="space-y-3">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Rentang Tanggal Laporan</p>
+                  <div className="space-y-2">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-muted-foreground">Dari Tanggal</label>
+                      <Input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => setDateFrom(e.target.value)} className="h-8 text-sm" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-muted-foreground">Sampai Tanggal</label>
+                      <Input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} className="h-8 text-sm" />
+                    </div>
+                  </div>
+                  {(dateFrom || dateTo) && (
+                    <Button variant="ghost" size="sm" className="w-full h-7 text-xs text-muted-foreground"
+                      onClick={() => { setDateFrom(""); setDateTo(""); setShowDatePopover(false); }}>
+                      <X className="h-3 w-3 mr-1" />Hapus Filter Tanggal
+                    </Button>
+                  )}
                 </div>
+              </PopoverContent>
+            </Popover>
 
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Jenis" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Jenis</SelectItem>
-                    <SelectItem value="lapor">Lapor</SelectItem>
-                    <SelectItem value="aspirasi">Aspirasi</SelectItem>
-                  </SelectContent>
-                </Select>
+            {/* Hapus Filter — only shown when any filter is active */}
+            {(statusFilter !== "all" || typeFilter !== "all" || urgencyFilter !== "all" || opdFilter !== "all" || dateFrom || dateTo) && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground hover:text-destructive gap-1" onClick={clearAllFilters}>
+                <X className="h-3 w-3" />
+                Hapus Filter
+              </Button>
+            )}
+          </div>
 
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Status</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="in_progress">Dalam Proses</SelectItem>
-                    <SelectItem value="resolved">Selesai</SelectItem>
-                    <SelectItem value="rejected">Ditolak</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Urgensi" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Urgensi</SelectItem>
-                    <SelectItem value="critical">🔴 Kritis</SelectItem>
-                    <SelectItem value="moderate">🟡 Sedang</SelectItem>
-                    <SelectItem value="minor">🟢 Ringan</SelectItem>
-                  </SelectContent>
-                </Select>
+          {/* Row 3 (conditional): Active filter chips */}
+          {(() => {
+            const chips: { key: string; label: string; onRemove: () => void }[] = [];
+            const statusLabels: Record<string, string> = { pending: "Pending", in_progress: "Dalam Proses", resolved: "Selesai", rejected: "Ditolak" };
+            const urgencyLabels: Record<string, string> = { critical: "Kritis", moderate: "Sedang", minor: "Ringan" };
+            if (statusFilter !== "all") chips.push({ key: "status", label: `Status: ${statusLabels[statusFilter] ?? statusFilter}`, onRemove: () => setStatusFilter("all") });
+            if (typeFilter !== "all") chips.push({ key: "type", label: `Jenis: ${typeFilter === "lapor" ? "Lapor" : "Aspirasi"}`, onRemove: () => setTypeFilter("all") });
+            if (urgencyFilter !== "all") chips.push({ key: "urgency", label: `Urgensi: ${urgencyLabels[urgencyFilter] ?? urgencyFilter}`, onRemove: () => setUrgencyFilter("all") });
+            if (opdFilter !== "all") chips.push({ key: "opd", label: `OPD: ${opdFilter === "unassigned" ? "Belum Didisposisi" : (opdMap.get(opdFilter)?.code ?? opdFilter)}`, onRemove: () => setOpdFilter("all") });
+            if (dateFrom || dateTo) {
+              const fmt = (d: string) => new Date(d).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+              const dateLabel = dateFrom && dateTo ? `${fmt(dateFrom)} – ${fmt(dateTo)}` : dateFrom ? `Dari ${fmt(dateFrom)}` : `S/d ${fmt(dateTo)}`;
+              chips.push({ key: "date", label: dateLabel, onRemove: () => { setDateFrom(""); setDateTo(""); } });
+            }
+            if (!chips.length) return null;
+            return (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {chips.map(chip => (
+                  <span key={chip.key} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-muted border border-border">
+                    {chip.label}
+                    <button onClick={chip.onRemove} className="ml-0.5 text-muted-foreground hover:text-foreground" aria-label={`Hapus filter ${chip.key}`}>
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+                <button onClick={clearAllFilters} className="text-xs text-muted-foreground hover:text-destructive underline underline-offset-2 ml-1">
+                  Hapus Semua
+                </button>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Select value={opdFilter} onValueChange={setOpdFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua OPD" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua OPD</SelectItem>
-                    <SelectItem value="unassigned">Belum Didisposisi</SelectItem>
-                    {opds.map((opd) => (
-                      <SelectItem key={opd.id} value={opd.id}>
-                        {opd.code} - {opd.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-muted-foreground">Dari Tanggal</label>
-                  <Input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-muted-foreground">Sampai Tanggal</label>
-                  <Input
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-muted-foreground">Tampilan</label>
-                  <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(Number(v))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="10">10 per halaman</SelectItem>
-                      <SelectItem value="20">20 per halaman</SelectItem>
-                      <SelectItem value="50">50 per halaman</SelectItem>
-                      <SelectItem value="100">100 per halaman</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            );
+          })()}
+        </div>
 
         {/* Return Requests Card - Only show for Members/Admins */}
         {!isOPDMember && <ReturnRequestCard />}
@@ -720,6 +797,7 @@ const Reports = () => {
                       <TableHead>Jenis</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Urgensi</TableHead>
+                      <TableHead>Kategori</TableHead>
                       <TableHead>OPD</TableHead>
                       <TableHead>Tanggal</TableHead>
                       <TableHead>Aksi</TableHead>
@@ -873,6 +951,18 @@ const Reports = () => {
                           })()}
                         </TableCell>
                         <TableCell>
+                          {(() => {
+                            const snippet = aiSnippetsMap.get(report.id);
+                            if (!snippet?.report_category) return <span className="text-xs text-muted-foreground">-</span>;
+                            return (
+                              <Badge variant="outline" className="text-xs gap-1">
+                                <Tag className="h-3 w-3" />
+                                {REPORT_CATEGORY_LABELS[snippet.report_category] ?? snippet.report_category}
+                              </Badge>
+                            );
+                          })()}
+                        </TableCell>
+                        <TableCell>
                           {report.assigned_opd_id && opdMap.has(report.assigned_opd_id) ? (
                             <Badge variant="outline" className="gap-1">
                               <Building2 className="h-3 w-3" />
@@ -918,14 +1008,6 @@ const Reports = () => {
                                           onClick={() => fetchAISummary(report)}
                                           className="gap-1.5 px-2 border-purple-200 hover:bg-purple-50 dark:border-purple-800"
                                         >
-                                          {snippet.urgency && (
-                                            <span className={`inline-block h-2 w-2 rounded-full flex-shrink-0 ${URGENCY_DOT_COLOR[snippet.urgency] ?? 'bg-gray-400'}`} />
-                                          )}
-                                          {snippet.report_category && (
-                                            <span className="text-[10px] text-purple-700 dark:text-purple-300 font-medium leading-none">
-                                              {REPORT_CATEGORY_LABELS[snippet.report_category] ?? snippet.report_category}
-                                            </span>
-                                          )}
                                           <Sparkles className="h-3 w-3 text-purple-500 flex-shrink-0" />
                                         </Button>
                                       </TooltipTrigger>
@@ -969,65 +1051,84 @@ const Reports = () => {
                   </TableBody>
                 </Table>
 
-                {/* Pagination */}
-                {totalPages > 1 && (
-                  <div className="mt-6 flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">
-                      Halaman {currentPage} dari {totalPages}
-                    </p>
-                    <Pagination>
-                      <PaginationContent>
-                        <PaginationItem>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                            disabled={currentPage === 1}
-                          >
-                            <ChevronLeft className="h-4 w-4 mr-1" />
-                            Sebelumnya
-                          </Button>
-                        </PaginationItem>
-
-                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                          let pageNum;
-                          if (totalPages <= 5) {
-                            pageNum = i + 1;
-                          } else if (currentPage <= 3) {
-                            pageNum = i + 1;
-                          } else if (currentPage >= totalPages - 2) {
-                            pageNum = totalPages - 4 + i;
-                          } else {
-                            pageNum = currentPage - 2 + i;
-                          }
-
-                          return (
-                            <PaginationItem key={pageNum}>
-                              <PaginationLink
-                                onClick={() => setCurrentPage(pageNum)}
-                                isActive={currentPage === pageNum}
-                              >
-                                {pageNum}
-                              </PaginationLink>
-                            </PaginationItem>
-                          );
-                        })}
-
-                        <PaginationItem>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                            disabled={currentPage === totalPages}
-                          >
-                            Selanjutnya
-                            <ChevronRight className="h-4 w-4 ml-1" />
-                          </Button>
-                        </PaginationItem>
-                      </PaginationContent>
-                    </Pagination>
+                {/* Pagination + Page Size */}
+                <div className="mt-6 flex items-center justify-between gap-4 flex-wrap">
+                  {/* Page size selector */}
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span>Tampilkan</span>
+                    <Select value={pageSize.toString()} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}>
+                      <SelectTrigger className="h-8 w-[75px] text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                        <SelectItem value="100">100</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span>per halaman</span>
                   </div>
-                )}
+
+                  {totalPages > 1 && (
+                    <div className="flex items-center gap-3">
+                      <p className="text-sm text-muted-foreground">
+                        Halaman {currentPage} dari {totalPages}
+                      </p>
+                      <Pagination>
+                        <PaginationContent>
+                          <PaginationItem>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                              disabled={currentPage === 1}
+                            >
+                              <ChevronLeft className="h-4 w-4 mr-1" />
+                              Sebelumnya
+                            </Button>
+                          </PaginationItem>
+
+                          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                            let pageNum;
+                            if (totalPages <= 5) {
+                              pageNum = i + 1;
+                            } else if (currentPage <= 3) {
+                              pageNum = i + 1;
+                            } else if (currentPage >= totalPages - 2) {
+                              pageNum = totalPages - 4 + i;
+                            } else {
+                              pageNum = currentPage - 2 + i;
+                            }
+
+                            return (
+                              <PaginationItem key={pageNum}>
+                                <PaginationLink
+                                  onClick={() => setCurrentPage(pageNum)}
+                                  isActive={currentPage === pageNum}
+                                >
+                                  {pageNum}
+                                </PaginationLink>
+                              </PaginationItem>
+                            );
+                          })}
+
+                          <PaginationItem>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                              disabled={currentPage === totalPages}
+                            >
+                              Selanjutnya
+                              <ChevronRight className="h-4 w-4 ml-1" />
+                            </Button>
+                          </PaginationItem>
+                        </PaginationContent>
+                      </Pagination>
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </CardContent>

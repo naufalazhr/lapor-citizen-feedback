@@ -25,7 +25,7 @@ export function CriticalAlertBanner({ count, onDismissAll }: CriticalAlertBanner
           variant="ghost"
           className="h-7 px-3 text-white hover:bg-red-700 hover:text-white text-xs"
         >
-          <Link to="/admin/reports">
+          <Link to="/admin/reports?urgency=critical">
             Lihat Laporan
             <ArrowRight className="h-3 w-3 ml-1" />
           </Link>

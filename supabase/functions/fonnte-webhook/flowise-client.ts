@@ -29,17 +29,13 @@ const debugLog = (...args: any[]) => {
 // -----------------------------------------------------------------------------
 // Get Active Flowise Configuration
 // -----------------------------------------------------------------------------
-export async function getFlowiseConfig(tenantId?: string | null): Promise<FlowiseConfig> {
-  let query = supabase
+export async function getFlowiseConfig(): Promise<FlowiseConfig> {
+  const { data, error } = await supabase
     .from('flowise_config')
     .select('*')
-    .eq('is_active', true);
-
-  if (tenantId) {
-    query = query.eq('tenant_id', tenantId);
-  }
-
-  const { data, error } = await query.limit(1).maybeSingle();
+    .eq('is_active', true)
+    .limit(1)
+    .maybeSingle();
 
   if (error || !data) {
     throw new Error(ERROR_MESSAGES.NO_FLOWISE_CONFIG);
@@ -218,10 +214,9 @@ async function callFlowiseAPI(
 // -----------------------------------------------------------------------------
 export async function callFlowiseWithRetry(
   request: FlowiseRequest,
-  maxRetries: number = 3,
-  tenantId?: string | null
+  maxRetries: number = 3
 ): Promise<{ response: FlowiseResponse; config: FlowiseConfig }> {
-  const config = await getFlowiseConfig(tenantId);
+  const config = await getFlowiseConfig();
   let lastError: Error | undefined;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
