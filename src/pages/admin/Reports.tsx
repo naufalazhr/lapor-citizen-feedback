@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Eye, RefreshCw, Copy, Search, ChevronLeft, ChevronRight, Building2, CheckSquare, Square, Sparkles, AlertTriangle, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Trash2, Eye, RefreshCw, Copy, Search, ChevronLeft, ChevronRight, Building2, CheckSquare, Square, Sparkles, AlertTriangle, AlertCircle, CheckCircle2, Tag, Loader2, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ReportDispositionDialog } from "@/components/admin/ReportDispositionDialog";
 import { OPDMemberReturnDialog } from "@/components/admin/OPDMemberReturnDialog";
@@ -43,7 +43,15 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Progress } from "@/components/ui/progress";
 
 type Report = {
   id: string;
@@ -74,6 +82,35 @@ interface OPD {
   code: string;
 }
 
+const REPORT_CATEGORY_LABELS: Record<string, string> = {
+  flood: "Banjir",
+  fire: "Kebakaran",
+  accident: "Kecelakaan",
+  road_damage: "Jalan Rusak",
+  waste: "Sampah",
+  public_facility: "Fasilitas Umum",
+  security: "Keamanan",
+  health: "Kesehatan",
+  education: "Pendidikan",
+  drainage: "Drainase",
+  street_lighting: "Penerangan",
+  licensing: "Perizinan",
+  aspiration: "Aspirasi",
+  other: "Lainnya",
+};
+
+const URGENCY_DOT_COLOR: Record<string, string> = {
+  critical: "bg-red-500",
+  moderate: "bg-yellow-500",
+  minor: "bg-green-500",
+};
+
+const URGENCY_LABEL: Record<string, string> = {
+  critical: "Kritis",
+  moderate: "Sedang",
+  minor: "Ringan",
+};
+
 const Reports = () => {
   const navigate = useNavigate();
   const { role, isOPDMember, loading: roleLoading } = useUserRole();
@@ -103,6 +140,19 @@ const Reports = () => {
   const [aiSummaryReport, setAiSummaryReport] = useState<Report | null>(null);
   const [aiSummaryInsight, setAiSummaryInsight] = useState<any>(null);
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+
+  // AI Snippets map for table display (batch-fetched after reports load)
+  const [aiSnippetsMap, setAiSnippetsMap] = useState<Map<string, {
+    urgency: string | null;
+    report_category: string | null;
+    summary_analysis: string;
+  }>>(new Map());
+
+  // Bulk generate state
+  const [showBulkDialog, setShowBulkDialog] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0, errors: 0 });
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const [bulkLog, setBulkLog] = useState<{ ticket_id: string; status: 'success' | 'error' | 'pending' }[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -206,6 +256,8 @@ const Reports = () => {
       }
       
       setReports(reports);
+      // Batch-fetch AI snippets for all loaded reports (non-blocking)
+      fetchAISnippets(reportIds);
     }
     setLoading(false);
   };
@@ -224,6 +276,84 @@ const Reports = () => {
       setOpds(opdList);
       const map = new Map(opdList.map(opd => [opd.id, opd]));
       setOpdMap(map);
+    }
+  };
+
+  const startBulkGenerate = async () => {
+    // Determine target reports: selected if any, otherwise unprocessed on current page
+    const targetReports = selectedReports.size > 0
+      ? paginatedReports.filter((r) => selectedReports.has(r.id) && !aiSnippetsMap.has(r.id))
+      : paginatedReports.filter((r) => !aiSnippetsMap.has(r.id));
+
+    if (!targetReports.length) {
+      toast({ title: "Tidak ada laporan", description: "Semua laporan di halaman ini sudah memiliki insight." });
+      return;
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { toast({ title: "Error", description: "Sesi tidak ditemukan.", variant: "destructive" }); return; }
+
+    const { data: opdList } = await supabase.from("opds").select("id, code, name, description").eq("is_active", true);
+
+    setBulkLog(targetReports.map((r) => ({ ticket_id: r.ticket_id, status: 'pending' })));
+    setBulkProgress({ current: 0, total: targetReports.length, errors: 0 });
+    setBulkRunning(true);
+
+    let errors = 0;
+    for (let i = 0; i < targetReports.length; i++) {
+      const report = targetReports[i];
+      setBulkLog((prev) => prev.map((l) => l.ticket_id === report.ticket_id ? { ...l, status: 'pending' } : l));
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-ai-insight`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}` },
+            body: JSON.stringify({
+              report_id: report.id,
+              report_data: {
+                id: report.id,
+                ticket_id: report.ticket_id,
+                reporter_name: report.reporter_name,
+                phone: report.phone,
+                address: report.address,
+                description: report.description,
+                type: report.type,
+                status: report.status,
+                created_at: report.created_at,
+              },
+              available_opds: opdList || [],
+            }),
+          }
+        );
+        if (response.ok) {
+          setBulkLog((prev) => prev.map((l) => l.ticket_id === report.ticket_id ? { ...l, status: 'success' } : l));
+        } else {
+          errors++;
+          setBulkLog((prev) => prev.map((l) => l.ticket_id === report.ticket_id ? { ...l, status: 'error' } : l));
+        }
+      } catch {
+        errors++;
+        setBulkLog((prev) => prev.map((l) => l.ticket_id === report.ticket_id ? { ...l, status: 'error' } : l));
+      }
+      setBulkProgress({ current: i + 1, total: targetReports.length, errors });
+      if (i < targetReports.length - 1) await new Promise((r) => setTimeout(r, 250));
+    }
+
+    setBulkRunning(false);
+    // Refresh snippets in table
+    fetchAISnippets(reports.map((r) => r.id));
+    toast({ title: `Selesai: ${targetReports.length - errors} berhasil, ${errors} gagal` });
+  };
+
+  const fetchAISnippets = async (reportIds: string[]) => {
+    if (!reportIds.length) return;
+    const { data } = await supabase
+      .from("report_ai_insights")
+      .select("report_id, urgency, report_category, summary_analysis")
+      .in("report_id", reportIds);
+    if (data) {
+      setAiSnippetsMap(new Map(data.map((i) => [i.report_id, i])));
     }
   };
 
@@ -335,7 +465,7 @@ const Reports = () => {
 
     const { data } = await supabase
       .from("report_ai_insights")
-      .select("summary_analysis, key_insights, urgency, urgency_reason")
+      .select("summary_analysis, key_insights, urgency, urgency_reason, report_category")
       .eq("report_id", report.id)
       .maybeSingle();
 
@@ -496,6 +626,24 @@ const Reports = () => {
                   {selectedReports.size > 0 && ` • ${selectedReports.size} dipilih`}
                 </CardDescription>
               </div>
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+              {/* Bulk Generate — admin/member only */}
+              {!isOPDMember && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-purple-200 text-purple-700 hover:bg-purple-50 dark:border-purple-800 dark:text-purple-300"
+                  onClick={() => setShowBulkDialog(true)}
+                >
+                  <Sparkles className="h-4 w-4 text-purple-500" />
+                  Generate Insight ({
+                    selectedReports.size > 0
+                      ? paginatedReports.filter((r) => selectedReports.has(r.id) && !aiSnippetsMap.has(r.id)).length
+                      : paginatedReports.filter((r) => !aiSnippetsMap.has(r.id)).length
+                  })
+                </Button>
+              )}
+
               {selectedReports.size > 0 && (
                 isOPDMember ? (
                   <Button
@@ -516,6 +664,7 @@ const Reports = () => {
                   </Button>
                 )
               )}
+            </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -700,16 +849,52 @@ const Reports = () => {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            {!isOPDMember && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => fetchAISummary(report)}
-                                title="Lihat Ringkasan AI"
-                              >
-                                <Sparkles className="h-4 w-4 text-purple-500" />
-                              </Button>
-                            )}
+                            {!isOPDMember && (() => {
+                              const snippet = aiSnippetsMap.get(report.id);
+                              if (snippet) {
+                                return (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => fetchAISummary(report)}
+                                          className="gap-1.5 px-2 border-purple-200 hover:bg-purple-50 dark:border-purple-800"
+                                        >
+                                          {snippet.urgency && (
+                                            <span className={`inline-block h-2 w-2 rounded-full flex-shrink-0 ${URGENCY_DOT_COLOR[snippet.urgency] ?? 'bg-gray-400'}`} />
+                                          )}
+                                          {snippet.report_category && (
+                                            <span className="text-[10px] text-purple-700 dark:text-purple-300 font-medium leading-none">
+                                              {REPORT_CATEGORY_LABELS[snippet.report_category] ?? snippet.report_category}
+                                            </span>
+                                          )}
+                                          <Sparkles className="h-3 w-3 text-purple-500 flex-shrink-0" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="left" className="max-w-[260px]">
+                                        <p className="text-xs font-medium mb-0.5">
+                                          {snippet.urgency && `${URGENCY_LABEL[snippet.urgency]} · `}
+                                          {snippet.report_category && (REPORT_CATEGORY_LABELS[snippet.report_category] ?? snippet.report_category)}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground line-clamp-3">{snippet.summary_analysis}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                );
+                              }
+                              return (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => fetchAISummary(report)}
+                                  title="Lihat Ringkasan AI"
+                                >
+                                  <Sparkles className="h-4 w-4 text-purple-500" />
+                                </Button>
+                              );
+                            })()}
                             {(role === 'admin' || role === 'superadmin') && (
                               <Button
                                 size="sm"
@@ -833,6 +1018,101 @@ const Reports = () => {
         }}
       />
 
+      {/* Bulk Generate Dialog */}
+      <Dialog open={showBulkDialog} onOpenChange={(open) => { if (!bulkRunning) setShowBulkDialog(open); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-purple-500" />
+              Generate AI Insight
+            </DialogTitle>
+          </DialogHeader>
+
+          {!bulkRunning && bulkProgress.current === 0 ? (
+            /* Pre-run: confirmation */
+            <div className="space-y-4 py-2">
+              {(() => {
+                const count = selectedReports.size > 0
+                  ? paginatedReports.filter((r) => selectedReports.has(r.id) && !aiSnippetsMap.has(r.id)).length
+                  : paginatedReports.filter((r) => !aiSnippetsMap.has(r.id)).length;
+                return (
+                  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 space-y-1">
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                      Akan memproses <span className="font-bold">{count}</span> laporan
+                    </p>
+                    <p className="text-xs text-amber-700 dark:text-amber-400">
+                      Estimasi: ~{count} API call (Gemini 2.5 Flash)
+                      {selectedReports.size > 0 ? " — dari laporan yang dipilih" : " — laporan belum ber-insight di halaman ini"}
+                    </p>
+                  </div>
+                );
+              })()}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowBulkDialog(false)}>Batal</Button>
+                <Button
+                  className="bg-purple-600 hover:bg-purple-700"
+                  onClick={startBulkGenerate}
+                  disabled={
+                    (selectedReports.size > 0
+                      ? paginatedReports.filter((r) => selectedReports.has(r.id) && !aiSnippetsMap.has(r.id)).length
+                      : paginatedReports.filter((r) => !aiSnippetsMap.has(r.id)).length) === 0
+                  }
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Mulai Generate
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            /* Progress view */
+            <div className="space-y-3 py-2">
+              <div className="space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Memproses AI Insight...</span>
+                  <span className="font-medium">{bulkProgress.current} / {bulkProgress.total}</span>
+                </div>
+                <Progress value={(bulkProgress.current / Math.max(bulkProgress.total, 1)) * 100} className="h-2" />
+              </div>
+
+              <div className="max-h-48 overflow-y-auto space-y-1 rounded border bg-muted/30 p-2">
+                {bulkLog.map((entry) => (
+                  <div key={entry.ticket_id} className="flex items-center gap-2 text-xs">
+                    {entry.status === 'pending' && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground flex-shrink-0" />}
+                    {entry.status === 'success' && <CheckCircle2 className="h-3 w-3 text-green-500 flex-shrink-0" />}
+                    {entry.status === 'error' && <X className="h-3 w-3 text-red-500 flex-shrink-0" />}
+                    <code className="font-mono text-[10px] bg-muted px-1 rounded">{entry.ticket_id}</code>
+                    <span className="text-muted-foreground">
+                      {entry.status === 'pending' ? 'Menunggu...' : entry.status === 'success' ? 'Berhasil' : 'Gagal'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {!bulkRunning && (
+                <div className="text-xs text-muted-foreground text-center">
+                  Selesai: {bulkProgress.total - bulkProgress.errors} berhasil, {bulkProgress.errors} gagal
+                </div>
+              )}
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  disabled={bulkRunning}
+                  onClick={() => {
+                    setShowBulkDialog(false);
+                    setBulkProgress({ current: 0, total: 0, errors: 0 });
+                    setBulkLog([]);
+                  }}
+                >
+                  {bulkRunning ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  {bulkRunning ? "Sedang berjalan..." : "Tutup"}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* AI Summary Quick View Dialog */}
       <Dialog open={showAISummaryDialog} onOpenChange={setShowAISummaryDialog}>
         <DialogContent className="max-w-lg">
@@ -866,31 +1146,37 @@ const Reports = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Urgency Badge */}
-              {aiSummaryInsight.urgency && (() => {
-                const urgencyMap = {
-                  critical: { label: "Kritis", icon: AlertTriangle, className: "bg-red-100 text-red-700 border-red-200", iconClassName: "text-red-600" },
-                  moderate: { label: "Sedang", icon: AlertCircle, className: "bg-yellow-100 text-yellow-700 border-yellow-200", iconClassName: "text-yellow-600" },
-                  minor: { label: "Ringan", icon: CheckCircle2, className: "bg-green-100 text-green-700 border-green-200", iconClassName: "text-green-600" },
-                };
-                const cfg = urgencyMap[aiSummaryInsight.urgency as keyof typeof urgencyMap];
-                if (!cfg) return null;
-                const Icon = cfg.icon;
-                return (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Urgensi:</span>
-                    <Badge variant="outline" className={`gap-1 ${cfg.className}`}>
-                      <Icon className={`h-3 w-3 ${cfg.iconClassName}`} />
-                      {cfg.label}
+              {/* Urgency + Category badges */}
+              <div className="flex flex-wrap items-center gap-2">
+                {aiSummaryInsight.urgency && (() => {
+                  const urgencyMap = {
+                    critical: { label: "Kritis", icon: AlertTriangle, className: "bg-red-100 text-red-700 border-red-200", iconClassName: "text-red-600" },
+                    moderate: { label: "Sedang", icon: AlertCircle, className: "bg-yellow-100 text-yellow-700 border-yellow-200", iconClassName: "text-yellow-600" },
+                    minor: { label: "Ringan", icon: CheckCircle2, className: "bg-green-100 text-green-700 border-green-200", iconClassName: "text-green-600" },
+                  };
+                  const cfg = urgencyMap[aiSummaryInsight.urgency as keyof typeof urgencyMap];
+                  if (!cfg) return null;
+                  const Icon = cfg.icon;
+                  return (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-muted-foreground">Urgensi:</span>
+                      <Badge variant="outline" className={`gap-1 ${cfg.className}`}>
+                        <Icon className={`h-3 w-3 ${cfg.iconClassName}`} />
+                        {cfg.label}
+                      </Badge>
+                    </div>
+                  );
+                })()}
+                {aiSummaryInsight.report_category && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground">Kategori:</span>
+                    <Badge variant="outline" className="gap-1 bg-blue-50 text-blue-700 border-blue-200">
+                      <Tag className="h-3 w-3" />
+                      {REPORT_CATEGORY_LABELS[aiSummaryInsight.report_category] ?? aiSummaryInsight.report_category}
                     </Badge>
-                    {aiSummaryInsight.urgency_reason && (
-                      <span className="text-xs text-muted-foreground">
-                        — {aiSummaryInsight.urgency_reason}
-                      </span>
-                    )}
                   </div>
-                );
-              })()}
+                )}
+              </div>
 
               {/* Summary */}
               {aiSummaryInsight.summary_analysis && (

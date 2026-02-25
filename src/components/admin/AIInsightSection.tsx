@@ -31,6 +31,7 @@ import {
   Frown,
   Meh,
   Building2,
+  Tag,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -52,6 +53,7 @@ interface AIInsight {
   sentiment_reason: string | null;
   suggested_opd_name: string | null;
   suggested_opd_confidence: 'high' | 'medium' | 'low' | null;
+  report_category: string | null;
 }
 
 interface ReportData {
@@ -128,6 +130,23 @@ const confidenceConfig = {
     label: "Rendah",
     className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
   },
+};
+
+const REPORT_CATEGORY_LABELS: Record<string, string> = {
+  flood: "Banjir",
+  fire: "Kebakaran",
+  accident: "Kecelakaan",
+  road_damage: "Jalan Rusak",
+  waste: "Sampah/Kebersihan",
+  public_facility: "Fasilitas Umum",
+  security: "Keamanan",
+  health: "Kesehatan",
+  education: "Pendidikan",
+  drainage: "Drainase",
+  street_lighting: "Penerangan Jalan",
+  licensing: "Perizinan",
+  aspiration: "Aspirasi",
+  other: "Lainnya",
 };
 
 export function AIInsightSection({ reportId, reportData }: AIInsightSectionProps) {
@@ -477,6 +496,20 @@ export function AIInsightSection({ reportId, reportData }: AIInsightSectionProps
                     </div>
                   )}
                 </div>
+
+                {/* Report Category */}
+                {insight.report_category && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Kategori:</span>
+                    <Badge
+                      variant="outline"
+                      className="gap-1 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-800"
+                    >
+                      <Tag className="h-3 w-3" />
+                      {REPORT_CATEGORY_LABELS[insight.report_category] ?? insight.report_category}
+                    </Badge>
+                  </div>
+                )}
 
                 {/* OPD Recommendation */}
                 {insight.suggested_opd_name && (
