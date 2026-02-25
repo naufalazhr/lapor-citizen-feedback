@@ -84,7 +84,11 @@ const Conversations = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [channelFilter, setChannelFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const pageSize = 20;
   const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -94,36 +98,47 @@ const Conversations = () => {
     try {
       setLoading(true);
 
+      const from = (currentPage - 1) * pageSize;
+      const to = from + pageSize - 1;
+
       let query = supabase
         .from('conversations')
-        .select('*');
+        .select('*', { count: 'exact' });
 
       // Apply filters
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter as 'active' | 'completed' | 'abandoned');
       }
 
-      if (channelFilter !== 'all') {
-        query = query.eq('channel', channelFilter as 'whatsapp' | 'telegram' | 'web' | 'api');
+      // Apply date range filter on last_message_at
+      if (dateFrom) {
+        query = query.gte('last_message_at', `${dateFrom}T00:00:00`);
+      }
+      if (dateTo) {
+        query = query.lte('last_message_at', `${dateTo}T23:59:59`);
       }
 
       if (searchQuery) {
         query = query.or(`phone_number.ilike.%${searchQuery}%,sender_name.ilike.%${searchQuery}%`);
       }
 
-      const { data, error } = await query.order('last_message_at', { ascending: false });
+      const { data, error, count } = await query
+        .order('last_message_at', { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
 
-      // Get message counts for each conversation
+      setTotalCount(count || 0);
+
+      // N+1 message count fetch — acceptable since page size is limited to 20
       const conversationsWithCounts = await Promise.all(
         (data || []).map(async (conv) => {
-          const { count } = await supabase
+          const { count: msgCount } = await supabase
             .from('messages')
             .select('*', { count: 'exact', head: true })
             .eq('conversation_id', conv.id);
 
-          return { ...conv, message_count: count || 0 };
+          return { ...conv, message_count: msgCount || 0 };
         })
       );
 
@@ -201,9 +216,15 @@ const Conversations = () => {
     navigate(`/admin/reports/${reportId}`);
   };
 
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, dateFrom, dateTo, searchQuery]);
+
+  // Fetch when page or filters change
   useEffect(() => {
     fetchConversations();
-  }, [statusFilter, channelFilter]);
+  }, [currentPage, statusFilter, dateFrom, dateTo]);
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -290,19 +311,21 @@ const Conversations = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Channel</label>
-                <Select value={channelFilter} onValueChange={setChannelFilter}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Channels</SelectItem>
-                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                    <SelectItem value="telegram">Telegram</SelectItem>
-                    <SelectItem value="web">Web</SelectItem>
-                    <SelectItem value="api">API</SelectItem>
-                  </SelectContent>
-                </Select>
+                <label className="text-sm font-medium">Rentang Tanggal</label>
+                <div className="flex gap-2">
+                  <Input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => { setDateFrom(e.target.value); setCurrentPage(1); }}
+                    className="flex-1"
+                  />
+                  <Input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => { setDateTo(e.target.value); setCurrentPage(1); }}
+                    className="flex-1"
+                  />
+                </div>
               </div>
             </div>
           </CardContent>
@@ -312,7 +335,7 @@ const Conversations = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5" />
-              Conversations ({conversations.length})
+              Conversations ({totalCount})
             </CardTitle>
             <CardDescription>
               Click on a conversation to view message history
@@ -394,6 +417,35 @@ const Conversations = () => {
                     ))}
                   </TableBody>
                 </Table>
+                {totalCount > pageSize && (
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                    <p className="text-sm text-muted-foreground">
+                      Menampilkan {(currentPage - 1) * pageSize + 1}–
+                      {Math.min(currentPage * pageSize, totalCount)} dari {totalCount} percakapan
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                      >
+                        Sebelumnya
+                      </Button>
+                      <span className="text-sm">
+                        Halaman {currentPage} / {Math.ceil(totalCount / pageSize)}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.min(Math.ceil(totalCount / pageSize), p + 1))}
+                        disabled={currentPage === Math.ceil(totalCount / pageSize)}
+                      >
+                        Berikutnya
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

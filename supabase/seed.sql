@@ -576,3 +576,534 @@ INSERT INTO login_config (
 -- After running the above, log in to the staging admin dashboard and you should
 -- see all the seeded tenants, OPDs, and reports.
 -- =============================================================================
+
+
+-- =============================================================================
+-- CONVERSATIONS
+-- =============================================================================
+-- 8 conversations across all statuses: 4 completed, 2 active, 2 abandoned.
+-- Completed ones are linked to existing seeded reports.
+-- device_number '628000000000' = fake government WhatsApp device.
+-- UUID namespace 0009 reserved for conversations.
+
+INSERT INTO conversations (
+  id, session_id, phone_number, sender_name, status, channel,
+  device_number, last_message_at, started_at, completed_at,
+  report_id, tenant_id, created_at, updated_at
+) VALUES
+
+  -- 1. Completed → linked to STG-00001 (jalan berlubang, Warga Test 01)
+  (
+    '00000000-0000-0000-0009-000000000001',
+    'flowise_stg_conv_001',
+    '628100000001',
+    'Warga Test 01',
+    'completed',
+    'whatsapp',
+    '628000000000',
+    NOW() - INTERVAL '10 days' + INTERVAL '9 minutes',
+    NOW() - INTERVAL '10 days',
+    NOW() - INTERVAL '10 days' + INTERVAL '9 minutes',
+    '00000000-0000-0000-0003-000000000001',
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '10 days',
+    NOW() - INTERVAL '10 days' + INTERVAL '9 minutes'
+  ),
+
+  -- 2. Completed → linked to STG-00003 (sampah, Warga Test 03)
+  (
+    '00000000-0000-0000-0009-000000000002',
+    'flowise_stg_conv_002',
+    '628100000003',
+    'Warga Test 03',
+    'completed',
+    'whatsapp',
+    '628000000000',
+    NOW() - INTERVAL '8 days' + INTERVAL '7 minutes',
+    NOW() - INTERVAL '8 days',
+    NOW() - INTERVAL '8 days' + INTERVAL '7 minutes',
+    '00000000-0000-0000-0003-000000000003',
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '8 days',
+    NOW() - INTERVAL '8 days' + INTERVAL '7 minutes'
+  ),
+
+  -- 3. Completed → linked to STG-00005 (pohon miring, Warga Test 05), longer flow
+  (
+    '00000000-0000-0000-0009-000000000003',
+    'flowise_stg_conv_003',
+    '628100000005',
+    'Warga Test 05',
+    'completed',
+    'whatsapp',
+    '628000000000',
+    NOW() - INTERVAL '6 days' + INTERVAL '14 minutes',
+    NOW() - INTERVAL '6 days',
+    NOW() - INTERVAL '6 days' + INTERVAL '14 minutes',
+    '00000000-0000-0000-0003-000000000005',
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '6 days',
+    NOW() - INTERVAL '6 days' + INTERVAL '14 minutes'
+  ),
+
+  -- 4. Completed → linked to STG-00021 (aspirasi ruang baca, Warga Test 21)
+  (
+    '00000000-0000-0000-0009-000000000004',
+    'flowise_stg_conv_004',
+    '628100000021',
+    'Warga Test 21',
+    'completed',
+    'whatsapp',
+    '628000000000',
+    NOW() - INTERVAL '6 days' + INTERVAL '5 minutes',
+    NOW() - INTERVAL '6 days',
+    NOW() - INTERVAL '6 days' + INTERVAL '5 minutes',
+    '00000000-0000-0000-0004-000000000001',
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '6 days',
+    NOW() - INTERVAL '6 days' + INTERVAL '5 minutes'
+  ),
+
+  -- 5. Active → citizen mid-flow, no report yet
+  (
+    '00000000-0000-0000-0009-000000000005',
+    'flowise_stg_conv_005',
+    '628100000030',
+    'Warga Test 30',
+    'active',
+    'whatsapp',
+    '628000000000',
+    NOW() - INTERVAL '45 minutes',
+    NOW() - INTERVAL '1 hour',
+    NULL,
+    NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '1 hour',
+    NOW() - INTERVAL '45 minutes'
+  ),
+
+  -- 6. Active → citizen sent a photo (has_attachment), no report yet
+  (
+    '00000000-0000-0000-0009-000000000006',
+    'flowise_stg_conv_006',
+    '628100000031',
+    'Warga Test 31',
+    'active',
+    'whatsapp',
+    '628000000000',
+    NOW() - INTERVAL '20 minutes',
+    NOW() - INTERVAL '2 hours',
+    NULL,
+    NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '2 hours',
+    NOW() - INTERVAL '20 minutes'
+  ),
+
+  -- 7. Abandoned → user dropped off mid-conversation
+  (
+    '00000000-0000-0000-0009-000000000007',
+    'flowise_stg_conv_007',
+    '628100000032',
+    'Warga Test 32',
+    'abandoned',
+    'whatsapp',
+    '628000000000',
+    NOW() - INTERVAL '4 days' + INTERVAL '3 minutes',
+    NOW() - INTERVAL '4 days',
+    NULL,
+    NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '4 days',
+    NOW() - INTERVAL '4 days' + INTERVAL '3 minutes'
+  ),
+
+  -- 8. Abandoned → quick bounce (1 message, never replied)
+  (
+    '00000000-0000-0000-0009-000000000008',
+    'flowise_stg_conv_008',
+    '628100000033',
+    NULL,
+    'abandoned',
+    'whatsapp',
+    '628000000000',
+    NOW() - INTERVAL '3 days' + INTERVAL '30 seconds',
+    NOW() - INTERVAL '3 days',
+    NULL,
+    NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '3 days',
+    NOW() - INTERVAL '3 days' + INTERVAL '30 seconds'
+  )
+
+ON CONFLICT (id) DO NOTHING;
+
+
+-- =============================================================================
+-- MESSAGES
+-- =============================================================================
+-- ~40 messages across 8 conversations.
+-- UUID namespace 000a (hex 10) for messages.
+-- message_index is 0-based per conversation.
+-- agent_flow_data on assistant messages exercises AIThinkingCollapsible component.
+
+INSERT INTO messages (
+  id, conversation_id, role, content, message_index,
+  has_attachment, agent_flow_data, tenant_id, created_at
+) VALUES
+
+  -- -----------------------------------------------------------------------
+  -- Conversation 1: jalan berlubang (6 messages)
+  -- -----------------------------------------------------------------------
+  (
+    '00000000-0000-000a-0001-000000000001',
+    '00000000-0000-0000-0009-000000000001',
+    'user',
+    'halo, mau lapor ada jalan berlubang di depan rumah saya',
+    0, false, NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '10 days'
+  ),
+  (
+    '00000000-0000-000a-0001-000000000002',
+    '00000000-0000-0000-0009-000000000001',
+    'assistant',
+    'Halo! Terima kasih sudah menghubungi Lapor Kota Uji Coba 😊 Saya siap membantu Anda membuat laporan. Boleh saya tahu lokasi jalan yang berlubang tersebut?',
+    1, false,
+    '[{"nodeId":"greeting_node","nodeLabel":"Sapa Warga","output":"Meminta detail lokasi kejadian"},{"nodeId":"intent_classifier","nodeLabel":"Klasifikasi Niat","output":"Niat terdeteksi: membuat laporan kerusakan infrastruktur"}]'::jsonb,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '10 days' + INTERVAL '20 seconds'
+  ),
+  (
+    '00000000-0000-000a-0001-000000000003',
+    '00000000-0000-0000-0009-000000000001',
+    'user',
+    'di Jl. Merdeka No. 1, depan rumah saya. lubangnya cukup dalam, berbahaya buat motor',
+    2, false, NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '10 days' + INTERVAL '2 minutes'
+  ),
+  (
+    '00000000-0000-000a-0001-000000000004',
+    '00000000-0000-0000-0009-000000000001',
+    'assistant',
+    'Baik, saya catat lokasinya di Jl. Merdeka No. 1. Sudah berapa lama lubang tersebut ada? Dan apakah sudah pernah ada kejadian kecelakaan di sana?',
+    3, false,
+    '[{"nodeId":"info_extractor","nodeLabel":"Ekstrak Informasi","output":"Lokasi: Jl. Merdeka No. 1 — terdeteksi sebagai kerusakan jalan"},{"nodeId":"clarification_agent","nodeLabel":"Klarifikasi","output":"Meminta informasi tambahan: durasi dan riwayat kecelakaan"}]'::jsonb,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '10 days' + INTERVAL '2 minutes' + INTERVAL '15 seconds'
+  ),
+  (
+    '00000000-0000-000a-0001-000000000005',
+    '00000000-0000-0000-0009-000000000001',
+    'user',
+    'udah lama banget, kayaknya 2 minggu lebih. udah ada beberapa kali kecelakaan kecil di sini. minta tolong segera diperbaiki',
+    4, false, NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '10 days' + INTERVAL '5 minutes'
+  ),
+  (
+    '00000000-0000-000a-0001-000000000006',
+    '00000000-0000-0000-0009-000000000001',
+    'assistant',
+    'Laporan Anda telah berhasil kami terima dan dicatat dengan nomor tiket *STG-00001*. Tim Dinas Pekerjaan Umum akan segera menindaklanjuti laporan ini. Anda bisa melacak status laporan kapan saja melalui menu lacak di aplikasi ini. Terima kasih atas partisipasi Anda menjaga keselamatan warga kota! 🙏',
+    5, false,
+    '[{"nodeId":"report_creator","nodeLabel":"Buat Laporan","output":"Laporan berhasil dibuat: ID 00000000-0000-0000-0003-000000000001, Tiket STG-00001"},{"nodeId":"opd_router","nodeLabel":"Routing OPD","output":"Diteruskan ke Dinas Pekerjaan Umum (DISPU) berdasarkan kategori infrastruktur jalan"},{"nodeId":"notification_sender","nodeLabel":"Kirim Notifikasi","output":"Notifikasi berhasil dikirim ke admin"}]'::jsonb,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '10 days' + INTERVAL '5 minutes' + INTERVAL '20 seconds'
+  ),
+
+  -- -----------------------------------------------------------------------
+  -- Conversation 2: sampah (5 messages)
+  -- -----------------------------------------------------------------------
+  (
+    '00000000-0000-000a-0002-000000000001',
+    '00000000-0000-0000-0009-000000000002',
+    'user',
+    'permisi, mau lapor sampah di pinggir jalan tidak diangkut sudah 5 hari',
+    0, false, NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '8 days'
+  ),
+  (
+    '00000000-0000-000a-0002-000000000002',
+    '00000000-0000-0000-0009-000000000002',
+    'assistant',
+    'Selamat datang di layanan Lapor Kota Uji Coba 🌿 Kami turut prihatin dengan kondisi tersebut. Boleh saya tahu lokasinya di mana? Dan apakah sampahnya mengeluarkan bau atau sudah mengganggu warga sekitar?',
+    1, false,
+    '[{"nodeId":"intent_classifier","nodeLabel":"Klasifikasi Niat","output":"Niat: laporan kebersihan/sampah"},{"nodeId":"empathy_node","nodeLabel":"Respons Empatik","output":"Memberikan respons empatik sambil mengumpulkan informasi"}]'::jsonb,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '8 days' + INTERVAL '18 seconds'
+  ),
+  (
+    '00000000-0000-000a-0002-000000000003',
+    '00000000-0000-0000-0009-000000000002',
+    'user',
+    'di Jl. Sudirman No. 12. baunya menyengat sekali, ganggu warga sekitar',
+    2, false, NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '8 days' + INTERVAL '3 minutes'
+  ),
+  (
+    '00000000-0000-000a-0002-000000000004',
+    '00000000-0000-0000-0009-000000000002',
+    'assistant',
+    'Terima kasih informasinya. Sampah organik yang menumpuk 5 hari berpotensi menjadi sumber penyakit. Saya akan segera membuat laporan ini sebagai prioritas. Mohon konfirmasi: apakah Anda warga di sekitar Jl. Sudirman No. 12?',
+    3, false,
+    '[{"nodeId":"risk_assessor","nodeLabel":"Penilaian Risiko","output":"Risiko: sedang-tinggi — bau menyengat menandakan pembusukan organik, potensi sarang penyakit"},{"nodeId":"urgency_classifier","nodeLabel":"Klasifikasi Urgensi","output":"Urgensi: moderate — perlu tindakan dalam 1x24 jam"}]'::jsonb,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '8 days' + INTERVAL '3 minutes' + INTERVAL '12 seconds'
+  ),
+  (
+    '00000000-0000-000a-0002-000000000005',
+    '00000000-0000-0000-0009-000000000002',
+    'assistant',
+    'Laporan kebersihan Anda telah berhasil dibuat dengan nomor tiket *STG-00003*. Dinas Lingkungan Hidup akan menindaklanjuti dalam waktu dekat. Terima kasih sudah peduli terhadap kebersihan lingkungan! ♻️',
+    4, false,
+    '[{"nodeId":"report_creator","nodeLabel":"Buat Laporan","output":"Laporan kebersihan berhasil dibuat: Tiket STG-00003"},{"nodeId":"opd_router","nodeLabel":"Routing OPD","output":"Diteruskan ke Dinas Lingkungan Hidup (DISLHK)"}]'::jsonb,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '8 days' + INTERVAL '6 minutes' + INTERVAL '30 seconds'
+  ),
+
+  -- -----------------------------------------------------------------------
+  -- Conversation 3: pohon miring (8 messages, longer back-and-forth)
+  -- -----------------------------------------------------------------------
+  (
+    '00000000-0000-000a-0003-000000000001',
+    '00000000-0000-0000-0009-000000000003',
+    'user',
+    'halo ada pohon besar di depan rumah saya hampir tumbang, miring ke arah kabel listrik',
+    0, false, NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '6 days'
+  ),
+  (
+    '00000000-0000-000a-0003-000000000002',
+    '00000000-0000-0000-0009-000000000003',
+    'assistant',
+    'Ini situasi yang perlu segera ditangani! ⚠️ Pohon miring ke arah kabel listrik bisa sangat berbahaya. Boleh saya tahu lokasinya di mana?',
+    1, false,
+    '[{"nodeId":"urgency_detector","nodeLabel":"Deteksi Urgensi","output":"URGENSI TINGGI — pohon hampir tumbang menimpa infrastruktur listrik, risiko kebakaran dan kecelakaan"},{"nodeId":"intent_classifier","nodeLabel":"Klasifikasi","output":"Kategori: kedaruratan infrastruktur/lingkungan"}]'::jsonb,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '6 days' + INTERVAL '15 seconds'
+  ),
+  (
+    '00000000-0000-000a-0003-000000000003',
+    '00000000-0000-0000-0009-000000000003',
+    'user',
+    'Jl. Ahmad Yani No. 22. pohonnya sudah miring sekitar 30 derajat',
+    2, false, NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '6 days' + INTERVAL '2 minutes'
+  ),
+  (
+    '00000000-0000-000a-0003-000000000004',
+    '00000000-0000-0000-0009-000000000003',
+    'assistant',
+    'Baik, Jl. Ahmad Yani No. 22. Apakah pohon tersebut pohon milik pemerintah (di trotoar/bahu jalan) atau pohon di dalam pekarangan pribadi?',
+    3, false,
+    '[{"nodeId":"ownership_classifier","nodeLabel":"Cek Kepemilikan","output":"Perlu klarifikasi kepemilikan pohon untuk menentukan instansi yang berwenang menangani"}]'::jsonb,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '6 days' + INTERVAL '2 minutes' + INTERVAL '10 seconds'
+  ),
+  (
+    '00000000-0000-000a-0003-000000000005',
+    '00000000-0000-0000-0009-000000000003',
+    'user',
+    'pohon di pinggir jalan, bukan punya saya. sudah ada di sana puluhan tahun',
+    4, false, NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '6 days' + INTERVAL '4 minutes'
+  ),
+  (
+    '00000000-0000-000a-0003-000000000006',
+    '00000000-0000-0000-0009-000000000003',
+    'assistant',
+    'Berarti pohon aset pemerintah di ruang publik. Ini wewenang Dinas Lingkungan Hidup. Apakah ada kendaraan yang biasa parkir di bawah pohon tersebut? Dan apakah sudah ada tanda-tanda dahan patah?',
+    5, false,
+    '[{"nodeId":"ownership_confirmed","nodeLabel":"Kepemilikan Terkonfirmasi","output":"Pohon aset pemda — wewenang Dinas Lingkungan Hidup"},{"nodeId":"risk_detail_collector","nodeLabel":"Kumpulkan Detail Risiko","output":"Mengumpulkan detail risiko tambahan untuk penilaian urgensi yang lebih akurat"}]'::jsonb,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '6 days' + INTERVAL '4 minutes' + INTERVAL '12 seconds'
+  ),
+  (
+    '00000000-0000-000a-0003-000000000007',
+    '00000000-0000-0000-0009-000000000003',
+    'user',
+    'iya banyak motor parkir di situ. dahan kecilnya sudah mulai ada yang jatuh tadi pagi',
+    6, false, NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '6 days' + INTERVAL '7 minutes'
+  ),
+  (
+    '00000000-0000-000a-0003-000000000008',
+    '00000000-0000-0000-0009-000000000003',
+    'assistant',
+    'Laporan darurat Anda telah dibuat dengan nomor tiket *STG-00005* dan ditandai sebagai *PRIORITAS TINGGI*. Dinas Lingkungan Hidup akan mengirimkan tim survei dalam waktu 1x24 jam. Sementara menunggu, mohon informasikan kepada warga sekitar untuk tidak parkir di bawah pohon tersebut demi keselamatan. Terima kasih sudah sigap melapor! 🌳🙏',
+    7, false,
+    '[{"nodeId":"risk_assessor","nodeLabel":"Penilaian Akhir","output":"Risiko KRITIS — dahan sudah mulai jatuh, kendaraan di bawah pohon, berbatasan dengan kabel PLN"},{"nodeId":"report_creator","nodeLabel":"Buat Laporan","output":"Laporan darurat berhasil dibuat: Tiket STG-00005, prioritas tinggi"},{"nodeId":"opd_router","nodeLabel":"Routing OPD","output":"Diteruskan ke Dinas Lingkungan Hidup dengan flag URGENT"},{"nodeId":"safety_advisor","nodeLabel":"Saran Keamanan","output":"Memberikan saran keselamatan sementara kepada pelapor"}]'::jsonb,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '6 days' + INTERVAL '7 minutes' + INTERVAL '18 seconds'
+  ),
+
+  -- -----------------------------------------------------------------------
+  -- Conversation 4: aspirasi ruang baca (4 messages)
+  -- -----------------------------------------------------------------------
+  (
+    '00000000-0000-000a-0004-000000000001',
+    '00000000-0000-0000-0009-000000000004',
+    'user',
+    'saya ingin menyampaikan aspirasi, saya berharap ada ruang baca publik di kelurahan',
+    0, false, NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '6 days'
+  ),
+  (
+    '00000000-0000-000a-0004-000000000002',
+    '00000000-0000-0000-0009-000000000004',
+    'assistant',
+    'Ide yang sangat bagus! 📚 Ruang baca publik bisa meningkatkan literasi dan menjadi pusat komunitas. Boleh saya tahu kelurahan atau area yang Anda maksud? Dan apakah ada preferensi khusus untuk lokasinya?',
+    1, false,
+    '[{"nodeId":"intent_classifier","nodeLabel":"Klasifikasi Niat","output":"Niat: aspirasi/usulan pembangunan fasilitas publik — bukan laporan masalah"},{"nodeId":"aspiration_handler","nodeLabel":"Handler Aspirasi","output":"Mengumpulkan detail aspirasi untuk pencatatan"}]'::jsonb,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '6 days' + INTERVAL '22 seconds'
+  ),
+  (
+    '00000000-0000-000a-0004-000000000003',
+    '00000000-0000-0000-0009-000000000004',
+    'user',
+    'di semua kelurahan kalau bisa. yang penting ada buku-buku dan tempat belajar untuk anak-anak dan remaja. sekarang anak-anak lebih banyak main HP daripada baca buku',
+    2, false, NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '6 days' + INTERVAL '3 minutes'
+  ),
+  (
+    '00000000-0000-000a-0004-000000000004',
+    '00000000-0000-0000-0009-000000000004',
+    'assistant',
+    'Aspirasi Anda telah berhasil dicatat dengan nomor tiket *STG-00021*. Usulan pembangunan ruang baca publik di setiap kelurahan akan diteruskan ke Dinas Pendidikan untuk dikaji lebih lanjut. Terima kasih atas kepedulian Anda terhadap pendidikan dan literasi generasi muda Kota Uji Coba! 📖✨',
+    3, false,
+    '[{"nodeId":"report_creator","nodeLabel":"Buat Aspirasi","output":"Aspirasi berhasil dicatat: Tiket STG-00021, kategori pendidikan/fasilitas publik"},{"nodeId":"opd_router","nodeLabel":"Routing OPD","output":"Diteruskan ke Dinas Pendidikan (DISDIK)"}]'::jsonb,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '6 days' + INTERVAL '3 minutes' + INTERVAL '16 seconds'
+  ),
+
+  -- -----------------------------------------------------------------------
+  -- Conversation 5: active — citizen mid-flow (3 messages)
+  -- -----------------------------------------------------------------------
+  (
+    '00000000-0000-000a-0005-000000000001',
+    '00000000-0000-0000-0009-000000000005',
+    'user',
+    'halo, mau lapor ada genangan air di depan gang saya setiap kali hujan',
+    0, false, NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '1 hour'
+  ),
+  (
+    '00000000-0000-000a-0005-000000000002',
+    '00000000-0000-0000-0009-000000000005',
+    'assistant',
+    'Halo! Terima kasih sudah menghubungi kami 🌧️ Genangan air bisa jadi tanda saluran drainase tersumbat. Bisa tolong sebutkan alamat lengkap lokasi genangannya?',
+    1, false,
+    '[{"nodeId":"intent_classifier","nodeLabel":"Klasifikasi Niat","output":"Niat: laporan banjir/genangan air — kemungkinan terkait drainase"},{"nodeId":"info_collector","nodeLabel":"Kumpulkan Info","output":"Meminta lokasi spesifik"}]'::jsonb,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '1 hour' + INTERVAL '18 seconds'
+  ),
+  (
+    '00000000-0000-000a-0005-000000000003',
+    '00000000-0000-0000-0009-000000000005',
+    'user',
+    'di Gang Mawar RT 04 RW 02, Kel. Merdeka. genangannya lumayan dalam, sekitar 30cm pas hujan deras',
+    2, false, NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '45 minutes'
+  ),
+
+  -- -----------------------------------------------------------------------
+  -- Conversation 6: active — with attachment photo (4 messages)
+  -- -----------------------------------------------------------------------
+  (
+    '00000000-0000-000a-0006-000000000001',
+    '00000000-0000-0000-0009-000000000006',
+    'user',
+    'selamat siang, mau lapor kondisi jembatan yang retak-retak',
+    0, false, NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '2 hours'
+  ),
+  (
+    '00000000-0000-000a-0006-000000000002',
+    '00000000-0000-0000-0009-000000000006',
+    'assistant',
+    'Selamat siang! Jembatan retak-retak perlu segera dicek kondisinya. Boleh saya tahu lokasi jembatan tersebut? Dan jika memungkinkan, tolong kirimkan foto kondisi jembatannya ya 📸',
+    1, false,
+    '[{"nodeId":"intent_classifier","nodeLabel":"Klasifikasi Niat","output":"Niat: laporan kerusakan infrastruktur — jembatan"},{"nodeId":"photo_request","nodeLabel":"Minta Foto","output":"Meminta dokumentasi foto untuk mendukung laporan"}]'::jsonb,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '2 hours' + INTERVAL '15 seconds'
+  ),
+  (
+    '00000000-0000-000a-0006-000000000003',
+    '00000000-0000-0000-0009-000000000006',
+    'user',
+    '[Foto kondisi jembatan retak]',
+    2, true, NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '1 hour' + INTERVAL '40 minutes'
+  ),
+  (
+    '00000000-0000-000a-0006-000000000004',
+    '00000000-0000-0000-0009-000000000006',
+    'assistant',
+    'Terima kasih fotonya! Dari gambar terlihat retakan cukup signifikan di bagian beton jembatan. Ini perlu segera dilaporkan ke Dinas PU. Boleh konfirmasi lokasinya di mana ya? Dan apakah jembatan ini masih digunakan kendaraan berat?',
+    3, false,
+    '[{"nodeId":"image_analyzer","nodeLabel":"Analisis Gambar","output":"Gambar diproses — terdeteksi keretakan beton pada struktur jembatan, estimasi severity: sedang-tinggi"},{"nodeId":"follow_up_questions","nodeLabel":"Pertanyaan Lanjutan","output":"Meminta konfirmasi lokasi dan penggunaan jembatan untuk penilaian risiko"}]'::jsonb,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '20 minutes'
+  ),
+
+  -- -----------------------------------------------------------------------
+  -- Conversation 7: abandoned — user dropped off (3 messages)
+  -- -----------------------------------------------------------------------
+  (
+    '00000000-0000-000a-0007-000000000001',
+    '00000000-0000-0000-0009-000000000007',
+    'user',
+    'halo mau tanya cara melaporkan',
+    0, false, NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '4 days'
+  ),
+  (
+    '00000000-0000-000a-0007-000000000002',
+    '00000000-0000-0000-0009-000000000007',
+    'assistant',
+    'Halo! Tentu saya bantu 😊 Untuk membuat laporan, cukup ceritakan masalah yang ingin Anda laporkan ke saya di sini. Misalnya: "Mau lapor jalan rusak di Jl. Merdeka" atau "Mau laporkan sampah yang tidak diangkut". Apa yang ingin Anda laporkan hari ini?',
+    1, false,
+    '[{"nodeId":"intent_classifier","nodeLabel":"Klasifikasi Niat","output":"Niat: pertanyaan tentang cara melapor — bukan laporan langsung"},{"nodeId":"onboarding_guide","nodeLabel":"Panduan Onboarding","output":"Memberikan panduan cara membuat laporan"}]'::jsonb,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '4 days' + INTERVAL '12 seconds'
+  ),
+  (
+    '00000000-0000-000a-0007-000000000003',
+    '00000000-0000-0000-0009-000000000007',
+    'user',
+    'oh gitu ya, nanti saya coba',
+    2, false, NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '4 days' + INTERVAL '3 minutes'
+  ),
+
+  -- -----------------------------------------------------------------------
+  -- Conversation 8: abandoned — quick bounce (1 message)
+  -- -----------------------------------------------------------------------
+  (
+    '00000000-0000-000a-0008-000000000001',
+    '00000000-0000-0000-0009-000000000008',
+    'user',
+    'halo',
+    0, false, NULL,
+    '00000000-0000-0000-0001-000000000001',
+    NOW() - INTERVAL '3 days'
+  )
+
+ON CONFLICT (id) DO NOTHING;

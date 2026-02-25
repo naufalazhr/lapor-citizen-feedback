@@ -44,11 +44,30 @@ This is the **SaaS owner/superadmin dashboard** for us (the product builders) to
 
 ---
 
+## Supabase Project IDs (CRITICAL — Do Not Confuse)
+
+Configured in `supabase/config.toml`:
+
+| Environment | Project ID | Git Branch |
+|-------------|-----------|------------|
+| **Production** | `ykaawgnggvwleiyzvilf` | `main` |
+| **Staging** | `cxauavfcyfscjnatxino` | `staging` |
+
+⚠️ **CRITICAL RULES**:
+- Always confirm which environment you are targeting before running `supabase db push`, `supabase functions deploy`, or any Supabase CLI command that mutates remote state.
+- Use `--project-ref ykaawgnggvwleiyzvilf` for production, `--project-ref cxauavfcyfscjnatxino` for staging.
+- **NEVER deploy to production without explicit confirmation from the user.**
+- When on the `staging` git branch, default all Supabase CLI operations to the **staging** project unless the user explicitly says otherwise.
+- Migrations tested on staging MUST be verified before being promoted to production.
+
+---
+
 ## Commands
 
 ```bash
-npm run dev              # Start dev server (port 8080)
-npm run dev:staging      # Dev with staging env vars
+npm run dev              # Start dev server (port 8080, default .env)
+npm run dev:staging      # Dev with .env.staging vars (Supabase staging project)
+npm run dev:production   # Dev with .env.production vars (Supabase production project)
 npm run build            # Production build
 npm run build:staging    # Staging build
 npm run lint             # ESLint
@@ -56,6 +75,30 @@ npx tsc --noEmit         # Typecheck (no typecheck script in package.json)
 ```
 
 No test suite exists.
+
+### Environment Files
+
+Vite uses `--mode` to select env file. Three env files exist:
+- `.env.staging` → points to staging Supabase project (`cxauavfcyfscjnatxino`)
+- `.env.production` → points to production Supabase project (`ykaawgnggvwleiyzvilf`)
+
+Both define `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. Never commit real keys.
+
+### Deploying Edge Functions
+
+```bash
+# Deploy single function to staging
+supabase functions deploy <function-name> --project-ref cxauavfcyfscjnatxino
+
+# Deploy single function to production
+supabase functions deploy <function-name> --project-ref ykaawgnggvwleiyzvilf
+
+# Push DB migrations to staging
+supabase db push --project-ref cxauavfcyfscjnatxino
+
+# Push DB migrations to production (confirm with user first)
+supabase db push --project-ref ykaawgnggvwleiyzvilf
+```
 
 ---
 
@@ -93,7 +136,22 @@ supabase/
 
 Routes are defined in `src/App.tsx`. Admin routes (`/admin/*`) are NOT wrapped in a centralized `<ProtectedRoute>` — each admin page manually checks `supabase.auth.getSession()` in a `useEffect` and redirects to `/auth` if unauthenticated.
 
-Public routes: `/lapor` (submit report), `/lacak` (track ticket), `/` → Auth page.
+| Route | Access | Page |
+|---|---|---|
+| `/` | Public | Auth |
+| `/lapor` | Public | Submit report |
+| `/lacak`, `/lacak/:ticketId` | Public | Track ticket |
+| `/profile-setup` | Authenticated | Profile setup |
+| `/pending-approval` | Authenticated | Approval wait screen |
+| `/invite/:token` | Public | Accept invitation |
+| `/admin` | Admin+ | Redirect to dashboard |
+| `/admin/dashboard` | Admin+ | Overview dashboard |
+| `/admin/reports` | Admin+ | Reports list |
+| `/admin/reports/:id` | Admin+ | Report detail |
+| `/admin/conversations` | Admin+ | WhatsApp conversations |
+| `/admin/integration` | Admin+ | API / integration config |
+| `/admin/users` | Admin+ | User management |
+| `/admin/opds` | Admin+ | OPD management |
 
 ### Auth & RBAC
 
@@ -111,6 +169,52 @@ Every major table has a `tenant_id UUID` FK to the `tenants` table. Row Level Se
 
 TanStack Query is installed but **not consistently used**. Most data fetching uses plain `useEffect` + `useState` + direct Supabase client calls. The `use-dashboard-data.tsx` and `use-executive-dashboard.tsx` hooks follow this pattern. Stick to this pattern for consistency unless refactoring is explicitly requested.
 
+### Edge Functions
+
+Five deployed Deno Edge Functions in `supabase/functions/`:
+
+| Function | JWT Required | Purpose |
+|---|---|---|
+| `submit-report` | No | Public endpoint — citizen submits a report |
+| `fonnte-webhook` | No | WhatsApp webhook receiver; routes messages through AI (Flowise) or human handoff |
+| `get-webhook-errors` | No | Returns webhook error logs for admin debugging |
+| `generate-ai-insight` | No | Triggers AI analysis on a report |
+| `generate-api-key` | Yes | Creates hashed API keys (admin only) |
+
+**`fonnte-webhook` internals** (most complex function):
+- `index.ts` — entry point, message routing
+- `conversation-manager.ts` — tracks conversation state per device/phone
+- `flowise-client.ts` — sends messages to Flowise AI chatflow
+- `fonnte-client.ts` — sends outbound WhatsApp messages via Fonnte
+- `attachment-processor.ts` — handles media attachments
+- `providers/` — WhatsApp provider abstraction (see WhatsApp Provider Pattern below)
+
+### WhatsApp Provider Pattern
+
+Provider abstraction in `supabase/functions/fonnte-webhook/providers/`:
+- `types.ts` — `IWhatsAppProvider` interface + provider enum
+- `provider-factory.ts` — reads `whatsapp_provider_config` table, instantiates the right provider
+- `fonnte-provider.ts` — Fonnte implementation
+- `twilio-provider.ts` — Twilio implementation (reference)
+
+To add a new provider (e.g., Infobip): add `infobip-provider.ts`, extend the enum in `types.ts`, add a case in `provider-factory.ts`, add a DB migration for the enum value, and add Supabase secrets for the new provider's credentials.
+
+### PII Masking (L0–L3)
+
+Reports contain citizen PII (name, phone, address). Access is role-gated:
+
+| Level | Roles | Name display | Phone display |
+|---|---|---|---|
+| L0 | superadmin, owner, admin | Full name | Full number |
+| L1 | member, opd_member | "Ahmad F." | "0812****789" |
+| L2 | viewer | "A***" | Hidden |
+| L3 | Public/unauthenticated | Hidden | Hidden |
+
+- Central hook: `src/hooks/use-pii-masking.tsx`
+- Utility: `src/utils/pii-masking.ts`
+- Masking is **synchronous and client-side** — happens in utility functions before render
+- Every access logs a fire-and-forget entry to `pii_access_logs` table (never blocks UI)
+
 ### OPD Disposition Workflow
 
 Reports flow: `pending → in_progress → resolved/rejected`. Admins assign reports to OPDs via `report_dispositions` (full audit trail with `status_before/status_after`). OPD members can request re-assignment via `report_return_requests` which admins must approve.
@@ -122,6 +226,21 @@ All migrations under `supabase/migrations/` use `IF NOT EXISTS` and `ON CONFLICT
 ### API Key Security
 
 `supabase/functions/generate-api-key/` uses SHA-256 hashing. Only `key_prefix` is stored; the full key is returned once at creation (GitHub/Stripe pattern).
+
+### TypeScript Config — Intentionally Loose
+
+`tsconfig.json` has `noImplicitAny: false`, `strictNullChecks: false`, `noUnusedLocals: false`, `allowJs: true`. This is intentional (Lovable-generated project). The typecheck command (`npx tsc --noEmit`) will still catch structural errors but won't enforce strict null safety. Do not tighten strictness without a deliberate refactor.
+
+### Deployment
+
+- Deployed on **Vercel** via git push integration (`vercel.json` contains an SPA catch-all rewrite to `/index.html`)
+- Push to `staging` branch → auto-deploys to staging Vercel environment
+- Push to `main` branch → auto-deploys to production Vercel environment
+- No GitHub Actions CI exists; Supabase migrations must be applied manually via CLI
+
+### Lovable Integration
+
+This project was bootstrapped on [Lovable](https://lovable.dev) (generative UI platform). The `lovable-tagger` Vite plugin tags components for Lovable's AI in development mode. Editing locally and pushing to git syncs back to Lovable. This has no effect on production builds.
 
 ---
 
