@@ -135,6 +135,9 @@ const Reports = () => {
   // Date range filter
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
+  // Urgency filter + map
+  const [aiInsightsMap, setAiInsightsMap] = useState<Map<string, { urgency: string | null; urgency_reason: string | null }>>(new Map());
+  const [urgencyFilter, setUrgencyFilter] = useState<string>("all");
   // AI Summary dialog
   const [showAISummaryDialog, setShowAISummaryDialog] = useState(false);
   const [aiSummaryReport, setAiSummaryReport] = useState<Report | null>(null);
@@ -178,7 +181,7 @@ const Reports = () => {
 
   useEffect(() => {
     filterReports();
-  }, [reports, searchTerm, statusFilter, typeFilter, opdFilter, dateFrom, dateTo]);
+  }, [reports, searchTerm, statusFilter, typeFilter, opdFilter, dateFrom, dateTo, aiInsightsMap, urgencyFilter]);
 
   const fetchUserOPDs = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -247,14 +250,27 @@ const Reports = () => {
           if (!report.assigned_opd_id && returnedReportIds.has(report.id)) {
             report.was_returned = true;
           }
-          
+
           const returnRequest = returnRequestMap.get(report.id);
           if (returnRequest) {
             report.return_request = returnRequest;
           }
         });
+
+        // Fetch AI insights for urgency display
+        const { data: insights } = await supabase
+          .from("report_ai_insights")
+          .select("report_id, urgency, urgency_reason")
+          .in("report_id", reportIds);
+
+        const insightsMap = new Map(
+          (insights || []).map(ins => [ins.report_id, { urgency: ins.urgency, urgency_reason: ins.urgency_reason }])
+        );
+        setAiInsightsMap(insightsMap);
+      } else {
+        setAiInsightsMap(new Map());
       }
-      
+
       setReports(reports);
       // Batch-fetch AI snippets for all loaded reports (non-blocking)
       fetchAISnippets(reportIds);
@@ -403,6 +419,14 @@ const Reports = () => {
       filtered = filtered.filter(
         (report) => new Date(report.created_at) < toDate
       );
+    }
+
+    // Apply urgency filter
+    if (urgencyFilter !== "all") {
+      filtered = filtered.filter((report) => {
+        const insight = aiInsightsMap.get(report.id);
+        return insight?.urgency === urgencyFilter;
+      });
     }
 
     setFilteredReports(filtered);
@@ -561,6 +585,20 @@ const Reports = () => {
                   </SelectContent>
                 </Select>
 
+                <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua Urgensi" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Urgensi</SelectItem>
+                    <SelectItem value="critical">🔴 Kritis</SelectItem>
+                    <SelectItem value="moderate">🟡 Sedang</SelectItem>
+                    <SelectItem value="minor">🟢 Ringan</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Select value={opdFilter} onValueChange={setOpdFilter}>
                   <SelectTrigger>
                     <SelectValue placeholder="Semua OPD" />
@@ -575,9 +613,6 @@ const Reports = () => {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-muted-foreground">Dari Tanggal</label>
                   <Input
@@ -684,6 +719,7 @@ const Reports = () => {
                       <TableHead>Pelapor</TableHead>
                       <TableHead>Jenis</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Urgensi</TableHead>
                       <TableHead>OPD</TableHead>
                       <TableHead>Tanggal</TableHead>
                       <TableHead>Aksi</TableHead>
@@ -815,6 +851,26 @@ const Reports = () => {
                               <SelectItem value="rejected">Ditolak</SelectItem>
                             </SelectContent>
                           </Select>
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const insight = aiInsightsMap.get(report.id);
+                            if (!insight?.urgency) return <span className="text-xs text-muted-foreground">-</span>;
+                            const urgencyMap = {
+                              critical: { label: "Kritis", icon: AlertTriangle, className: "bg-red-100 text-red-700 border-red-200", iconClassName: "text-red-600" },
+                              moderate: { label: "Sedang", icon: AlertCircle, className: "bg-yellow-100 text-yellow-700 border-yellow-200", iconClassName: "text-yellow-600" },
+                              minor: { label: "Ringan", icon: CheckCircle2, className: "bg-green-100 text-green-700 border-green-200", iconClassName: "text-green-600" },
+                            };
+                            const cfg = urgencyMap[insight.urgency as keyof typeof urgencyMap];
+                            if (!cfg) return <span className="text-xs text-muted-foreground">-</span>;
+                            const Icon = cfg.icon;
+                            return (
+                              <Badge variant="outline" className={`gap-1 text-xs ${cfg.className}`}>
+                                <Icon className={`h-3 w-3 ${cfg.iconClassName}`} />
+                                {cfg.label}
+                              </Badge>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell>
                           {report.assigned_opd_id && opdMap.has(report.assigned_opd_id) ? (
