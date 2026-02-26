@@ -43,47 +43,71 @@ export function useCriticalNotifications(): CriticalNotificationState {
 
   const fetchCriticalReports = useCallback(async () => {
     try {
-      const thresholdDate = new Date();
-      thresholdDate.setHours(thresholdDate.getHours() - THRESHOLD_HOURS);
-
-      const { data, error } = await supabase
-        .from('reports')
-        .select(`
-          id, ticket_id, description, created_at, status,
-          report_ai_insights!inner(urgency, urgency_reason)
-        `)
-        .in('status', ['pending', 'in_progress'])
-        .lt('created_at', thresholdDate.toISOString())
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        // report_ai_insights may not exist for all reports — swallow the error gracefully
-        console.warn('Error fetching critical reports:', error.message);
+      // TENANT ISOLATION: get session + profile.tenant_id
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
         setLoading(false);
         return;
       }
 
-      const critical: OverdueReport[] = (data || [])
-        .filter((r: any) => {
-          const insights = r.report_ai_insights;
-          if (Array.isArray(insights)) {
-            return insights.some((i: any) => i.urgency === 'critical');
-          }
-          return insights?.urgency === 'critical';
-        })
-        .map((r: any) => {
-          const insights = Array.isArray(r.report_ai_insights)
-            ? r.report_ai_insights.find((i: any) => i.urgency === 'critical')
-            : r.report_ai_insights;
-          return {
-            id: r.id,
-            ticket_id: r.ticket_id,
-            description: r.description,
-            created_at: r.created_at,
-            status: r.status,
-            urgency_reason: insights?.urgency_reason,
-          };
-        });
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('tenant_id')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      const thresholdDate = new Date();
+      thresholdDate.setHours(thresholdDate.getHours() - THRESHOLD_HOURS);
+
+      // Step 1: fetch overdue reports for this tenant only (no !inner join — avoids 502 in prod)
+      let reportsQuery = supabase
+        .from('reports')
+        .select('id, ticket_id, description, created_at, status')
+        .in('status', ['pending', 'in_progress'])
+        .lt('created_at', thresholdDate.toISOString())
+        .order('created_at', { ascending: true });
+
+      if (profile?.tenant_id) {
+        reportsQuery = reportsQuery.eq('tenant_id', profile.tenant_id);
+      }
+
+      const { data: reportsData, error: reportsError } = await reportsQuery;
+
+      if (reportsError) {
+        console.warn('Error fetching overdue reports:', reportsError.message);
+        setLoading(false);
+        return;
+      }
+
+      const overdueList = reportsData || [];
+      if (overdueList.length === 0) {
+        setOverdueReports([]);
+        setLoading(false);
+        return;
+      }
+
+      // Step 2: fetch AI insights for those report IDs — only critical
+      const reportIds = overdueList.map((r: any) => r.id);
+      const { data: insightsData } = await supabase
+        .from('report_ai_insights')
+        .select('report_id, urgency, urgency_reason')
+        .in('report_id', reportIds)
+        .eq('urgency', 'critical');
+
+      const criticalReportIds = new Set((insightsData || []).map((i: any) => i.report_id));
+      const insightMap = new Map((insightsData || []).map((i: any) => [i.report_id, i]));
+
+      // Step 3: merge — only keep reports that have a critical insight
+      const critical: OverdueReport[] = overdueList
+        .filter((r: any) => criticalReportIds.has(r.id))
+        .map((r: any) => ({
+          id: r.id,
+          ticket_id: r.ticket_id,
+          description: r.description,
+          created_at: r.created_at,
+          status: r.status,
+          urgency_reason: insightMap.get(r.id)?.urgency_reason,
+        }));
 
       setOverdueReports(critical);
     } catch (err) {

@@ -20,6 +20,10 @@ import RecentReports from "./pages/admin/RecentReports";
 import IntegrationLogin from "./pages/admin/IntegrationLogin";
 import IntegrationAI from "./pages/admin/IntegrationAI";
 import IntegrationAPI from "./pages/admin/IntegrationAPI";
+import IntegrationChannel from "./pages/admin/IntegrationChannel";
+import IntegrationChannelAIAgent from "./pages/admin/IntegrationChannelAIAgent";
+import IntegrationChannelWhatsApp from "./pages/admin/IntegrationChannelWhatsApp";
+import IntegrationChannelAIInsight from "./pages/admin/IntegrationChannelAIInsight";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,6 +48,10 @@ const App = () => (
           <Route path="/admin/integration/login" element={<IntegrationLogin />} />
           <Route path="/admin/integration/ai" element={<IntegrationAI />} />
           <Route path="/admin/integration/api" element={<IntegrationAPI />} />
+          <Route path="/admin/integration/channel" element={<IntegrationChannel />} />
+          <Route path="/admin/integration/channel/ai-agent" element={<IntegrationChannelAIAgent />} />
+          <Route path="/admin/integration/channel/whatsapp" element={<IntegrationChannelWhatsApp />} />
+          <Route path="/admin/integration/channel/ai-insight" element={<IntegrationChannelAIInsight />} />
           <Route path="/admin/recent-reports" element={<RecentReports />} />
           <Route path="/admin/users" element={<Users />} />
           <Route path="/admin/opds" element={<OPDs />} />

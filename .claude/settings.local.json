@@ -7,7 +7,8 @@
       "Bash(supabase functions logs fonnte-webhook --project-ref ykaawgnggvwleiyzvilf)",
       "Bash(grep -l \"ALTER TABLE.*flowise_config.*ADD.*tenant_id\\\\|ALTER TABLE.*fonnte_config.*ADD.*tenant_id\" \"c:\\\\Users\\\\yugie\\\\lapor ai\\\\lapor-citizen-feedback\\\\supabase\\\\migrations\"/*.sql)",
       "Bash(npx tsc --noEmit)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(npm run build)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -67,11 +67,21 @@ const RecentReports = () => {
       return;
     }
 
+    // TENANT ISOLATION: get current user's tenant_id
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('tenant_id')
+      .eq('id', session.user.id)
+      .maybeSingle();
+
+    const tenantId = profileData?.tenant_id;
+
     setLoading(true);
     try {
-      const { data: reportsData, error: reportsError } = await supabase
-        .from("reports")
-        .select("*");
+      let reportsQuery = supabase.from("reports").select("*");
+      if (tenantId) reportsQuery = reportsQuery.eq('tenant_id', tenantId);
+
+      const { data: reportsData, error: reportsError } = await reportsQuery;
 
       if (reportsError) throw reportsError;
 
@@ -95,11 +105,14 @@ const RecentReports = () => {
 
       setStats(calculatedStats);
 
-      const { data: recent, error: recentError } = await supabase
+      let recentQuery = supabase
         .from("reports")
         .select("id, ticket_id, reporter_name, type, status, created_at")
         .order("created_at", { ascending: false })
         .limit(10);
+      if (tenantId) recentQuery = recentQuery.eq('tenant_id', tenantId);
+
+      const { data: recent, error: recentError } = await recentQuery;
 
       if (recentError) throw recentError;
       setRecentReports((recent || []) as Report[]);
