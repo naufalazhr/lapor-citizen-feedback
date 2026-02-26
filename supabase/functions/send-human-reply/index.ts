@@ -98,7 +98,7 @@ Deno.serve(async (req: Request) => {
     // 5. Fetch Fonnte config for this tenant
     let fonnteQuery = supabase
       .from('fonnte_config')
-      .select('api_key, device_number')
+      .select('api_token')
       .eq('is_active', true);
 
     if (conversation.tenant_id) {
@@ -122,7 +122,7 @@ Deno.serve(async (req: Request) => {
     const sendResponse = await fetch('https://api.fonnte.com/send', {
       method: 'POST',
       headers: {
-        'Authorization': fonnteConfig.api_key,
+        'Authorization': fonnteConfig.api_token,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
