@@ -135,7 +135,7 @@ const IntegrationChannelAIInsight = () => {
                   <p className="text-sm text-muted-foreground mb-4">
                     Atur API key dan model default untuk fitur AI Insight
                   </p>
-                  <OpenRouterConfigManager />
+                  <OpenRouterConfigManager onSave={checkAccessAndConfigs} />
                 </div>
               </div>
             )}
