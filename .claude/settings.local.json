@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "mcp__supabase__execute_sql",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "mcp__supabase__get_logs",
+      "Bash(supabase functions logs fonnte-webhook --project-ref ykaawgnggvwleiyzvilf)",
+      "Bash(grep -l \"ALTER TABLE.*flowise_config.*ADD.*tenant_id\\\\|ALTER TABLE.*fonnte_config.*ADD.*tenant_id\" \"c:\\\\Users\\\\yugie\\\\lapor ai\\\\lapor-citizen-feedback\\\\supabase\\\\migrations\"/*.sql)",
+      "Bash(npx tsc --noEmit)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   },
   "enableAllProjectMcpServers": true,

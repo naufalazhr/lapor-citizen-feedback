@@ -147,7 +147,7 @@ export const useExecutiveDashboard = () => {
       // Get user's profile with tenant info
       const { data: profile } = await supabase
         .from('profiles')
-        .select('tenant_id, role')
+        .select('tenant_id')
         .eq('id', session.user.id)
         .single();
 

@@ -9,7 +9,8 @@ import { AIStatusIndicator } from "@/components/admin/AIStatusIndicator";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useCriticalNotifications } from "@/hooks/use-critical-notifications";
 import { CriticalAlertBanner } from "@/components/admin/dashboard/CriticalAlertBanner";
-import { Bell, AlertTriangle, Clock } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Bell, AlertTriangle, Clock, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface DashboardProps {
@@ -26,11 +27,40 @@ const Dashboard = ({ children }: DashboardProps) => {
   const { role, loading: roleLoading } = useUserRole();
   const { overdueCount, overdueReports, dismissAll, dismiss } = useCriticalNotifications();
 
+  // Identity state
+  const [tenantName, setTenantName] = useState<string>('');
+  const [tenantLogoUrl, setTenantLogoUrl] = useState<string | null>(null);
+  const [userFullName, setUserFullName] = useState<string>('');
+
   const getDashboardTitle = () => {
     if (role === 'admin' || role === 'superadmin' || role === 'owner') return 'Admin Dashboard';
     if (role === 'member') return 'Member Dashboard';
     if (role === 'opd_member') return 'OPD Member Dashboard';
     return 'Dashboard';
+  };
+
+  const getRoleLabel = () => {
+    const labels: Record<string, string> = {
+      superadmin: 'Super Admin',
+      owner: 'Owner',
+      admin: 'Admin',
+      member: 'Member',
+      opd_member: 'OPD Member',
+      viewer: 'Viewer',
+    };
+    return role ? (labels[role] || role) : '';
+  };
+
+  const getRoleBadgeClass = () => {
+    switch (role) {
+      case 'superadmin': return 'bg-red-100 text-red-700 border-red-200';
+      case 'owner': return 'bg-purple-100 text-purple-700 border-purple-200';
+      case 'admin': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'member': return 'bg-green-100 text-green-700 border-green-200';
+      case 'opd_member': return 'bg-orange-100 text-orange-700 border-orange-200';
+      case 'viewer': return 'bg-gray-100 text-gray-600 border-gray-200';
+      default: return 'bg-muted text-muted-foreground';
+    }
   };
 
   // Close bell dropdown when clicking outside
@@ -62,7 +92,7 @@ const Dashboard = ({ children }: DashboardProps) => {
 
   const checkAuth = async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    
+
     if (!session) {
       navigate("/auth");
       return;
@@ -74,10 +104,10 @@ const Dashboard = ({ children }: DashboardProps) => {
   };
 
   const checkUserRole = async (userId: string) => {
-    // Step 1: Check if user has tenant_id
+    // Step 1: Get profile with tenant_id and full_name
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select("tenant_id")
+      .select("tenant_id, full_name, email")
       .eq("id", userId)
       .maybeSingle();
 
@@ -88,14 +118,42 @@ const Dashboard = ({ children }: DashboardProps) => {
       return;
     }
 
-    // If user has no tenant_id, redirect to profile setup
     if (!profileData || !profileData.tenant_id) {
       setHasRole(false);
       navigate("/profile-setup");
       return;
     }
 
-    // Step 2: Check if user has role (user has tenant_id at this point)
+    // Set user display name
+    if (profileData.full_name) {
+      setUserFullName(profileData.full_name);
+    } else if (profileData.email) {
+      setUserFullName(profileData.email.split('@')[0]);
+    }
+
+    // Step 2: Fetch tenant name
+    const { data: tenantData } = await supabase
+      .from('tenants')
+      .select('name')
+      .eq('id', profileData.tenant_id)
+      .single();
+
+    if (tenantData?.name) {
+      setTenantName(tenantData.name);
+    }
+
+    // Step 3: Fetch tenant logo from login_config
+    const { data: loginConfig } = await supabase
+      .from('login_config')
+      .select('logo_url')
+      .limit(1)
+      .maybeSingle();
+
+    if (loginConfig?.logo_url) {
+      setTenantLogoUrl(loginConfig.logo_url);
+    }
+
+    // Step 4: Check role
     const { data: roleData, error: roleError } = await supabase
       .from("user_roles")
       .select("role")
@@ -104,19 +162,17 @@ const Dashboard = ({ children }: DashboardProps) => {
 
     if (roleError) {
       console.error("Error fetching role:", roleError);
-      // If there's an error fetching role, redirect to profile setup
       setHasRole(false);
       navigate("/profile-setup");
       return;
     }
 
-    // If user has a role, they're good to go
     if (roleData) {
       setHasRole(true);
       return;
     }
 
-    // Step 3: User has tenant but no role - check if they have pending approval
+    // Step 5: Check pending approval
     const { data: approvalData } = await supabase
       .from("user_approvals")
       .select("status")
@@ -148,13 +204,70 @@ const Dashboard = ({ children }: DashboardProps) => {
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full flex-col">
-        <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="flex h-14 items-center justify-between px-4">
-            <div className="flex items-center">
-              <SidebarTrigger className="mr-4" />
-              <h1 className="text-lg font-semibold">{getDashboardTitle()}</h1>
+        <header className="sticky top-0 z-[1001] border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="flex h-16 items-center justify-between px-4 gap-4">
+
+            {/* LEFT: Toggle + Product Brand + Page Title */}
+            <div className="flex items-center gap-3 min-w-0">
+              <SidebarTrigger className="shrink-0" />
+
+              {/* Pimpinan.com brand */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center justify-center w-6 h-6 rounded bg-primary text-primary-foreground text-xs font-bold">
+                  P
+                </div>
+                <span className="font-bold text-sm tracking-tight text-foreground hidden sm:inline">
+                  Pimpinan<span className="text-primary">.com</span>
+                </span>
+              </div>
+
+              <div className="h-4 w-px bg-border shrink-0 hidden sm:block" />
+
+              <h1 className="text-sm font-semibold text-muted-foreground hidden sm:block truncate">
+                {getDashboardTitle()}
+              </h1>
             </div>
-            <div className="flex items-center gap-3">
+
+            {/* CENTER: Tenant identity */}
+            <div className="flex items-center gap-2 flex-1 justify-center min-w-0">
+              {tenantLogoUrl ? (
+                <img
+                  src={tenantLogoUrl}
+                  alt="Logo"
+                  className="h-7 w-7 rounded-full object-cover shrink-0 border border-border"
+                />
+              ) : (
+                <div className="flex items-center justify-center h-7 w-7 rounded-full bg-muted shrink-0">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                </div>
+              )}
+              {tenantName && (
+                <span className="font-semibold text-sm truncate max-w-[180px] md:max-w-xs">
+                  {tenantName}
+                </span>
+              )}
+            </div>
+
+            {/* RIGHT: User info + actions */}
+            <div className="flex items-center gap-2 shrink-0">
+
+              {/* User name + role badge */}
+              {userFullName && (
+                <div className="hidden md:flex items-center gap-1.5">
+                  <span className="text-sm font-medium text-foreground truncate max-w-[120px]">
+                    {userFullName}
+                  </span>
+                  {role && (
+                    <span className={cn(
+                      "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border",
+                      getRoleBadgeClass()
+                    )}>
+                      {getRoleLabel()}
+                    </span>
+                  )}
+                </div>
+              )}
+
               <AIStatusIndicator />
 
               {/* Critical notification bell */}
@@ -254,6 +367,7 @@ const Dashboard = ({ children }: DashboardProps) => {
             </div>
           </div>
         </header>
+
         <div className="flex flex-1">
           <AppSidebar />
           <main className="flex-1 p-6 bg-background">
