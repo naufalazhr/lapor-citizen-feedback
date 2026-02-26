@@ -10,13 +10,37 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarHeader,
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, FileText, LogOut, Settings, MessageSquare, Users, Building2, Clock, Bot, Key } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  LayoutDashboard,
+  FileText,
+  LogOut,
+  Settings,
+  MessageSquare,
+  Users,
+  Building2,
+  Clock,
+  Key,
+  Layers,
+  Brain,
+  Cpu,
+  ChevronDown,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+
+const CHANNEL_PATHS = [
+  "/admin/integration/channel/ai-agent",
+  "/admin/integration/channel/whatsapp",
+  "/admin/integration/channel/ai-insight",
+];
 
 export function AppSidebar() {
   const navigate = useNavigate();
@@ -24,6 +48,14 @@ export function AppSidebar() {
   const { state, toggleSidebar } = useSidebar();
   const { toast } = useToast();
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [channelOpen, setChannelOpen] = useState(false);
+
+  // Auto-expand Channel sub-menu if a channel sub-path is active
+  useEffect(() => {
+    if (CHANNEL_PATHS.some((p) => location.pathname.startsWith(p))) {
+      setChannelOpen(true);
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     fetchUserRole();
@@ -58,20 +90,21 @@ export function AppSidebar() {
         description: "Anda telah keluar dari sistem",
       });
     } finally {
-      // Always clear localStorage and navigate, regardless of API result
       localStorage.clear();
       navigate("/auth", { replace: true });
     }
   };
 
   const isActive = (path: string) => location.pathname === path;
+  const isChannelActive = CHANNEL_PATHS.some((p) => location.pathname.startsWith(p));
 
   const isAdminUser = userRole !== null && ['admin', 'owner', 'superadmin'].includes(userRole);
+  const isCollapsed = state === "collapsed";
 
   return (
-    <Sidebar className={state === "collapsed" ? "w-16" : "w-64"}>
+    <Sidebar className={isCollapsed ? "w-16" : "w-64"}>
       <SidebarHeader className="border-b border-border px-4 py-3">
-        {state !== "collapsed" && (
+        {!isCollapsed && (
           <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Menu Navigasi</p>
         )}
       </SidebarHeader>
@@ -88,7 +121,7 @@ export function AppSidebar() {
                   className={isActive('/admin/dashboard') ? "bg-accent" : ""}
                 >
                   <LayoutDashboard className="h-4 w-4" />
-                  {state !== "collapsed" && <span>Ringkasan Eksekutif</span>}
+                  {!isCollapsed && <span>Ringkasan Eksekutif</span>}
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
@@ -97,7 +130,7 @@ export function AppSidebar() {
                   className={isActive('/admin/recent-reports') ? "bg-accent" : ""}
                 >
                   <Clock className="h-4 w-4" />
-                  {state !== "collapsed" && <span>Statistik &amp; Analitik</span>}
+                  {!isCollapsed && <span>Statistik &amp; Analitik</span>}
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -115,7 +148,7 @@ export function AppSidebar() {
                   className={isActive('/admin/reports') ? "bg-accent" : ""}
                 >
                   <FileText className="h-4 w-4" />
-                  {state !== "collapsed" && <span>Laporan</span>}
+                  {!isCollapsed && <span>Laporan</span>}
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
@@ -124,7 +157,7 @@ export function AppSidebar() {
                   className={isActive('/admin/conversations') ? "bg-accent" : ""}
                 >
                   <MessageSquare className="h-4 w-4" />
-                  {state !== "collapsed" && <span>Percakapan</span>}
+                  {!isCollapsed && <span>Percakapan</span>}
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -143,7 +176,7 @@ export function AppSidebar() {
                     className={isActive('/admin/opds') ? "bg-accent" : ""}
                   >
                     <Building2 className="h-4 w-4" />
-                    {state !== "collapsed" && <span>OPD</span>}
+                    {!isCollapsed && <span>OPD</span>}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
@@ -152,7 +185,7 @@ export function AppSidebar() {
                     className={isActive('/admin/users') ? "bg-accent" : ""}
                   >
                     <Users className="h-4 w-4" />
-                    {state !== "collapsed" && <span>User</span>}
+                    {!isCollapsed && <span>User</span>}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
@@ -166,33 +199,93 @@ export function AppSidebar() {
             <SidebarGroupLabel>Integrasi</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
+
+                {/* Channel — collapsible with 3 sub-items */}
+                {isCollapsed ? (
+                  // Collapsed: single icon that navigates to first sub-page
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      onClick={() => navigate('/admin/integration/channel/ai-agent')}
+                      className={isChannelActive ? "bg-accent" : ""}
+                      title="Channel"
+                    >
+                      <Layers className="h-4 w-4" />
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ) : (
+                  // Expanded: collapsible with sub-menu
+                  <Collapsible open={channelOpen} onOpenChange={setChannelOpen}>
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton
+                          className={isChannelActive ? "bg-accent" : ""}
+                        >
+                          <Layers className="h-4 w-4" />
+                          <span>Channel</span>
+                          <ChevronDown
+                            className={`ml-auto h-4 w-4 shrink-0 transition-transform duration-200 ${
+                              channelOpen ? "rotate-180" : ""
+                            }`}
+                          />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                    </SidebarMenuItem>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            onClick={() => navigate('/admin/integration/channel/ai-agent')}
+                            className={isActive('/admin/integration/channel/ai-agent') ? "bg-accent" : ""}
+                          >
+                            <Brain className="h-3.5 w-3.5" />
+                            <span>AI Agent Integration</span>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            onClick={() => navigate('/admin/integration/channel/whatsapp')}
+                            className={isActive('/admin/integration/channel/whatsapp') ? "bg-accent" : ""}
+                          >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            <span>WhatsApp Gateway</span>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            onClick={() => navigate('/admin/integration/channel/ai-insight')}
+                            className={isActive('/admin/integration/channel/ai-insight') ? "bg-accent" : ""}
+                          >
+                            <Cpu className="h-3.5 w-3.5" />
+                            <span>AI Insight</span>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+
+                {/* Konfigurasi Login */}
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     onClick={() => navigate('/admin/integration/login')}
                     className={isActive('/admin/integration/login') ? "bg-accent" : ""}
                   >
                     <Settings className="h-4 w-4" />
-                    {state !== "collapsed" && <span>Konfigurasi Login</span>}
+                    {!isCollapsed && <span>Konfigurasi Login</span>}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    onClick={() => navigate('/admin/integration/ai')}
-                    className={isActive('/admin/integration/ai') ? "bg-accent" : ""}
-                  >
-                    <Bot className="h-4 w-4" />
-                    {state !== "collapsed" && <span>Konfigurasi AI Asisten</span>}
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+
+                {/* API Management */}
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     onClick={() => navigate('/admin/integration/api')}
                     className={isActive('/admin/integration/api') ? "bg-accent" : ""}
                   >
                     <Key className="h-4 w-4" />
-                    {state !== "collapsed" && <span>API Management</span>}
+                    {!isCollapsed && <span>API Management</span>}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -206,7 +299,7 @@ export function AppSidebar() {
           className="w-full justify-start"
         >
           <LogOut className="h-4 w-4" />
-          {state !== "collapsed" && <span className="ml-2">Keluar</span>}
+          {!isCollapsed && <span className="ml-2">Keluar</span>}
         </Button>
       </SidebarFooter>
     </Sidebar>
