@@ -129,6 +129,7 @@ const Conversations = () => {
   });
   const [submittingReport, setSubmittingReport] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentTenantId, setCurrentTenantId] = useState<string | null>(null);
 
   // Report dialog — photo & location
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -144,10 +145,19 @@ const Conversations = () => {
   const { isAdmin, isOwner, isMember } = useUserRole();
   const canTakeover = isAdmin || isOwner || isMember;
 
-  // Get current user ID for takeover handler
+  // Get current user ID and tenant ID
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setCurrentUserId(session?.user?.id || null);
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const uid = session?.user?.id || null;
+      setCurrentUserId(uid);
+      if (uid) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('tenant_id')
+          .eq('id', uid)
+          .maybeSingle();
+        setCurrentTenantId(profile?.tenant_id || null);
+      }
     });
   }, []);
 
@@ -194,6 +204,10 @@ const Conversations = () => {
         .from('conversations')
         .select('*', { count: 'exact' });
 
+      if (currentTenantId) {
+        query = query.eq('tenant_id', currentTenantId);
+      }
+
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter as 'active' | 'completed' | 'abandoned');
       }
@@ -218,10 +232,12 @@ const Conversations = () => {
       setTotalCount(count || 0);
 
       // Fetch global active count for the badge
-      const { count: activeCountResult } = await supabase
+      const activeCountQuery = supabase
         .from('conversations')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'active');
+      if (currentTenantId) activeCountQuery.eq('tenant_id', currentTenantId);
+      const { count: activeCountResult } = await activeCountQuery;
       setActiveCount(activeCountResult || 0);
 
       // N+1 message count fetch — acceptable since page size is limited to 20
@@ -509,10 +525,10 @@ const Conversations = () => {
     setCurrentPage(1);
   }, [statusFilter, dateFrom, dateTo, searchQuery]);
 
-  // Fetch when page or filters change
+  // Fetch when page, filters, or tenant changes
   useEffect(() => {
     fetchConversations();
-  }, [currentPage, statusFilter, dateFrom, dateTo]);
+  }, [currentPage, statusFilter, dateFrom, dateTo, currentTenantId]);
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
