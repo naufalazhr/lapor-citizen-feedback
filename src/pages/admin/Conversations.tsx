@@ -171,19 +171,23 @@ const Conversations = () => {
   // Realtime subscription: listen for new messages on selected conversation
   useEffect(() => {
     if (!selectedConversation) return;
+    const convId = selectedConversation.id;
 
     const channel = supabase
-      .channel(`messages:${selectedConversation.id}`)
+      .channel(`conv-messages-${convId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${selectedConversation.id}`
+          table: 'messages'
+          // No server-side filter — column-level filters require REPLICA IDENTITY FULL
+          // and can silently fail. Check conversation_id client-side instead.
         },
-        () => {
-          fetchMessages(selectedConversation.id);
+        (payload) => {
+          if (payload.new?.conversation_id === convId) {
+            fetchMessages(convId);
+          }
         }
       )
       .subscribe();
