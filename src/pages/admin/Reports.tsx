@@ -133,6 +133,7 @@ const Reports = () => {
   const [opds, setOpds] = useState<OPD[]>([]);
   const [opdMap, setOpdMap] = useState<Map<string, OPD>>(new Map());
   const [selectedReports, setSelectedReports] = useState<Set<string>>(new Set());
+  const [isSelectMode, setIsSelectMode] = useState(false);
   const [showDispositionDialog, setShowDispositionDialog] = useState(false);
   const [showReturnDialog, setShowReturnDialog] = useState(false);
   const [showReturnApprovalDialog, setShowReturnApprovalDialog] = useState(false);
@@ -739,6 +740,49 @@ const Reports = () => {
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2 flex-wrap justify-end">
+              {/* Select mode toggle */}
+              {!isSelectMode ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => setIsSelectMode(true)}
+                >
+                  <CheckSquare className="h-4 w-4" />
+                  Pilih
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => setSelectedReports(new Set(filteredReports.map((r) => r.id)))}
+                  >
+                    <CheckSquare className="h-4 w-4" />
+                    Pilih Semua
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => setSelectedReports(new Set())}
+                  >
+                    <Square className="h-4 w-4" />
+                    Batalkan Semua
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-muted-foreground"
+                    onClick={() => { setIsSelectMode(false); setSelectedReports(new Set()); }}
+                  >
+                    <X className="h-4 w-4" />
+                    Batal
+                  </Button>
+                </>
+              )}
+
               {/* Bulk Generate — admin/member only */}
               {!isOPDMember && (
                 <Button
@@ -756,7 +800,7 @@ const Reports = () => {
                 </Button>
               )}
 
-              {selectedReports.size > 0 && (
+              {isSelectMode && selectedReports.size > 0 && (
                 isOPDMember ? (
                   <Button
                     onClick={() => setShowReturnDialog(true)}
@@ -791,7 +835,7 @@ const Reports = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-12"></TableHead>
+                      {isSelectMode && <TableHead className="w-12"></TableHead>}
                       <TableHead>ID Tiket</TableHead>
                       <TableHead>Pelapor</TableHead>
                       <TableHead>Jenis</TableHead>
@@ -808,20 +852,22 @@ const Reports = () => {
                       const maskedReport = maskReport(report);
                       return (
                       <TableRow key={report.id}>
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedReports.has(report.id)}
-                            onCheckedChange={(checked) => {
-                              const newSelected = new Set(selectedReports);
-                              if (checked) {
-                                newSelected.add(report.id);
-                              } else {
-                                newSelected.delete(report.id);
-                              }
-                              setSelectedReports(newSelected);
-                            }}
-                          />
-                        </TableCell>
+                        {isSelectMode && (
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedReports.has(report.id)}
+                              onCheckedChange={(checked) => {
+                                const newSelected = new Set(selectedReports);
+                                if (checked) {
+                                  newSelected.add(report.id);
+                                } else {
+                                  newSelected.delete(report.id);
+                                }
+                                setSelectedReports(newSelected);
+                              }}
+                            />
+                          </TableCell>
+                        )}
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <code className="text-xs font-mono bg-muted px-2 py-1 rounded">
