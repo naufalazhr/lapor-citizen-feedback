@@ -301,6 +301,11 @@ export function AppSidebar() {
           <LogOut className="h-4 w-4" />
           {!isCollapsed && <span className="ml-2">Keluar</span>}
         </Button>
+        {!isCollapsed && (
+          <p className="mt-3 text-center text-[10px] text-muted-foreground/50 tracking-wide select-none">
+            pimpinan.com
+          </p>
+        )}
       </SidebarFooter>
     </Sidebar>
   );

@@ -195,18 +195,28 @@ const Dashboard = ({ children }: DashboardProps) => {
         <header className="sticky top-0 z-[1001] border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex h-16 items-center justify-between px-4 gap-4">
 
-            {/* LEFT: Toggle + Product Brand + Page Title */}
+            {/* LEFT: Toggle + Organization Identity + Page Title */}
             <div className="flex items-center gap-3 min-w-0">
               <SidebarTrigger className="shrink-0" />
 
-              {/* Pimpinan.com brand */}
-              <div className="flex items-center gap-1.5 shrink-0">
-                <div className="flex items-center justify-center w-6 h-6 rounded bg-primary text-primary-foreground text-xs font-bold">
-                  P
-                </div>
-                <span className="font-bold text-sm tracking-tight text-foreground hidden sm:inline">
-                  Pimpinan<span className="text-primary">.com</span>
-                </span>
+              {/* Organization identity */}
+              <div className="flex items-center gap-2 shrink-0">
+                {tenantLogoUrl ? (
+                  <img
+                    src={tenantLogoUrl}
+                    alt="Logo"
+                    className="h-7 w-7 rounded-full object-cover shrink-0 border border-border"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-7 w-7 rounded-full bg-muted shrink-0">
+                    <Building2 className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                )}
+                {tenantName && (
+                  <span className="font-semibold text-sm truncate max-w-[160px] md:max-w-xs hidden sm:inline">
+                    {tenantName}
+                  </span>
+                )}
               </div>
 
               <div className="h-4 w-px bg-border shrink-0 hidden sm:block" />
@@ -216,25 +226,8 @@ const Dashboard = ({ children }: DashboardProps) => {
               </h1>
             </div>
 
-            {/* CENTER: Tenant identity */}
-            <div className="flex items-center gap-2 flex-1 justify-center min-w-0">
-              {tenantLogoUrl ? (
-                <img
-                  src={tenantLogoUrl}
-                  alt="Logo"
-                  className="h-7 w-7 rounded-full object-cover shrink-0 border border-border"
-                />
-              ) : (
-                <div className="flex items-center justify-center h-7 w-7 rounded-full bg-muted shrink-0">
-                  <Building2 className="h-4 w-4 text-muted-foreground" />
-                </div>
-              )}
-              {tenantName && (
-                <span className="font-semibold text-sm truncate max-w-[180px] md:max-w-xs">
-                  {tenantName}
-                </span>
-              )}
-            </div>
+            {/* CENTER: spacer */}
+            <div className="flex-1" />
 
             {/* RIGHT: User info + actions */}
             <div className="flex items-center gap-2 shrink-0">
