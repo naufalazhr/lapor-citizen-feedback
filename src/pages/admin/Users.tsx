@@ -132,7 +132,9 @@ const Users = () => {
 
       const isSuperadmin = roleData?.role === 'superadmin';
 
-      // Build query with tenant filtering — join profiles in a single query to avoid N+1
+      // Build query with tenant filtering
+      // NOTE: user_approvals.user_id FK points to auth.users, not public.profiles
+      // → PostgREST cannot resolve the cross-schema join; use 2-step query instead
       let approvalsQuery = supabase
         .from('user_approvals')
         .select(`
@@ -145,8 +147,7 @@ const Users = () => {
           department,
           position,
           requested_at,
-          tenant:tenants(id, name, slug),
-          user:profiles!user_approvals_user_id_fkey(email, full_name)
+          tenant:tenants(id, name, slug)
         `)
         .eq('status', 'pending')
         .order('requested_at', { ascending: false });
@@ -163,10 +164,23 @@ const Users = () => {
         return;
       }
 
+      const approvals = data || [];
+
+      // Step 2: fetch profiles separately to get email + full_name
+      const userIds = [...new Set(approvals.map((a) => a.user_id).filter(Boolean))];
+      const profileMap = new Map<string, { email: string; full_name?: string }>();
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, email, full_name')
+          .in('id', userIds);
+        (profilesData || []).forEach((p) => profileMap.set(p.id, { email: p.email, full_name: p.full_name }));
+      }
+
       setPendingApprovals(
-        (data || []).map((approval) => ({
+        approvals.map((approval) => ({
           ...approval,
-          user: (approval.user as { email: string; full_name?: string } | null) || { email: 'Unknown' },
+          user: profileMap.get(approval.user_id) || { email: 'Unknown' },
         }))
       );
     } catch (error) {

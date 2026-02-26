@@ -197,8 +197,11 @@ export const useExecutiveDashboard = () => {
           .select('id, report_id, urgency, urgency_reason, sentiment, sentiment_reason, recommended_actions, suggested_opd_name, suggested_opd_confidence')
           .in('report_id', reportIds);
 
-        if (!insightsError && insights) {
+        if (insightsError) {
+          console.error('AI insights fetch error:', insightsError);
+        } else if (insights) {
           aiData = insights as AIInsightData[];
+          console.log('Fetched AI insights:', aiData.length, '| critical:', aiData.filter(i => i.urgency === 'critical').length);
         }
       }
 
