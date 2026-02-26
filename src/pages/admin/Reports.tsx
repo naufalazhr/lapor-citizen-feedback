@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Eye, RefreshCw, Copy, Search, ChevronLeft, ChevronRight, Building2, CheckSquare, Square, Sparkles, AlertTriangle, AlertCircle, CheckCircle2, Tag, Loader2, X, CalendarDays } from "lucide-react";
+import { Trash2, Eye, RefreshCw, Copy, Search, ChevronLeft, ChevronRight, Building2, CheckSquare, Square, Sparkles, AlertTriangle, AlertCircle, CheckCircle2, Tag, Loader2, X, CalendarDays, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ReportDispositionDialog } from "@/components/admin/ReportDispositionDialog";
 import { OPDMemberReturnDialog } from "@/components/admin/OPDMemberReturnDialog";
@@ -125,7 +125,7 @@ const Reports = () => {
   const [filteredReports, setFilteredReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [opdFilter, setOpdFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
@@ -385,7 +385,7 @@ const Reports = () => {
 
   const clearAllFilters = () => {
     setSearchTerm("");
-    setStatusFilter("all");
+    setStatusFilter([]);
     setTypeFilter("all");
     setOpdFilter("all");
     setUrgencyFilter("all");
@@ -408,9 +408,9 @@ const Reports = () => {
       });
     }
 
-    // Apply status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((report) => report.status === statusFilter);
+    // Apply status filter (multi-select: empty array = all)
+    if (statusFilter.length > 0) {
+      filtered = filtered.filter((report) => statusFilter.includes(report.status));
     }
 
     // Apply type filter
@@ -587,19 +587,64 @@ const Reports = () => {
 
           {/* Row 2: Inline filter selects */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Status */}
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-8 w-auto min-w-[130px] text-sm">
-                <SelectValue placeholder="Semua Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Semua Status</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="in_progress">Dalam Proses</SelectItem>
-                <SelectItem value="resolved">Selesai</SelectItem>
-                <SelectItem value="rejected">Ditolak</SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Status — multi-select */}
+            {(() => {
+              const STATUS_OPTIONS = [
+                { value: "pending", label: "Pending" },
+                { value: "in_progress", label: "Dalam Proses" },
+                { value: "resolved", label: "Selesai" },
+                { value: "rejected", label: "Ditolak" },
+              ];
+              const label =
+                statusFilter.length === 0
+                  ? "Semua Status"
+                  : statusFilter.length === 1
+                  ? STATUS_OPTIONS.find(o => o.value === statusFilter[0])?.label ?? statusFilter[0]
+                  : `${statusFilter.length} Status`;
+              return (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={`h-8 text-sm gap-1.5 font-normal ${statusFilter.length > 0 ? "border-primary text-primary" : ""}`}
+                    >
+                      {label}
+                      <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-44 p-1" align="start">
+                    {STATUS_OPTIONS.map(({ value, label: optLabel }) => (
+                      <label
+                        key={value}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-accent text-sm select-none"
+                      >
+                        <Checkbox
+                          checked={statusFilter.includes(value)}
+                          onCheckedChange={(checked) => {
+                            setStatusFilter(prev =>
+                              checked ? [...prev, value] : prev.filter(s => s !== value)
+                            );
+                          }}
+                        />
+                        {optLabel}
+                      </label>
+                    ))}
+                    {statusFilter.length > 0 && (
+                      <>
+                        <div className="border-t my-1" />
+                        <button
+                          className="w-full text-left px-2 py-1.5 text-xs text-muted-foreground hover:text-destructive rounded hover:bg-accent"
+                          onClick={() => setStatusFilter([])}
+                        >
+                          Hapus filter status
+                        </button>
+                      </>
+                    )}
+                  </PopoverContent>
+                </Popover>
+              );
+            })()}
 
             {/* Jenis */}
             <Select value={typeFilter} onValueChange={setTypeFilter}>
@@ -685,7 +730,7 @@ const Reports = () => {
             </Popover>
 
             {/* Hapus Filter — only shown when any filter is active */}
-            {(statusFilter !== "all" || typeFilter !== "all" || urgencyFilter !== "all" || opdFilter !== "all" || dateFrom || dateTo) && (
+            {(statusFilter.length > 0 || typeFilter !== "all" || urgencyFilter !== "all" || opdFilter !== "all" || dateFrom || dateTo) && (
               <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground hover:text-destructive gap-1" onClick={clearAllFilters}>
                 <X className="h-3 w-3" />
                 Hapus Filter
@@ -698,7 +743,7 @@ const Reports = () => {
             const chips: { key: string; label: string; onRemove: () => void }[] = [];
             const statusLabels: Record<string, string> = { pending: "Pending", in_progress: "Dalam Proses", resolved: "Selesai", rejected: "Ditolak" };
             const urgencyLabels: Record<string, string> = { critical: "Kritis", moderate: "Sedang", minor: "Ringan" };
-            if (statusFilter !== "all") chips.push({ key: "status", label: `Status: ${statusLabels[statusFilter] ?? statusFilter}`, onRemove: () => setStatusFilter("all") });
+            if (statusFilter.length > 0) chips.push({ key: "status", label: `Status: ${statusFilter.map(s => statusLabels[s] ?? s).join(", ")}`, onRemove: () => setStatusFilter([]) });
             if (typeFilter !== "all") chips.push({ key: "type", label: `Jenis: ${typeFilter === "lapor" ? "Lapor" : "Aspirasi"}`, onRemove: () => setTypeFilter("all") });
             if (urgencyFilter !== "all") chips.push({ key: "urgency", label: `Urgensi: ${urgencyLabels[urgencyFilter] ?? urgencyFilter}`, onRemove: () => setUrgencyFilter("all") });
             if (opdFilter !== "all") chips.push({ key: "opd", label: `OPD: ${opdFilter === "unassigned" ? "Belum Didisposisi" : (opdMap.get(opdFilter)?.code ?? opdFilter)}`, onRemove: () => setOpdFilter("all") });
