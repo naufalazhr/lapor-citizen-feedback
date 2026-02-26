@@ -1,18 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Dashboard from "./Dashboard";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -21,13 +12,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { MessageSquare, Search, RefreshCw, Phone, Calendar, Filter, FileText } from "lucide-react";
+  MessageSquare, Search, RefreshCw, Phone, FileText, X,
+  Bot, Settings2, ChevronLeft, ChevronRight
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
@@ -35,6 +22,7 @@ import { usePIIMasking } from "@/hooks/use-pii-masking";
 import { maskPhone, maskName } from "@/utils/pii-masking";
 import AttachmentDisplay from "@/components/AttachmentDisplay";
 import AIThinkingCollapsible from "@/components/admin/AIThinkingCollapsible";
+import { cn } from "@/lib/utils";
 
 interface Conversation {
   id: string;
@@ -76,6 +64,21 @@ interface Message {
   agent_flow_data?: any[]; // Flowise agentFlowExecutedData for AI governance
 }
 
+// Helper: get 1-2 initials from name or phone number
+const getInitials = (nameOrPhone: string): string => {
+  if (!nameOrPhone) return "?";
+  const trimmed = nameOrPhone.trim();
+  // If it looks like a phone number, use last 2 digits
+  if (/^[+\d*]+$/.test(trimmed.replace(/\s/g, ""))) {
+    return trimmed.slice(-2);
+  }
+  const parts = trimmed.split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return trimmed.slice(0, 2).toUpperCase();
+};
+
 const Conversations = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -88,11 +91,19 @@ const Conversations = () => {
   const [dateTo, setDateTo] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalCount, setTotalCount] = useState<number>(0);
+  const [activeCount, setActiveCount] = useState<number>(0);
   const pageSize = 20;
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { level } = usePIIMasking();
+
+  // Auto-scroll to bottom when messages load
+  useEffect(() => {
+    if (messages.length > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
 
   const fetchConversations = async () => {
     try {
@@ -105,12 +116,10 @@ const Conversations = () => {
         .from('conversations')
         .select('*', { count: 'exact' });
 
-      // Apply filters
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter as 'active' | 'completed' | 'abandoned');
       }
 
-      // Apply date range filter on last_message_at
       if (dateFrom) {
         query = query.gte('last_message_at', `${dateFrom}T00:00:00`);
       }
@@ -129,6 +138,13 @@ const Conversations = () => {
       if (error) throw error;
 
       setTotalCount(count || 0);
+
+      // Fetch global active count for the badge
+      const { count: activeCountResult } = await supabase
+        .from('conversations')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active');
+      setActiveCount(activeCountResult || 0);
 
       // N+1 message count fetch — acceptable since page size is limited to 20
       const conversationsWithCounts = await Promise.all(
@@ -159,7 +175,6 @@ const Conversations = () => {
     try {
       setLoadingMessages(true);
 
-      // First, fetch messages
       const { data: messagesData, error: messagesError } = await supabase
         .from('messages')
         .select('*')
@@ -168,7 +183,6 @@ const Conversations = () => {
 
       if (messagesError) throw messagesError;
 
-      // Then, fetch attachments for messages that have them
       const messageIds = (messagesData || [])
         .filter(m => m.has_attachment)
         .map(m => m.id);
@@ -187,7 +201,6 @@ const Conversations = () => {
         }
       }
 
-      // Combine messages with their attachments
       const messagesWithAttachments = (messagesData || []).map(message => ({
         ...message,
         attachments: attachmentsData.filter((att: any) => att.message_id === message.id)
@@ -206,9 +219,8 @@ const Conversations = () => {
     }
   };
 
-  const handleViewConversation = (conversation: Conversation) => {
+  const handleSelectConversation = (conversation: Conversation) => {
     setSelectedConversation(conversation);
-    setDialogOpen(true);
     fetchMessages(conversation.id);
   };
 
@@ -232,298 +244,358 @@ const Conversations = () => {
       completed: "secondary",
       abandoned: "destructive",
     };
-
     return (
-      <Badge variant={variants[status] || "outline"}>
+      <Badge variant={variants[status] || "outline"} className="text-xs">
         {status}
       </Badge>
     );
   };
 
-  const getChannelBadge = (channel: string) => {
-    return (
-      <Badge variant="outline" className="capitalize">
-        {channel}
-      </Badge>
-    );
-  };
+  const getChannelBadge = (channel: string) => (
+    <Badge variant="outline" className="capitalize text-xs">
+      {channel}
+    </Badge>
+  );
+
+  const totalPages = Math.ceil(totalCount / pageSize);
 
   return (
     <Dashboard>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">WhatsApp Conversations</h1>
-            <p className="text-muted-foreground">
-              Monitor and manage conversations from Fonnte-Flowise integration
-            </p>
+      {/* Bleed out of Dashboard's p-6 padding to fill the full content area height */}
+      <div
+        className="-mx-6 -mb-6 flex overflow-hidden border-t"
+        style={{ height: "calc(100vh - 88px)" }}
+      >
+        {/* ── LEFT PANEL: Conversation List ── */}
+        <div className="w-80 flex-shrink-0 border-r bg-card flex flex-col">
+
+          {/* Header */}
+          <div className="p-4 border-b flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <MessageSquare className="h-4 w-4 text-primary flex-shrink-0" />
+              <span className="font-semibold text-sm">Percakapan</span>
+              {activeCount > 0 && (
+                <Badge variant="default" className="text-xs">{activeCount}</Badge>
+              )}
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 flex-shrink-0"
+              onClick={fetchConversations}
+              title="Refresh"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+            </Button>
           </div>
 
-          <Button onClick={fetchConversations} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filters
-            </CardTitle>
-            <CardDescription>
-              Search and filter conversations
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Search</label>
-                <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Phone number or name..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        fetchConversations();
-                      }
-                    }}
-                    className="pl-8"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Status</label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="abandoned">Abandoned</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Rentang Tanggal</label>
-                <div className="flex gap-2">
-                  <Input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => { setDateFrom(e.target.value); setCurrentPage(1); }}
-                    className="flex-1"
-                  />
-                  <Input
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => { setDateTo(e.target.value); setCurrentPage(1); }}
-                    className="flex-1"
-                  />
-                </div>
-              </div>
+          {/* Search */}
+          <div className="p-3 border-b">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Cari nomor atau nama..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") fetchConversations(); }}
+                className="pl-8 h-8 text-sm"
+              />
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5" />
-              Conversations ({totalCount})
-            </CardTitle>
-            <CardDescription>
-              Click on a conversation to view message history
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+          {/* Filters */}
+          <div className="p-3 border-b space-y-2">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="abandoned">Abandoned</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="flex gap-1.5">
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => { setDateFrom(e.target.value); setCurrentPage(1); }}
+                className="h-7 text-xs flex-1 px-2"
+              />
+              <span className="text-muted-foreground text-xs self-center">–</span>
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={(e) => { setDateTo(e.target.value); setCurrentPage(1); }}
+                className="h-7 text-xs flex-1 px-2"
+              />
+            </div>
+          </div>
+
+          {/* Conversation List */}
+          <div className="flex-1 overflow-y-auto">
             {loading ? (
-              <div className="text-center py-8">
-                <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
-                <p className="text-muted-foreground mt-2">Loading conversations...</p>
+              <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
+                <RefreshCw className="h-6 w-6 animate-spin" />
+                <span className="text-xs">Memuat...</span>
               </div>
             ) : conversations.length === 0 ? (
-              <div className="text-center py-8">
-                <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground opacity-50" />
-                <p className="text-muted-foreground mt-2">No conversations found</p>
+              <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground px-4 text-center">
+                <MessageSquare className="h-8 w-8 opacity-30" />
+                <span className="text-xs">Tidak ada percakapan ditemukan</span>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Phone Number</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Channel</TableHead>
-                      <TableHead>Messages</TableHead>
-                      <TableHead>Last Activity</TableHead>
-                      <TableHead>Started</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {conversations.map((conversation) => (
-                      <TableRow key={conversation.id}>
-                        <TableCell className="font-mono text-sm">
-                          <div className="flex items-center gap-2">
-                            <Phone className="h-4 w-4 text-muted-foreground" />
-                            {maskPhone(conversation.phone_number, level)}
-                          </div>
-                        </TableCell>
-                        <TableCell>{conversation.sender_name ? maskName(conversation.sender_name, level) : 'Unknown'}</TableCell>
-                        <TableCell>{getStatusBadge(conversation.status)}</TableCell>
-                        <TableCell>{getChannelBadge(conversation.channel)}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{conversation.message_count || 0}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Calendar className="h-4 w-4" />
-                            {formatDistanceToNow(new Date(conversation.last_message_at), { addSuffix: true })}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {new Date(conversation.started_at).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleViewConversation(conversation)}
-                            >
-                              <MessageSquare className="h-4 w-4 mr-2" />
-                              View Messages
-                            </Button>
-                            {conversation.report_id && (
-                              <Button
-                                size="sm"
-                                variant="default"
-                                onClick={() => handleViewReport(conversation.report_id!)}
-                              >
-                                <FileText className="h-4 w-4 mr-2" />
-                                View Report
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {totalCount > pageSize && (
-                  <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                    <p className="text-sm text-muted-foreground">
-                      Menampilkan {(currentPage - 1) * pageSize + 1}–
-                      {Math.min(currentPage * pageSize, totalCount)} dari {totalCount} percakapan
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                        disabled={currentPage === 1}
-                      >
-                        Sebelumnya
-                      </Button>
-                      <span className="text-sm">
-                        Halaman {currentPage} / {Math.ceil(totalCount / pageSize)}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(p => Math.min(Math.ceil(totalCount / pageSize), p + 1))}
-                        disabled={currentPage === Math.ceil(totalCount / pageSize)}
-                      >
-                        Berikutnya
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              conversations.map((conv) => {
+                const displayName = conv.sender_name
+                  ? maskName(conv.sender_name, level)
+                  : maskPhone(conv.phone_number, level);
+                const initials = getInitials(conv.sender_name || conv.phone_number);
+                const isSelected = selectedConversation?.id === conv.id;
+                const isActive = conv.status === "active";
 
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5" />
-                Conversation Details
-              </DialogTitle>
-              <DialogDescription>
-                {selectedConversation && (
-                  <div className="space-y-1 mt-2">
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4" />
-                      <span className="font-mono">{maskPhone(selectedConversation.phone_number, level)}</span>
-                      {getStatusBadge(selectedConversation.status)}
-                    </div>
-                    <p className="text-sm">
-                      Started: {new Date(selectedConversation.started_at).toLocaleString()}
-                    </p>
-                  </div>
-                )}
-              </DialogDescription>
-            </DialogHeader>
-
-            {loadingMessages ? (
-              <div className="text-center py-8">
-                <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                return (
+                  <button
+                    key={conv.id}
+                    onClick={() => handleSelectConversation(conv)}
+                    className={cn(
+                      "w-full flex items-start gap-3 px-3 py-3 border-b border-border/50 transition-colors text-left",
+                      "hover:bg-muted/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      isSelected && "bg-accent"
+                    )}
                   >
-                    <div
-                      className={`max-w-[70%] rounded-lg p-3 ${
-                        message.role === 'user'
-                          ? 'bg-primary text-primary-foreground'
-                          : message.role === 'assistant'
-                          ? 'bg-muted'
-                          : 'bg-secondary text-secondary-foreground text-sm'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <span className="text-xs font-medium capitalize opacity-70">
-                          {message.role}
-                        </span>
-                        <span className="text-xs opacity-70">
-                          {new Date(message.created_at).toLocaleTimeString()}
+                    {/* Avatar with status dot */}
+                    <div className="relative flex-shrink-0 mt-0.5">
+                      <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold">
+                        {initials}
+                      </div>
+                      {isActive && (
+                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-card" />
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1 mb-0.5">
+                        <span className="text-sm font-medium truncate">{displayName}</span>
+                        <span className="text-xs text-muted-foreground flex-shrink-0">
+                          {formatDistanceToNow(new Date(conv.last_message_at), { addSuffix: false })}
                         </span>
                       </div>
-                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                      {message.attachments && message.attachments.length > 0 && (
-                        <div className="mt-2 space-y-2">
-                          {message.attachments.map((attachment) => (
-                            <AttachmentDisplay
-                              key={attachment.id}
-                              attachment={attachment}
-                            />
-                          ))}
-                        </div>
-                      )}
-                      {/* AI Governance: Show AI thinking for assistant messages */}
-                      {message.role === 'assistant' && message.agent_flow_data && (
-                        <AIThinkingCollapsible agentFlowData={message.agent_flow_data} />
-                      )}
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs text-muted-foreground truncate">
+                          {conv.message_count || 0} pesan · {conv.channel}
+                        </span>
+                        {getStatusBadge(conv.status)}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  </button>
+                );
+              })
             )}
-          </DialogContent>
-        </Dialog>
+          </div>
+
+          {/* Pagination */}
+          {totalCount > pageSize && (
+            <div className="border-t p-2 flex items-center justify-between gap-2 bg-card">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                {currentPage} / {totalPages}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* ── RIGHT PANEL: Chat Area ── */}
+        <div className="flex-1 flex flex-col bg-background min-w-0">
+          {!selectedConversation ? (
+            /* Empty state */
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+                <MessageSquare className="h-8 w-8 opacity-40" />
+              </div>
+              <div className="text-center">
+                <p className="font-medium text-sm">Pilih Percakapan</p>
+                <p className="text-xs mt-1 opacity-70">Klik percakapan di sebelah kiri untuk melihat pesan</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Chat Header */}
+              <div className="flex-shrink-0 px-4 py-3 border-b bg-card flex items-center gap-3">
+                {/* Avatar */}
+                <div className="relative flex-shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold">
+                    {getInitials(selectedConversation.sender_name || selectedConversation.phone_number)}
+                  </div>
+                  {selectedConversation.status === "active" && (
+                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-card" />
+                  )}
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm truncate">
+                    {selectedConversation.sender_name
+                      ? maskName(selectedConversation.sender_name, level)
+                      : "Unknown"}
+                  </p>
+                  <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                    <Phone className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {maskPhone(selectedConversation.phone_number, level)}
+                    </span>
+                    {getStatusBadge(selectedConversation.status)}
+                    {getChannelBadge(selectedConversation.channel)}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <span className="text-xs text-muted-foreground hidden sm:inline">
+                    {selectedConversation.message_count || 0} pesan
+                  </span>
+                  {selectedConversation.report_id && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs"
+                      onClick={() => handleViewReport(selectedConversation.report_id!)}
+                    >
+                      <FileText className="h-3.5 w-3.5 mr-1" />
+                      Lihat Laporan
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setSelectedConversation(null)}
+                    title="Tutup"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Messages Area */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {loadingMessages ? (
+                  <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
+                    <RefreshCw className="h-6 w-6 animate-spin" />
+                    <span className="text-xs">Memuat pesan...</span>
+                  </div>
+                ) : messages.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
+                    <MessageSquare className="h-8 w-8 opacity-30" />
+                    <span className="text-xs">Belum ada pesan</span>
+                  </div>
+                ) : (
+                  messages.map((message) => {
+                    const isUser = message.role === "user";
+                    const isSystem = message.role === "system";
+
+                    if (isSystem) {
+                      return (
+                        <div key={message.id} className="flex justify-center">
+                          <div className="bg-muted text-muted-foreground text-xs px-3 py-1.5 rounded-full max-w-[70%] text-center">
+                            {message.content}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={message.id}
+                        className={cn("flex items-end gap-2", isUser ? "justify-end" : "justify-start")}
+                      >
+                        {/* Bot avatar (left side only) */}
+                        {!isUser && (
+                          <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center flex-shrink-0 mb-1">
+                            <Bot className="h-3.5 w-3.5 text-muted-foreground" />
+                          </div>
+                        )}
+
+                        <div
+                          className={cn(
+                            "max-w-[70%] rounded-2xl px-4 py-2.5",
+                            isUser
+                              ? "bg-primary text-primary-foreground rounded-br-sm"
+                              : "bg-card border shadow-sm rounded-bl-sm"
+                          )}
+                        >
+                          <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+
+                          {/* Attachments */}
+                          {message.attachments && message.attachments.length > 0 && (
+                            <div className="mt-2 space-y-2">
+                              {message.attachments.map((attachment) => (
+                                <AttachmentDisplay
+                                  key={attachment.id}
+                                  attachment={attachment}
+                                />
+                              ))}
+                            </div>
+                          )}
+
+                          {/* AI Governance: Show AI thinking for assistant messages */}
+                          {message.role === "assistant" && message.agent_flow_data && (
+                            <AIThinkingCollapsible agentFlowData={message.agent_flow_data} />
+                          )}
+
+                          {/* Timestamp */}
+                          <p className={cn(
+                            "text-xs mt-1.5 select-none",
+                            isUser ? "text-primary-foreground/60 text-right" : "text-muted-foreground/60 text-right"
+                          )}>
+                            {new Date(message.created_at).toLocaleTimeString("id-ID", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                {/* Scroll anchor */}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Info Footer */}
+              <div className="flex-shrink-0 px-4 py-2 border-t bg-card/50 flex items-center justify-between gap-4">
+                <span className="text-xs text-muted-foreground">
+                  Mulai: {new Date(selectedConversation.started_at).toLocaleString("id-ID", {
+                    day: "2-digit", month: "short", year: "numeric",
+                    hour: "2-digit", minute: "2-digit"
+                  })}
+                </span>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Settings2 className="h-3 w-3" />
+                  <span>Read-only</span>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </Dashboard>
   );
