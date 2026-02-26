@@ -16,6 +16,10 @@ import Conversations from "./pages/admin/Conversations";
 import Integration from "./pages/admin/Integration";
 import Users from "./pages/admin/Users";
 import OPDs from "./pages/admin/OPDs";
+import RecentReports from "./pages/admin/RecentReports";
+import IntegrationLogin from "./pages/admin/IntegrationLogin";
+import IntegrationAI from "./pages/admin/IntegrationAI";
+import IntegrationAPI from "./pages/admin/IntegrationAPI";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,7 +29,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route path="/" element={<Auth />} />
           <Route path="/auth" element={<Auth />} />
@@ -37,6 +41,10 @@ const App = () => (
           <Route path="/admin/reports/:id" element={<ReportDetail />} />
           <Route path="/admin/conversations" element={<Conversations />} />
           <Route path="/admin/integration" element={<Integration />} />
+          <Route path="/admin/integration/login" element={<IntegrationLogin />} />
+          <Route path="/admin/integration/ai" element={<IntegrationAI />} />
+          <Route path="/admin/integration/api" element={<IntegrationAPI />} />
+          <Route path="/admin/recent-reports" element={<RecentReports />} />
           <Route path="/admin/users" element={<Users />} />
           <Route path="/admin/opds" element={<OPDs />} />
           <Route path="/admin" element={<DashboardOverview />} />

@@ -14,18 +14,9 @@ import {
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, FileText, LogOut, Settings, MessageSquare, Users, Building2 } from "lucide-react";
+import { LayoutDashboard, FileText, LogOut, Settings, MessageSquare, Users, Building2, Clock, Bot, Key } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-
-const menuItems = [
-  { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
-  { title: "Laporan", url: "/admin/reports", icon: FileText },
-  { title: "Percakapan", url: "/admin/conversations", icon: MessageSquare },
-  { title: "Kelola OPD", url: "/admin/opds", icon: Building2, adminOnly: true },
-  { title: "Integrasi", url: "/admin/integration", icon: Settings, adminOnly: true },
-  { title: "Kelola Pengguna", url: "/admin/users", icon: Users, adminOnly: true },
-];
 
 export function AppSidebar() {
   const navigate = useNavigate();
@@ -75,45 +66,137 @@ export function AppSidebar() {
 
   const isActive = (path: string) => location.pathname === path;
 
+  const isAdminUser = userRole !== null && ['admin', 'owner', 'superadmin'].includes(userRole);
+
   return (
     <Sidebar className={state === "collapsed" ? "w-16" : "w-64"}>
-      <SidebarHeader className="border-b border-border p-4">
+      <SidebarHeader className="border-b border-border px-4 py-3">
         {state !== "collapsed" && (
-          <div>
-            <h2 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
-              Portal Lapor
-            </h2>
-            <p className="text-xs text-muted-foreground">Sistem Pemantauan</p>
-          </div>
+          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Menu Navigasi</p>
         )}
       </SidebarHeader>
 
       <SidebarContent>
+        {/* Dashboard Group */}
         <SidebarGroup>
-          <SidebarGroupLabel>Menu Utama</SidebarGroupLabel>
+          <SidebarGroupLabel>Dashboard</SidebarGroupLabel>
           <SidebarGroupContent>
-          <SidebarMenu>
-            {menuItems.map((item) => {
-              // Hide admin-only pages from non-admin users
-              if (item.adminOnly && userRole && !['admin', 'owner', 'superadmin'].includes(userRole)) {
-                return null;
-              }
-              
-              return (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    onClick={() => navigate(item.url)}
-                    className={isActive(item.url) ? "bg-accent" : ""}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    {state !== "collapsed" && <span>{item.title}</span>}
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-              );
-            })}
-          </SidebarMenu>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => navigate('/admin/dashboard')}
+                  className={isActive('/admin/dashboard') ? "bg-accent" : ""}
+                >
+                  <LayoutDashboard className="h-4 w-4" />
+                  {state !== "collapsed" && <span>Ringkasan Eksekutif</span>}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => navigate('/admin/recent-reports')}
+                  className={isActive('/admin/recent-reports') ? "bg-accent" : ""}
+                >
+                  <Clock className="h-4 w-4" />
+                  {state !== "collapsed" && <span>Statistik &amp; Analitik</span>}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Laporan Group */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Laporan</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => navigate('/admin/reports')}
+                  className={isActive('/admin/reports') ? "bg-accent" : ""}
+                >
+                  <FileText className="h-4 w-4" />
+                  {state !== "collapsed" && <span>Laporan</span>}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => navigate('/admin/conversations')}
+                  className={isActive('/admin/conversations') ? "bg-accent" : ""}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  {state !== "collapsed" && <span>Percakapan</span>}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Kelola Pengguna Group (adminOnly) */}
+        {isAdminUser && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Kelola Pengguna</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => navigate('/admin/opds')}
+                    className={isActive('/admin/opds') ? "bg-accent" : ""}
+                  >
+                    <Building2 className="h-4 w-4" />
+                    {state !== "collapsed" && <span>OPD</span>}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => navigate('/admin/users')}
+                    className={isActive('/admin/users') ? "bg-accent" : ""}
+                  >
+                    <Users className="h-4 w-4" />
+                    {state !== "collapsed" && <span>User</span>}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* Integrasi Group (adminOnly) */}
+        {isAdminUser && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Integrasi</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => navigate('/admin/integration/login')}
+                    className={isActive('/admin/integration/login') ? "bg-accent" : ""}
+                  >
+                    <Settings className="h-4 w-4" />
+                    {state !== "collapsed" && <span>Konfigurasi Login</span>}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => navigate('/admin/integration/ai')}
+                    className={isActive('/admin/integration/ai') ? "bg-accent" : ""}
+                  >
+                    <Bot className="h-4 w-4" />
+                    {state !== "collapsed" && <span>Konfigurasi AI Asisten</span>}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => navigate('/admin/integration/api')}
+                    className={isActive('/admin/integration/api') ? "bg-accent" : ""}
+                  >
+                    <Key className="h-4 w-4" />
+                    {state !== "collapsed" && <span>API Management</span>}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-border p-4">
