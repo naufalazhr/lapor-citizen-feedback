@@ -63,7 +63,10 @@ export const OpenRouterConfigManager = () => {
         .eq("is_active", true)
         .maybeSingle();
 
-      if (error && error.code !== "PGRST116") {
+      if (error) {
+        // PGRST205 = table not found (migration not yet applied to this environment).
+        // Treat it as "no config" instead of surfacing an error toast.
+        if (error.code === "PGRST205" || error.code === "42P01") return;
         throw error;
       }
 
@@ -185,9 +188,13 @@ export const OpenRouterConfigManager = () => {
       await fetchConfig();
     } catch (error: any) {
       console.error("Error saving OpenRouter config:", error);
+      // PGRST205 / 42P01 = table not yet created in this environment
+      const isTableMissing = error.code === "PGRST205" || error.code === "42P01";
       toast({
-        title: "Error",
-        description: error.message || "Gagal menyimpan konfigurasi",
+        title: isTableMissing ? "Tabel Belum Tersedia" : "Error",
+        description: isTableMissing
+          ? "Tabel openrouter_config belum ada di database ini. Hubungi superadmin untuk menerapkan migrasi."
+          : error.message || "Gagal menyimpan konfigurasi",
         variant: "destructive",
       });
     } finally {

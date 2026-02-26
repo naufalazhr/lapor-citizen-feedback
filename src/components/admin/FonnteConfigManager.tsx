@@ -50,12 +50,9 @@ export const FonnteConfigManager = () => {
         .from("fonnte_config")
         .select("*")
         .eq("is_active", true)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== "PGRST116") {
-        // PGRST116 = no rows returned
-        throw error;
-      }
+      if (error) throw error;
 
       if (data) {
         const configData = {

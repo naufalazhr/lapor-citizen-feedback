@@ -37,6 +37,11 @@ export function ReturnRequestCard() {
   const fetchRequests = async () => {
     try {
       setLoading(true);
+
+      // Step 1: fetch return requests with joined report fields.
+      // profiles is intentionally NOT joined here: report_return_requests.requested_by
+      // references auth.users, not public.profiles, so PostgREST cannot resolve the
+      // relationship and returns a 400 PGRST200 error.
       const { data, error } = await supabase
         .from("report_return_requests")
         .select(`
@@ -47,17 +52,37 @@ export function ReturnRequestCard() {
             description,
             type,
             status
-          ),
-          profiles!report_return_requests_requested_by_fkey (
-            full_name,
-            email
           )
         `)
         .eq("status", "pending")
         .order("requested_at", { ascending: false });
 
       if (error) throw error;
-      setRequests(data as any || []);
+
+      const rows = data || [];
+
+      // Step 2: fetch profiles for unique requesters in one round-trip
+      const uniqueUserIds = [...new Set(rows.map((r: any) => r.requested_by as string))];
+      let profileMap: Record<string, { full_name: string; email: string }> = {};
+
+      if (uniqueUserIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("id, full_name, email")
+          .in("id", uniqueUserIds);
+
+        profileMap = Object.fromEntries(
+          (profilesData || []).map((p: any) => [p.id, { full_name: p.full_name, email: p.email }])
+        );
+      }
+
+      // Step 3: merge profiles back into each request row
+      const merged = rows.map((r: any) => ({
+        ...r,
+        profiles: profileMap[r.requested_by] ?? { full_name: "—", email: "" },
+      }));
+
+      setRequests(merged as any);
     } catch (error) {
       console.error("Error fetching return requests:", error);
     } finally {

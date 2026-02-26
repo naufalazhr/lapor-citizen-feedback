@@ -151,7 +151,7 @@ export const useExecutiveDashboard = () => {
         .eq('id', session.user.id)
         .single();
 
-      // Build the reports query
+      // Build reports + dispositions queries — both only need tenant_id
       let reportsQuery = supabase
         .from("reports")
         .select(`
@@ -160,22 +160,34 @@ export const useExecutiveDashboard = () => {
           opds!reports_assigned_opd_id_fkey (id, name, code)
         `);
 
+      let dispositionsQuery = supabase
+        .from('report_dispositions')
+        .select('id, report_id, opd_id, assigned_at, action_type');
+
       // Apply tenant filter only if user has a tenant_id (not superadmin without tenant)
       if (profile?.tenant_id) {
         reportsQuery = reportsQuery.eq('tenant_id', profile.tenant_id);
+        dispositionsQuery = dispositionsQuery.eq('tenant_id', profile.tenant_id);
       }
-      // For superadmin without tenant_id, fetch all reports (RLS should handle this)
 
-      const { data: reportsData, error: reportsError } = await reportsQuery;
+      // Run reports + dispositions in parallel (both only need tenant_id from profile)
+      const [
+        { data: reportsData, error: reportsError },
+        { data: dispositionsData, error: dispositionsError },
+      ] = await Promise.all([reportsQuery, dispositionsQuery]);
 
       if (reportsError) {
         console.error('Reports query error:', reportsError);
         throw reportsError;
       }
 
+      if (dispositionsError) {
+        console.error('Dispositions query error:', dispositionsError);
+      }
+
       console.log('Fetched reports:', reportsData?.length || 0);
 
-      // Fetch AI insights for all reports
+      // Fetch AI insights after reports — needs reportIds
       const reportIds = (reportsData || []).map(r => r.id);
       let aiData: AIInsightData[] = [];
 
@@ -188,21 +200,6 @@ export const useExecutiveDashboard = () => {
         if (!insightsError && insights) {
           aiData = insights as AIInsightData[];
         }
-      }
-
-      // Fetch dispositions
-      let dispositionsQuery = supabase
-        .from('report_dispositions')
-        .select('id, report_id, opd_id, assigned_at, action_type');
-
-      if (profile?.tenant_id) {
-        dispositionsQuery = dispositionsQuery.eq('tenant_id', profile.tenant_id);
-      }
-
-      const { data: dispositionsData, error: dispositionsError } = await dispositionsQuery;
-
-      if (dispositionsError) {
-        console.error('Dispositions query error:', dispositionsError);
       }
 
       setAllReportsData((reportsData || []) as ReportWithLocation[]);

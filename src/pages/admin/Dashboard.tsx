@@ -131,34 +131,22 @@ const Dashboard = ({ children }: DashboardProps) => {
       setUserFullName(profileData.email.split('@')[0]);
     }
 
-    // Step 2: Fetch tenant name
-    const { data: tenantData } = await supabase
-      .from('tenants')
-      .select('name')
-      .eq('id', profileData.tenant_id)
-      .single();
+    // Steps 2, 3, 4: run in parallel — tenant name, login logo, user role
+    const [tenantResult, loginConfigResult, roleResult] = await Promise.all([
+      supabase.from('tenants').select('name').eq('id', profileData.tenant_id).single(),
+      supabase.from('login_config').select('logo_url').limit(1).maybeSingle(),
+      supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
+    ]);
 
-    if (tenantData?.name) {
-      setTenantName(tenantData.name);
+    if (tenantResult.data?.name) {
+      setTenantName(tenantResult.data.name);
     }
 
-    // Step 3: Fetch tenant logo from login_config
-    const { data: loginConfig } = await supabase
-      .from('login_config')
-      .select('logo_url')
-      .limit(1)
-      .maybeSingle();
-
-    if (loginConfig?.logo_url) {
-      setTenantLogoUrl(loginConfig.logo_url);
+    if (loginConfigResult.data?.logo_url) {
+      setTenantLogoUrl(loginConfigResult.data.logo_url);
     }
 
-    // Step 4: Check role
-    const { data: roleData, error: roleError } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .maybeSingle();
+    const { data: roleData, error: roleError } = roleResult;
 
     if (roleError) {
       console.error("Error fetching role:", roleError);
@@ -172,7 +160,7 @@ const Dashboard = ({ children }: DashboardProps) => {
       return;
     }
 
-    // Step 5: Check pending approval
+    // Step 5: Check pending approval (only if no role found)
     const { data: approvalData } = await supabase
       .from("user_approvals")
       .select("status")
