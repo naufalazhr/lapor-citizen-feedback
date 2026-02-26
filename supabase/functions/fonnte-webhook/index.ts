@@ -172,7 +172,10 @@ serve(async (req: Request) => {
       console.log('👤 Human takeover active — saving message for admin, skipping AI');
 
       const humanModeContent = normalized.message ||
-        (normalized.hasAttachment ? '[Gambar]' : '');
+        (normalized.hasAttachment ? '[Gambar]' :
+        (normalized.location
+          ? `[Lokasi: ${normalized.location.lat}, ${normalized.location.lng}]`
+          : ''));
 
       // Deduplication guard — Fonnte retries on no-200 response
       const humanDuplicate = await isDuplicateMessage(conversation.id, humanModeContent);
@@ -219,7 +222,10 @@ serve(async (req: Request) => {
     // For image-only messages, use placeholder for database storage
     // The actual image URL will be appended in buildFlowiseRequest
     const messageContent = normalized.message ||
-      (normalized.hasAttachment ? '[Gambar]' : '');
+      (normalized.hasAttachment ? '[Gambar]' :
+      (normalized.location
+        ? `[Lokasi: ${normalized.location.lat}, ${normalized.location.lng}]`
+        : ''));
 
     // ============================================================================
     // DEDUPLICATION CHECK - Fonnte multi-device / webhook retry guard
