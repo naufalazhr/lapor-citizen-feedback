@@ -16,6 +16,7 @@ import { lazy, Suspense } from "react";
 import { DispositionTimeline } from "@/components/admin/DispositionTimeline";
 import { ReportDispositionDialog } from "@/components/admin/ReportDispositionDialog";
 import { OPDMemberReturnDialog } from "@/components/admin/OPDMemberReturnDialog";
+import { ReturnRequestApprovalDialog } from "@/components/admin/ReturnRequestApprovalDialog";
 import { AIInsightSection } from "@/components/admin/AIInsightSection";
 import { useUserRole } from "@/hooks/use-user-role";
 import { usePIIMasking } from "@/hooks/use-pii-masking";
@@ -71,6 +72,8 @@ const ReportDetail = () => {
   const [savingNote, setSavingNote] = useState(false);
   const [showDispositionDialog, setShowDispositionDialog] = useState(false);
   const [showReturnDialog, setShowReturnDialog] = useState(false);
+  const [showReturnApprovalDialog, setShowReturnApprovalDialog] = useState(false);
+  const [pendingReturnRequest, setPendingReturnRequest] = useState<any>(null);
   const [showImageModal, setShowImageModal] = useState(false);
   const { toast } = useToast();
   const { isOPDMember, role } = useUserRole();
@@ -158,6 +161,9 @@ const ReportDetail = () => {
         }
       }
 
+      // Fetch pending return request for this report
+      await fetchReturnRequest(typedReport.id);
+
       // Fetch internal notes
       console.log("📝 Fetching internal notes for report:", id);
       await fetchInternalNotes();
@@ -171,6 +177,44 @@ const ReportDetail = () => {
       setReport(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchReturnRequest = async (reportId: string) => {
+    try {
+      const { data: req } = await supabase
+        .from("report_return_requests")
+        .select("id, report_id, requested_by, requested_at, notes, status")
+        .eq("report_id", reportId)
+        .eq("status", "pending")
+        .maybeSingle();
+
+      if (!req) {
+        setPendingReturnRequest(null);
+        return;
+      }
+
+      const [reportRes, profileRes] = await Promise.all([
+        supabase
+          .from("reports")
+          .select("ticket_id, reporter_name, description, type, status")
+          .eq("id", req.report_id)
+          .single(),
+        supabase
+          .from("profiles")
+          .select("full_name, email")
+          .eq("id", req.requested_by)
+          .single(),
+      ]);
+
+      setPendingReturnRequest({
+        ...req,
+        reports: reportRes.data || { ticket_id: "-", reporter_name: "-", description: "", type: "lapor", status: "pending" },
+        profiles: profileRes.data || { full_name: "-", email: "-" },
+      });
+    } catch (error) {
+      console.error("Error fetching return request:", error);
+      setPendingReturnRequest(null);
     }
   };
 
@@ -565,6 +609,33 @@ const ReportDetail = () => {
 
           {/* RIGHT COLUMN (40%) */}
           <div className="lg:col-span-2 space-y-4">
+            {/* Pending Return Request — prominent card, visible to Member/Admin only */}
+            {!isOPDMember && pendingReturnRequest && (
+              <Card className="border-orange-300 bg-orange-50 shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm text-orange-900 flex items-center gap-2">
+                    <RotateCcw className="h-4 w-4 text-orange-600" />
+                    Permintaan Pengembalian
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <p className="text-xs text-orange-800">
+                    <span className="font-semibold">{pendingReturnRequest.profiles?.full_name || "OPD Member"}</span> meminta laporan ini dikembalikan ke pool Member.
+                  </p>
+                  {pendingReturnRequest.notes && (
+                    <p className="text-xs text-orange-700 italic bg-orange-100 rounded p-2">"{pendingReturnRequest.notes}"</p>
+                  )}
+                  <Button
+                    size="sm"
+                    className="w-full bg-green-600 hover:bg-green-700 text-white mt-1"
+                    onClick={() => setShowReturnApprovalDialog(true)}
+                  >
+                    Tinjau &amp; Setujui Pengembalian
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Photo Thumbnail Card */}
             {report.photo_url && (
               <Card className="overflow-hidden">
@@ -792,6 +863,20 @@ const ReportDetail = () => {
           reports={[report]}
           onSuccess={() => {
             setShowReturnDialog(false);
+            fetchReport();
+          }}
+        />
+      )}
+
+      {/* Return Request Approval Dialog for Members/Admins */}
+      {!isOPDMember && (
+        <ReturnRequestApprovalDialog
+          open={showReturnApprovalDialog}
+          onOpenChange={setShowReturnApprovalDialog}
+          request={pendingReturnRequest}
+          onSuccess={() => {
+            setShowReturnApprovalDialog(false);
+            setPendingReturnRequest(null);
             fetchReport();
           }}
         />

@@ -26,9 +26,8 @@ import { Trash2, Eye, RefreshCw, Copy, Search, ChevronLeft, ChevronRight, Buildi
 import { Input } from "@/components/ui/input";
 import { ReportDispositionDialog } from "@/components/admin/ReportDispositionDialog";
 import { OPDMemberReturnDialog } from "@/components/admin/OPDMemberReturnDialog";
-import { ReturnRequestCard } from "@/components/admin/ReturnRequestCard";
-import { ReturnRequestApprovalDialog } from "@/components/admin/ReturnRequestApprovalDialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePIIMasking } from "@/hooks/use-pii-masking";
 import {
   Pagination,
@@ -136,8 +135,7 @@ const Reports = () => {
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [showDispositionDialog, setShowDispositionDialog] = useState(false);
   const [showReturnDialog, setShowReturnDialog] = useState(false);
-  const [showReturnApprovalDialog, setShowReturnApprovalDialog] = useState(false);
-  const [selectedReturnRequest, setSelectedReturnRequest] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'laporan' | 'dikembalikan'>('laporan');
   const [userOpdIds, setUserOpdIds] = useState<string[]>([]);
   // Date range filter
   const [dateFrom, setDateFrom] = useState<string>("");
@@ -245,12 +243,13 @@ const Reports = () => {
           (dispositions || []).map(d => d.report_id)
         );
         
-        // Fetch pending return requests for these reports
+        // Fetch return requests for these reports (oldest first so Map keeps the most recent)
         const { data: returnRequests } = await supabase
           .from("report_return_requests")
           .select("id, report_id, status, requested_at, notes")
-          .in("report_id", reportIds);
-        
+          .in("report_id", reportIds)
+          .order("requested_at", { ascending: true });
+
         const returnRequestMap = new Map(
           (returnRequests || []).map(req => [req.report_id, req])
         );
@@ -524,11 +523,18 @@ const Reports = () => {
     setAiSummaryLoading(false);
   };
 
+  // Tab split — "Dikembalikan" = only pending return requests (waiting for approval)
+  // Once approved, the report returns to the Laporan tab
+  const isDikembalikan = (r: Report) => r.return_request?.status === 'pending';
+  const laporanReports = filteredReports.filter(r => !isDikembalikan(r));
+  const dikembalikanReports = filteredReports.filter(r => isDikembalikan(r));
+  const activeTabReports = activeTab === 'dikembalikan' ? dikembalikanReports : laporanReports;
+
   // Pagination calculations
-  const totalPages = Math.ceil(filteredReports.length / pageSize);
+  const totalPages = Math.ceil(activeTabReports.length / pageSize);
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  const paginatedReports = filteredReports.slice(startIndex, endIndex);
+  const paginatedReports = activeTabReports.slice(startIndex, endIndex);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -771,16 +777,33 @@ const Reports = () => {
           })()}
         </div>
 
-        {/* Return Requests Card - Only show for Members/Admins */}
-        {!isOPDMember && <ReturnRequestCard />}
+        {/* Tabs: Laporan / Laporan Dikembalikan */}
+        {!isOPDMember && (
+          <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'laporan' | 'dikembalikan'); setCurrentPage(1); }}>
+            <TabsList className="h-9">
+              <TabsTrigger value="laporan" className="gap-2">
+                Laporan
+                <span className="inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-semibold min-w-[1.5rem]">
+                  {laporanReports.length}
+                </span>
+              </TabsTrigger>
+              <TabsTrigger value="dikembalikan" className="gap-2">
+                Laporan Dikembalikan
+                <span className="inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-semibold min-w-[1.5rem]">
+                  {dikembalikanReports.length}
+                </span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
 
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Semua Laporan</CardTitle>
+                <CardTitle>{activeTab === 'dikembalikan' ? 'Laporan Dikembalikan' : 'Semua Laporan'}</CardTitle>
                 <CardDescription>
-                  Menampilkan {startIndex + 1}-{Math.min(endIndex, filteredReports.length)} dari {filteredReports.length} laporan
+                  Menampilkan {activeTabReports.length === 0 ? 0 : startIndex + 1}-{Math.min(endIndex, activeTabReports.length)} dari {activeTabReports.length} laporan
                   {selectedReports.size > 0 && ` • ${selectedReports.size} dipilih`}
                 </CardDescription>
               </div>
@@ -930,80 +953,9 @@ const Reports = () => {
                         </TableCell>
                         <TableCell className="font-medium">{maskedReport.reporter_name}</TableCell>
                         <TableCell>
-                          <div className="flex gap-2 flex-wrap">
-                            <Badge className={getTypeColor(report.type)} variant="outline">
-                              {report.type}
-                            </Badge>
-                            {report.return_request && (
-                              <Badge 
-                                variant={
-                                  report.return_request.status === 'pending' ? 'default' : 
-                                  report.return_request.status === 'approved' ? 'outline' : 
-                                  'destructive'
-                                }
-                                className={
-                                  report.return_request.status === 'pending' 
-                                    ? 'bg-orange-500 hover:bg-orange-600' 
-                                    : ''
-                                }
-                              >
-                                {report.return_request.status === 'pending' && '⏳ Permintaan Dikembalikan'}
-                                {report.return_request.status === 'approved' && '✓ Dikembalikan ke Member'}
-                                {report.return_request.status === 'rejected' && '✗ Pengembalian Ditolak'}
-                              </Badge>
-                            )}
-                            {!isOPDMember && report.return_request?.status === 'pending' && (
-                              <Button
-                                size="sm"
-                                variant="default"
-                                className="h-6 px-2 text-xs bg-green-600 hover:bg-green-700 text-white"
-                                onClick={async () => {
-                                  try {
-                                    // 1) Fetch the base request first (ensures RLS passes)
-                                    const { data: req, error: reqErr } = await supabase
-                                      .from("report_return_requests")
-                                      .select("id, report_id, requested_by, requested_at, notes, status")
-                                      .eq("id", report.return_request!.id)
-                                      .single();
-
-                                    if (reqErr || !req) throw reqErr || new Error("not_found");
-
-                                    // 2) Fetch related report and requester profile in parallel
-                                    const [reportRes, profileRes] = await Promise.all([
-                                      supabase
-                                        .from("reports")
-                                        .select("ticket_id, reporter_name, description, type, status")
-                                        .eq("id", req.report_id)
-                                        .single(),
-                                      supabase
-                                        .from("profiles")
-                                        .select("full_name, email")
-                                        .eq("id", req.requested_by)
-                                        .single(),
-                                    ]);
-
-                                    // 3) Compose the payload expected by the Approval Dialog
-                                    const composed = {
-                                      ...req,
-                                      reports: reportRes.data || { ticket_id: "-", reporter_name: "-", description: "", type: "lapor", status: "pending" },
-                                      profiles: profileRes.data || { full_name: "-", email: "-" },
-                                    } as any;
-
-                                    setSelectedReturnRequest(composed);
-                                    setShowReturnApprovalDialog(true);
-                                  } catch (e) {
-                                    toast({
-                                      title: "Error",
-                                      description: "Gagal memuat data permintaan pengembalian",
-                                      variant: "destructive",
-                                    });
-                                  }
-                                }}
-                              >
-                                Setujui
-                              </Button>
-                            )}
-                          </div>
+                          <Badge className={getTypeColor(report.type)} variant="outline">
+                            {report.type}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           <Select
@@ -1250,18 +1202,6 @@ const Reports = () => {
         onSuccess={() => {
           setShowReturnDialog(false);
           setSelectedReports(new Set());
-          fetchReports();
-        }}
-      />
-
-      {/* Member Return Request Approval Dialog */}
-      <ReturnRequestApprovalDialog
-        open={showReturnApprovalDialog}
-        onOpenChange={setShowReturnApprovalDialog}
-        request={selectedReturnRequest}
-        onSuccess={() => {
-          setSelectedReturnRequest(null);
-          setShowReturnApprovalDialog(false);
           fetchReports();
         }}
       />
