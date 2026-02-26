@@ -60,10 +60,12 @@ export function useCriticalNotifications(): CriticalNotificationState {
       thresholdDate.setHours(thresholdDate.getHours() - THRESHOLD_HOURS);
 
       // Step 1: fetch overdue reports for this tenant only (no !inner join — avoids 502 in prod)
+      // Only 'pending' status — a report still pending after 24h has not been acted on at all.
+      // 'in_progress' is excluded because it has already been picked up by staff.
       let reportsQuery = supabase
         .from('reports')
         .select('id, ticket_id, description, created_at, status')
-        .in('status', ['pending', 'in_progress'])
+        .eq('status', 'pending')
         .lt('created_at', thresholdDate.toISOString())
         .order('created_at', { ascending: true });
 

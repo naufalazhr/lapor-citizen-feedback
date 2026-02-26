@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
     // Validate API key against database
     const { data: keyData, error: keyError } = await supabase
       .from('api_keys')
-      .select('id, is_active')
+      .select('id, is_active, tenant_id')
       .eq('key_hash', keyHash)
       .eq('is_active', true)
       .single()
@@ -188,8 +188,9 @@ Deno.serve(async (req) => {
       type: payload.type,
       photo_url: payload.photo_url || null,
       geo_location: payload.geo_location || null,
-      session_id: payload.session_id || null,  // NEW: Store session_id for exact matching
-      status: 'pending'
+      session_id: payload.session_id || null,  // Store session_id for exact matching
+      status: 'pending',
+      tenant_id: keyData.tenant_id  // Derived from the validated API key — never from payload
     }
 
     console.log('💾 Inserting report into database...')

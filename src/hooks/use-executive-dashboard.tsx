@@ -517,13 +517,14 @@ export const useExecutiveDashboard = () => {
     return result.sort((a, b) => b.avg_response_hours - a.avg_response_hours).slice(0, 5);
   }, [reports, dispositions]);
 
-  // Get urgent issues
+  // Get urgent issues — always from ALL reports (not date-filtered), so critical issues
+  // are never hidden by the dashboard date range picker.
   const urgentIssues = useMemo((): UrgentIssue[] => {
     const criticalInsights = aiInsights.filter(ai => ai.urgency === 'critical');
 
     return criticalInsights
       .map(ai => {
-        const report = reports.find(r => r.id === ai.report_id);
+        const report = allReportsData.find(r => r.id === ai.report_id);
         if (!report) return null;
         if (report.status === 'resolved' || report.status === 'selesai') return null;
         return {
@@ -538,7 +539,7 @@ export const useExecutiveDashboard = () => {
       })
       .filter((item): item is UrgentIssue => item !== null)
       .slice(0, 5);
-  }, [reports, aiInsights]);
+  }, [allReportsData, aiInsights]);
 
   // Aggregate recommendations
   const recommendations = useMemo((): RecommendationSummary[] => {

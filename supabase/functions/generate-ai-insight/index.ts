@@ -107,6 +107,56 @@ Deno.serve(async (req) => {
       )
     }
 
+    // ============================================
+    // LOAD OPENROUTER CONFIG FROM DB (per-tenant)
+    // Falls back to 'pimpinan-insight' secret for backward compatibility
+    // ============================================
+    let openRouterApiKey = Deno.env.get('pimpinan-insight') || ''
+    let openRouterBaseUrl = 'https://openrouter.ai/api/v1'
+    let openRouterModel = 'google/gemini-2.5-flash'
+    let openRouterMaxTokens: number | null = null  // null = use per-mode defaults
+    let openRouterTemperature = 0.3
+
+    try {
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('tenant_id')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      if (profile?.tenant_id) {
+        const { data: orConfig } = await supabaseAdmin
+          .from('openrouter_config')
+          .select('api_key, base_url, default_model, max_tokens, temperature')
+          .eq('tenant_id', profile.tenant_id)
+          .eq('is_active', true)
+          .maybeSingle()
+
+        if (orConfig?.api_key) {
+          openRouterApiKey = orConfig.api_key
+          openRouterBaseUrl = orConfig.base_url || openRouterBaseUrl
+          openRouterModel = orConfig.default_model || openRouterModel
+          openRouterMaxTokens = orConfig.max_tokens || null
+          openRouterTemperature = orConfig.temperature !== null && orConfig.temperature !== undefined
+            ? Number(orConfig.temperature)
+            : openRouterTemperature
+          console.log('Loaded OpenRouter config from DB for tenant:', profile.tenant_id, 'model:', openRouterModel)
+        } else {
+          console.log('No active openrouter_config in DB for tenant, using secret fallback')
+        }
+      }
+    } catch (configError) {
+      console.warn('Failed to load openrouter_config from DB, using secret fallback:', configError)
+    }
+
+    if (!openRouterApiKey) {
+      console.error('OpenRouter API key not found in DB config or secrets')
+      return new Response(
+        JSON.stringify({ error: 'AI service configuration error - no OpenRouter API key configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Parse request body
     const requestBody = await req.json()
     const { report_id, report_data, available_opds, dashboard_summary, summary_data } = requestBody as {
@@ -132,16 +182,6 @@ Deno.serve(async (req) => {
     // ============================================
     if (dashboard_summary && summary_data) {
       console.log('Generating AI insight for dashboard summary')
-
-      // Get OpenRouter API key
-      const openRouterApiKey = Deno.env.get('pimpinan-insight')
-      if (!openRouterApiKey) {
-        console.error('OpenRouter API key not found in secrets')
-        return new Response(
-          JSON.stringify({ error: 'AI service configuration error' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
 
       // Calculate key metrics for the prompt
       const totalReports = summary_data.total_reports || 0
@@ -230,8 +270,8 @@ PANDUAN OUTPUT:
 7. Output HANYA JSON valid, tanpa markdown atau penjelasan tambahan`
 
       // Call OpenRouter API
-      console.log('Calling OpenRouter API for dashboard summary...')
-      const aiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      console.log('Calling OpenRouter API for dashboard summary...', 'model:', openRouterModel)
+      const aiResponse = await fetch(`${openRouterBaseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${openRouterApiKey}`,
@@ -240,15 +280,15 @@ PANDUAN OUTPUT:
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
+          model: openRouterModel,
           messages: [
             {
               role: 'user',
               content: dashboardPrompt
             }
           ],
-          temperature: 0.3,
-          max_tokens: 1500
+          temperature: openRouterTemperature,
+          max_tokens: openRouterMaxTokens || 1500
         })
       })
 
@@ -328,16 +368,6 @@ PANDUAN OUTPUT:
 
     console.log('Generating AI insight for report:', report_id)
 
-    // Get OpenRouter API key from secrets
-    const openRouterApiKey = Deno.env.get('pimpinan-insight')
-    if (!openRouterApiKey) {
-      console.error('OpenRouter API key not found in secrets')
-      return new Response(
-        JSON.stringify({ error: 'AI service configuration error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
     // Prepare the prompt for AI analysis - optimized for quick executive reading (20-40 seconds)
     const reportTypeLabel = report_data.type === 'lapor' ? 'Pengaduan' : 'Aspirasi'
     const statusLabel = {
@@ -409,9 +439,9 @@ PANDUAN KLASIFIKASI:
   * Masalah perizinan/administrasi → Dinas terkait atau Bagian Umum
 - Confidence HIGH jika domain OPD jelas cocok, MEDIUM jika perlu verifikasi, LOW jika ragu`
 
-    // Call OpenRouter API with Gemini 2.5 Flash
-    console.log('Calling OpenRouter API...')
-    const aiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    // Call OpenRouter API
+    console.log('Calling OpenRouter API...', 'model:', openRouterModel)
+    const aiResponse = await fetch(`${openRouterBaseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openRouterApiKey}`,
@@ -420,15 +450,15 @@ PANDUAN KLASIFIKASI:
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: openRouterModel,
         messages: [
           {
             role: 'user',
             content: prompt
           }
         ],
-        temperature: 0.3,  // Lower temperature for more focused, consistent output
-        max_tokens: 800    // Increased to accommodate classification data (~200 words target)
+        temperature: openRouterTemperature,
+        max_tokens: openRouterMaxTokens || 800
       })
     })
 
@@ -523,7 +553,7 @@ PANDUAN KLASIFIKASI:
         suggested_opd_confidence: validConfidence,
         report_category: validReportCategory,
         // Metadata
-        model_used: 'google/gemini-2.5-flash',
+        model_used: openRouterModel,
         generated_by: user.id,
         updated_at: new Date().toISOString()
       }, {

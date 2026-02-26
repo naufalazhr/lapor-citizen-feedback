@@ -25,17 +25,12 @@ interface OpenRouterConfig {
   updated_at: string;
 }
 
-const POPULAR_MODELS = [
-  { value: "openai/gpt-4o", label: "GPT-4o (OpenAI)" },
-  { value: "openai/gpt-4o-mini", label: "GPT-4o Mini (OpenAI)" },
-  { value: "anthropic/claude-3-5-sonnet", label: "Claude 3.5 Sonnet (Anthropic)" },
-  { value: "anthropic/claude-3-haiku", label: "Claude 3 Haiku (Anthropic)" },
-  { value: "google/gemini-2.0-flash", label: "Gemini 2.0 Flash (Google)" },
-  { value: "google/gemini-flash-1.5", label: "Gemini Flash 1.5 (Google)" },
-  { value: "meta-llama/llama-3.1-8b-instruct:free", label: "Llama 3.1 8B (Meta, Gratis)" },
-];
 
-export const OpenRouterConfigManager = () => {
+interface OpenRouterConfigManagerProps {
+  onSave?: () => void;
+}
+
+export const OpenRouterConfigManager = ({ onSave }: OpenRouterConfigManagerProps) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<OpenRouterConfig | null>(null);
@@ -186,6 +181,7 @@ export const OpenRouterConfigManager = () => {
       });
 
       await fetchConfig();
+      onSave?.();
     } catch (error: any) {
       console.error("Error saving OpenRouter config:", error);
       // PGRST205 / 42P01 = table not yet created in this environment
@@ -323,29 +319,19 @@ export const OpenRouterConfigManager = () => {
             <Label htmlFor="or_default_model">
               Model Default <span className="text-destructive">*</span>
             </Label>
-            <select
+            <Input
               id="or_default_model"
+              type="text"
+              placeholder="google/gemini-2.5-flash"
               value={formData.default_model}
               onChange={(e) => handleInputChange("default_model", e.target.value)}
-              className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                errors.default_model ? "border-destructive" : ""
-              }`}
-            >
-              {POPULAR_MODELS.map((model) => (
-                <option key={model.value} value={model.value}>
-                  {model.label}
-                </option>
-              ))}
-              {!POPULAR_MODELS.find((m) => m.value === formData.default_model) &&
-                formData.default_model && (
-                  <option value={formData.default_model}>{formData.default_model}</option>
-                )}
-            </select>
+              className={errors.default_model ? "border-destructive" : ""}
+            />
             {errors.default_model && (
               <p className="text-sm text-destructive">{errors.default_model}</p>
             )}
             <p className="text-xs text-muted-foreground">
-              Model yang digunakan untuk fitur AI Insight dan Analitik Eksekutif
+              Nama model sesuai format OpenRouter, contoh: <code className="bg-muted px-1 rounded">google/gemini-2.5-pro</code>, <code className="bg-muted px-1 rounded">openai/gpt-4o</code>, <code className="bg-muted px-1 rounded">anthropic/claude-3-5-sonnet</code>
             </p>
           </div>
 

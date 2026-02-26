@@ -103,16 +103,18 @@ export async function findOrCreateConversation(
   // Calculate cutoff time for active sessions
   const cutoffTime = new Date(Date.now() - timeoutMinutes * 60000).toISOString();
 
-  // Find active session within timeout window
+  // Find active session within timeout window OR in human takeover mode.
   // IMPORTANT: scope by device_number so the same sender messaging two different
-  // tenant devices (e.g. default + baznas) gets two separate conversations
+  // tenant devices (e.g. default + baznas) gets two separate conversations.
+  // Human-handled conversations are never expired by timeout — admin must
+  // explicitly close them via "Selesaikan" button.
   const { data: existing, error: findError } = await supabase
     .from('conversations')
     .select('*')
     .eq('phone_number', phoneNumber)
     .eq('device_number', deviceNumber)
     .eq('status', 'active')
-    .gte('last_message_at', cutoffTime)
+    .or(`last_message_at.gte.${cutoffTime},is_human_handled.eq.true`)
     .order('last_message_at', { ascending: false })
     .limit(1)
     .single();
@@ -143,6 +145,7 @@ export async function findOrCreateConversation(
       .eq('phone_number', phoneNumber)
       .eq('device_number', deviceNumber)
       .eq('status', 'active')
+      .eq('is_human_handled', false) // Never auto-abandon human-handled conversations
       .lt('last_message_at', cutoffTime); // Older than timeout
 
     if (oldConversations && oldConversations.length > 0 && !oldError) {

@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Clock, ChevronRight, CheckCircle2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { AlertTriangle, Clock, ChevronRight, CheckCircle2, Info } from "lucide-react";
 import { UrgentIssue } from "@/hooks/use-executive-dashboard";
 import { formatDistanceToNow } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -13,6 +15,27 @@ interface UrgentIssuesCardProps {
 
 export function UrgentIssuesCard({ issues }: UrgentIssuesCardProps) {
   const navigate = useNavigate();
+  const [tooltipOpen, setTooltipOpen] = useState(false);
+
+  const infoTooltip = (
+    <TooltipProvider delayDuration={0}>
+      <Tooltip open={tooltipOpen} onOpenChange={setTooltipOpen}>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={() => setTooltipOpen(v => !v)}
+            className="inline-flex items-center cursor-help"
+            aria-label="Info tentang Isu Mendesak"
+          >
+            <Info className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right" className="max-w-[220px] text-xs leading-relaxed">
+          Laporan yang dinilai <strong>kritis</strong> oleh AI dan statusnya belum selesai. Daftar ini selalu menampilkan semua isu aktif, tidak terpengaruh filter tanggal.
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 
   if (issues.length === 0) {
     return (
@@ -21,6 +44,7 @@ export function UrgentIssuesCard({ issues }: UrgentIssuesCardProps) {
           <CardTitle className="text-base flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 text-green-500" />
             Isu Mendesak
+            {infoTooltip}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -50,6 +74,7 @@ export function UrgentIssuesCard({ issues }: UrgentIssuesCardProps) {
             <Badge variant="destructive" className="ml-2">
               {issues.length}
             </Badge>
+            {infoTooltip}
           </CardTitle>
         </div>
       </CardHeader>

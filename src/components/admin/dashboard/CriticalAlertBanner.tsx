@@ -1,6 +1,8 @@
-import { AlertTriangle, ArrowRight, X } from "lucide-react";
+import { useState } from "react";
+import { AlertTriangle, ArrowRight, X, Info } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface CriticalAlertBannerProps {
   count: number;
@@ -8,6 +10,8 @@ interface CriticalAlertBannerProps {
 }
 
 export function CriticalAlertBanner({ count, onDismissAll }: CriticalAlertBannerProps) {
+  const [tooltipOpen, setTooltipOpen] = useState(false);
+
   if (count === 0) return null;
 
   return (
@@ -17,6 +21,23 @@ export function CriticalAlertBanner({ count, onDismissAll }: CriticalAlertBanner
         <span className="text-sm font-medium truncate">
           Ada {count} laporan kritis belum diproses lebih dari 24 jam
         </span>
+        <TooltipProvider delayDuration={0}>
+          <Tooltip open={tooltipOpen} onOpenChange={setTooltipOpen}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => setTooltipOpen(v => !v)}
+                className="inline-flex items-center cursor-help opacity-80 hover:opacity-100"
+                aria-label="Info tentang notifikasi kritis"
+              >
+                <Info className="h-3.5 w-3.5 flex-shrink-0" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[240px] text-xs leading-relaxed">
+              Laporan dengan urgensi <strong>kritis</strong> yang statusnya masih <strong>menunggu (pending)</strong> dan sudah lebih dari 24 jam sejak dilaporkan — belum ada tindakan sama sekali.
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
       <div className="flex items-center gap-1 flex-shrink-0">
         <Button

@@ -158,8 +158,55 @@ serve(async (req: Request) => {
       id: conversation.id,
       sessionId: conversation.session_id,
       isNew: conversation.session_id.startsWith('temp_'),
-      tenantId: tenantId
+      tenantId: tenantId,
+      isHumanHandled: conversation.is_human_handled
     });
+
+    // ============================================================================
+    // PER-CONVERSATION HUMAN TAKEOVER CHECK
+    // If this conversation has been taken over by a human admin/member,
+    // save the incoming message for the admin to see — but skip ALL AI processing.
+    // Admin handles replies manually via the send-human-reply edge function.
+    // ============================================================================
+    if (conversation.is_human_handled) {
+      console.log('👤 Human takeover active — saving message for admin, skipping AI');
+
+      const humanModeContent = normalized.message ||
+        (normalized.hasAttachment ? '[Gambar]' : '');
+
+      // Deduplication guard — Fonnte retries on no-200 response
+      const humanDuplicate = await isDuplicateMessage(conversation.id, humanModeContent);
+      if (humanDuplicate) {
+        console.log(`Duplicate webhook (human mode, device: ${normalized.device}) — skipping`);
+        return new Response(
+          JSON.stringify({ success: true, duplicate: true }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const humanMsgIdx = await getNextMessageIndex(conversation.id);
+      await saveMessage({
+        conversation_id: conversation.id,
+        role: 'user',
+        content: humanModeContent,
+        message_index: humanMsgIdx,
+        has_attachment: normalized.hasAttachment
+      });
+
+      const totalDuration = performance.now() - startTime;
+      await logPerformanceMetrics(
+        tenantId,
+        conversationId,
+        'webhook_total_human_handled',
+        totalDuration,
+        { human_handled: true, message_length: humanModeContent.length }
+      );
+
+      return new Response(
+        JSON.stringify({ success: true, human_handled: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // ============================================================================
     // PERF: Get next message index
