@@ -133,14 +133,16 @@ Ekstrak informasi berikut dari percakapan di atas dan kembalikan dalam format JS
   "phone": "nomor telepon pelapor (gunakan nomor telepon warga jika tidak disebutkan)",
   "address": "alamat atau lokasi kejadian yang dilaporkan",
   "description": "deskripsi lengkap masalah atau aspirasi yang dilaporkan",
-  "type": "lapor atau aspirasi (lapor jika pengaduan masalah, aspirasi jika usulan/harapan)"
+  "type": "lapor atau aspirasi (lapor jika pengaduan masalah, aspirasi jika usulan/harapan)",
+  "geo_location": { "lat": angka, "lng": angka }
 }
 
 Aturan:
 1. Gunakan bahasa yang jelas dan informatif
 2. Jika informasi tidak tersedia dalam percakapan, gunakan string kosong ""
 3. Untuk phone, selalu gunakan nomor telepon warga jika tidak ada yang lain
-4. Output HANYA JSON valid, tanpa teks lain di luar JSON`;
+4. Output HANYA JSON valid, tanpa teks lain di luar JSON
+5. Untuk geo_location: jika ada baris "[Lokasi: lat, lng]" atau koordinat GPS eksplisit dalam percakapan, ekstrak sebagai objek { "lat": angka, "lng": angka }. Jika tidak ada koordinat GPS, gunakan null`;
 
     // 6. Call OpenRouter API
     console.log('Calling OpenRouter API for conversation extraction...');
@@ -187,6 +189,7 @@ Aturan:
       address: string;
       description: string;
       type: string;
+      geo_location?: { lat: number; lng: number } | null;
     };
 
     try {
@@ -216,6 +219,14 @@ Aturan:
       extractedData.type = 'lapor'; // Default to lapor
     }
 
+    // 9. Validate geo_location shape — discard if malformed
+    if (extractedData.geo_location) {
+      const { lat, lng } = extractedData.geo_location as any;
+      if (typeof lat !== 'number' || typeof lng !== 'number') {
+        extractedData.geo_location = null;
+      }
+    }
+
     // Ensure phone fallback
     if (!extractedData.phone && conversation?.phone_number) {
       extractedData.phone = conversation.phone_number;
@@ -231,7 +242,8 @@ Aturan:
       hasPhone: !!extractedData.phone,
       hasAddress: !!extractedData.address,
       hasDescription: !!extractedData.description,
-      type: extractedData.type
+      type: extractedData.type,
+      hasGeoLocation: !!extractedData.geo_location
     });
 
     return new Response(

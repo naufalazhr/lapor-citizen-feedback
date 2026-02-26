@@ -441,10 +441,10 @@ const Conversations = () => {
         description: extracted.description || '',
         type: extracted.type === 'aspirasi' ? 'aspirasi' : 'lapor'
       });
-      // Reset photo & location from any previous dialog session
+      // Reset photo from any previous dialog session; pre-fill location if AI extracted one
       setPhotoFile(null);
       setPhotoPreview('');
-      setReportLocation(null);
+      setReportLocation(extracted.geo_location || null);
       setShowLocationPicker(false);
       setShowReportDialog(true);
     } catch (error: any) {
@@ -895,7 +895,20 @@ const Conversations = () => {
                             </p>
                           )}
 
-                          <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                          {/* Skip [Gambar] placeholder — <AttachmentDisplay> below already renders the image */}
+                          {message.content && message.content !== '[Gambar]' && (() => {
+                            // Detect location content: "[Lokasi: lat, lng]" format saved by the webhook
+                            const locMatch = message.content.match(/^\[Lokasi:\s*(-?\d+\.?\d*),\s*(-?\d+\.?\d*)\]$/);
+                            if (locMatch) {
+                              return (
+                                <div className="flex items-center gap-1.5 text-sm">
+                                  <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-current opacity-75" />
+                                  <span className="font-mono text-xs opacity-90">{locMatch[1]}, {locMatch[2]}</span>
+                                </div>
+                              );
+                            }
+                            return <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>;
+                          })()}
 
                           {/* Attachments */}
                           {message.attachments && message.attachments.length > 0 && (
