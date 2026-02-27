@@ -32,6 +32,7 @@ import {
   Brain,
   Cpu,
   ChevronDown,
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -42,6 +43,11 @@ const CHANNEL_PATHS = [
   "/admin/integration/channel/ai-insight",
 ];
 
+const TENANT_PATHS = [
+  "/admin/tenant/login-config",
+  "/admin/tenant/config",
+];
+
 export function AppSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -49,11 +55,19 @@ export function AppSidebar() {
   const { toast } = useToast();
   const [userRole, setUserRole] = useState<string | null>(null);
   const [channelOpen, setChannelOpen] = useState(false);
+  const [tenantOpen, setTenantOpen] = useState(false);
 
   // Auto-expand Channel sub-menu if a channel sub-path is active
   useEffect(() => {
     if (CHANNEL_PATHS.some((p) => location.pathname.startsWith(p))) {
       setChannelOpen(true);
+    }
+  }, [location.pathname]);
+
+  // Auto-expand Tenant sub-menu if a tenant sub-path is active
+  useEffect(() => {
+    if (TENANT_PATHS.some((p) => location.pathname.startsWith(p))) {
+      setTenantOpen(true);
     }
   }, [location.pathname]);
 
@@ -97,6 +111,7 @@ export function AppSidebar() {
 
   const isActive = (path: string) => location.pathname === path;
   const isChannelActive = CHANNEL_PATHS.some((p) => location.pathname.startsWith(p));
+  const isTenantActive = TENANT_PATHS.some((p) => location.pathname.startsWith(p));
 
   const isAdminUser = userRole !== null && ['admin', 'owner', 'superadmin'].includes(userRole);
   const isCollapsed = state === "collapsed";
@@ -264,17 +279,6 @@ export function AppSidebar() {
                   </Collapsible>
                 )}
 
-                {/* Konfigurasi Login */}
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    onClick={() => navigate('/admin/integration/login')}
-                    className={isActive('/admin/integration/login') ? "bg-accent" : ""}
-                  >
-                    <Settings className="h-4 w-4" />
-                    {!isCollapsed && <span>Konfigurasi Login</span>}
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-
                 {/* API Management */}
                 <SidebarMenuItem>
                   <SidebarMenuButton
@@ -286,6 +290,70 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* Tenant Group (adminOnly) */}
+        {isAdminUser && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Tenant</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {isCollapsed ? (
+                  // Collapsed: single icon
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      onClick={() => navigate('/admin/tenant/config')}
+                      className={isTenantActive ? "bg-accent" : ""}
+                      title="Tenant"
+                    >
+                      <Building2 className="h-4 w-4" />
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ) : (
+                  // Expanded: collapsible with sub-menu
+                  <Collapsible open={tenantOpen} onOpenChange={setTenantOpen}>
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton
+                          className={isTenantActive ? "bg-accent" : ""}
+                        >
+                          <Building2 className="h-4 w-4" />
+                          <span>Tenant</span>
+                          <ChevronDown
+                            className={`ml-auto h-4 w-4 shrink-0 transition-transform duration-200 ${
+                              tenantOpen ? "rotate-180" : ""
+                            }`}
+                          />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                    </SidebarMenuItem>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            onClick={() => navigate('/admin/tenant/login-config')}
+                            className={isActive('/admin/tenant/login-config') ? "bg-accent" : ""}
+                          >
+                            <Settings className="h-3.5 w-3.5" />
+                            <span>Konfigurasi Login</span>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            onClick={() => navigate('/admin/tenant/config')}
+                            className={isActive('/admin/tenant/config') ? "bg-accent" : ""}
+                          >
+                            <Shield className="h-3.5 w-3.5" />
+                            <span>Konfigurasi Tenant</span>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

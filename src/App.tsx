@@ -24,6 +24,8 @@ import IntegrationChannel from "./pages/admin/IntegrationChannel";
 import IntegrationChannelAIAgent from "./pages/admin/IntegrationChannelAIAgent";
 import IntegrationChannelWhatsApp from "./pages/admin/IntegrationChannelWhatsApp";
 import IntegrationChannelAIInsight from "./pages/admin/IntegrationChannelAIInsight";
+import TenantLoginConfig from "./pages/admin/tenant/TenantLoginConfig";
+import TenantConfig from "./pages/admin/tenant/TenantConfig";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -53,6 +55,8 @@ const App = () => (
           <Route path="/admin/integration/channel/whatsapp" element={<IntegrationChannelWhatsApp />} />
           <Route path="/admin/integration/channel/ai-insight" element={<IntegrationChannelAIInsight />} />
           <Route path="/admin/recent-reports" element={<RecentReports />} />
+          <Route path="/admin/tenant/login-config" element={<TenantLoginConfig />} />
+          <Route path="/admin/tenant/config" element={<TenantConfig />} />
           <Route path="/admin/users" element={<Users />} />
           <Route path="/admin/opds" element={<OPDs />} />
           <Route path="/admin" element={<DashboardOverview />} />
