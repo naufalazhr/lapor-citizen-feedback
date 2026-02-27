@@ -853,6 +853,15 @@ const Conversations = () => {
                           )}
                         </div>
                       </div>
+                      {/* Report submitted indicator */}
+                      {conv.report_id && (
+                        <div className="flex items-center gap-1 mt-1">
+                          <span className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5 leading-none">
+                            <CheckCircle2 className="h-2.5 w-2.5 flex-shrink-0" />
+                            Laporan Dikirim
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </button>
                 );
@@ -1151,17 +1160,24 @@ const Conversations = () => {
             <div className="p-4 border-b">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Tindakan</p>
               <div className="flex flex-col gap-2">
-                {/* Lihat Laporan — only when report_id exists */}
+                {/* Lihat Laporan — shown whenever report_id exists (AI or human submitted) */}
                 {selectedConversation.report_id && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full h-8 text-xs justify-start"
-                    onClick={() => handleViewReport(selectedConversation.report_id!)}
-                  >
-                    <FileText className="h-3.5 w-3.5 mr-2 flex-shrink-0" />
-                    Lihat Laporan
-                  </Button>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-1.5 px-0.5">
+                      <CheckCircle2 className="h-3 w-3 text-emerald-600 flex-shrink-0" />
+                      <span className="text-xs text-emerald-700 font-medium">
+                        {selectedConversation.is_human_handled ? 'Dikirim oleh CS' : 'Dikirim oleh AI'}
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="w-full h-8 text-xs justify-start bg-emerald-600 hover:bg-emerald-700 text-white border-0"
+                      onClick={() => handleViewReport(selectedConversation.report_id!)}
+                    >
+                      <FileText className="h-3.5 w-3.5 mr-2 flex-shrink-0" />
+                      Lihat Laporan
+                    </Button>
+                  </div>
                 )}
                 {/* Ambil Alih — active + not human-handled + canTakeover */}
                 {canTakeover && selectedConversation.status === 'active' && !selectedConversation.is_human_handled && (
@@ -1245,12 +1261,36 @@ const Conversations = () => {
                           <Info className="h-3 w-3 text-muted-foreground cursor-help" />
                         </TooltipTrigger>
                         <TooltipContent side="left" className="text-xs max-w-[200px]">
-                          Waktu tersisa untuk merespons pesan warga. Batas SLA: {slaWindowMinutes} menit
+                          {selectedConversation.status === 'active'
+                            ? `Waktu tersisa untuk merespons pesan warga. Batas SLA: ${slaWindowMinutes} menit`
+                            : `Riwayat SLA percakapan ini. Waktu tunggu warga saat percakapan diselesaikan. Batas: ${slaWindowMinutes} menit`
+                          }
                         </TooltipContent>
                       </Tooltip>
                     </div>
                     {selectedConversation.status !== 'active' ? (
-                      <span className="text-xs text-muted-foreground">—</span>
+                      /* Historical SLA — frozen at completed_at */
+                      sessionState ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className={cn(
+                            "inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border",
+                            sessionState.slaPercent < 100
+                              ? "bg-green-50 border-green-200 text-green-700"
+                              : "bg-red-50 border-red-200 text-red-700"
+                          )}>
+                            {sessionState.slaPercent < 100 ? (
+                              <><CheckCircle2 className="h-3 w-3 flex-shrink-0" />Dalam SLA</>
+                            ) : (
+                              <><X className="h-3 w-3 flex-shrink-0" />Melampaui SLA</>
+                            )}
+                          </span>
+                          <span className="text-xs text-muted-foreground font-mono">
+                            tunggu: {sessionState.idleFormatted}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )
                     ) : citizenIsWaiting && slaRespState ? (
                       <SLATimerBadge
                         state={slaRespState}

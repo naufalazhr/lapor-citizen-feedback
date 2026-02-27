@@ -45,23 +45,7 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 2. Check role and get tenant_id
-    const { data: roleData, error: roleError } = await supabase
-      .from('user_roles')
-      .select('role, tenant_id')
-      .eq('user_id', user.id)
-      .single();
-
-    if (roleError || !roleData || !ALLOWED_ROLES.includes(roleData.role)) {
-      return new Response(
-        JSON.stringify({ error: 'Forbidden - Insufficient permissions' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const tenantId = roleData.tenant_id;
-
-    // 3. Parse request body
+    // 2. Parse request body
     const {
       conversationId,
       reporter_name,
@@ -73,7 +57,7 @@ Deno.serve(async (req: Request) => {
       geo_location
     } = await req.json();
 
-    // 4. Validate required fields
+    // 3. Validate required fields
     if (!conversationId) {
       return new Response(
         JSON.stringify({ error: 'Missing required field: conversationId' }),
@@ -109,7 +93,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 5. Fetch conversation to get session_id and validate it belongs to this tenant
+    // 4. Fetch conversation first — we need its tenant_id to scope the role check.
     const { data: conversation, error: convError } = await supabase
       .from('conversations')
       .select('id, session_id, tenant_id, is_human_handled, status')
@@ -123,10 +107,22 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Validate tenant ownership (if tenant_id is set on conversation)
-    if (conversation.tenant_id && tenantId && conversation.tenant_id !== tenantId) {
+    const tenantId = conversation.tenant_id;
+
+    // 5. Check role — user_roles has no tenant_id column; roles are global per user.
+    // Using .limit(1).maybeSingle() avoids the "multiple rows" error that .single()
+    // throws when a user somehow has multiple role rows.
+    const { data: roleData, error: roleError } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .limit(1)
+      .maybeSingle();
+
+    if (roleError || !roleData || !ALLOWED_ROLES.includes(roleData.role)) {
+      console.error('Role check failed:', { roleError, roleData, userId: user.id, tenantId });
       return new Response(
-        JSON.stringify({ error: 'Forbidden - Conversation belongs to different tenant' }),
+        JSON.stringify({ error: 'Forbidden - Insufficient permissions' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
