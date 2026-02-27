@@ -171,8 +171,11 @@ serve(async (req: Request) => {
     if (conversation.is_human_handled) {
       console.log('👤 Human takeover active — saving message for admin, skipping AI');
 
-      // Strip Fonnte's internal type label ("non-button message") — it is not user text
-      const humanMsgText = (normalized.message || '').toLowerCase() === 'non-button message'
+      // Strip Fonnte's internal type labels — they are not user-authored text.
+      // "non-button message" = sent alongside button/list messages
+      // "non-text message"   = sent when citizen shares GPS location or other non-text content
+      const FONNTE_SYSTEM_LABELS = ['non-button message', 'non-text message'];
+      const humanMsgText = FONNTE_SYSTEM_LABELS.includes((normalized.message || '').toLowerCase())
         ? ''
         : normalized.message;
 
@@ -226,8 +229,11 @@ serve(async (req: Request) => {
     // 6. Prepare message content
     // For image-only messages, use placeholder for database storage
     // The actual image URL will be appended in buildFlowiseRequest
-    // Strip Fonnte's internal type label ("non-button message") — it is not user text
-    const msgText = (normalized.message || '').toLowerCase() === 'non-button message'
+    // Strip Fonnte's internal type labels — they are not user-authored text.
+    // "non-button message" = sent alongside button/list messages
+    // "non-text message"   = sent when citizen shares GPS location or other non-text content
+    const FONNTE_SYSTEM_LABELS_AI = ['non-button message', 'non-text message'];
+    const msgText = FONNTE_SYSTEM_LABELS_AI.includes((normalized.message || '').toLowerCase())
       ? ''
       : normalized.message;
 

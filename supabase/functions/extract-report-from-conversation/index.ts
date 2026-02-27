@@ -219,11 +219,17 @@ Aturan:
       extractedData.type = 'lapor'; // Default to lapor
     }
 
-    // 9. Validate geo_location shape — discard if malformed
+    // 9. Validate geo_location shape — coerce strings to numbers, discard if malformed.
+    // AI models sometimes return coordinates as strings ("lat": "-6.93") instead of
+    // numbers ("lat": -6.93). Accept both and normalise to float.
     if (extractedData.geo_location) {
       const { lat, lng } = extractedData.geo_location as any;
-      if (typeof lat !== 'number' || typeof lng !== 'number') {
+      const latNum = typeof lat === 'number' ? lat : parseFloat(lat);
+      const lngNum = typeof lng === 'number' ? lng : parseFloat(lng);
+      if (isNaN(latNum) || isNaN(lngNum)) {
         extractedData.geo_location = null;
+      } else {
+        extractedData.geo_location = { lat: latNum, lng: lngNum };
       }
     }
 
