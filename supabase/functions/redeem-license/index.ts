@@ -82,6 +82,15 @@ const PLAN_TIER_NAMES: Record<number, string> = {
   3: 'enterprise',
 }
 
+// Decode JWT payload without re-verifying (verify_jwt:true at gateway already did that)
+function decodeJwtPayload(token: string): Record<string, any> {
+  const parts = token.split('.')
+  if (parts.length !== 3) throw new Error('Invalid JWT structure')
+  const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+  const padded = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '=')
+  return JSON.parse(atob(padded))
+}
+
 async function hexToBytes(hex: string): Promise<Uint8Array> {
   const bytes = new Uint8Array(hex.length / 2)
   for (let i = 0; i < bytes.length; i++) {
@@ -146,22 +155,20 @@ Deno.serve(async (req) => {
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
-  // Client scoped to the authenticated user (for RLS-safe reads)
-  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { Authorization: authHeader } },
-  })
-
-  // Service client for inserts (bypasses RLS for license_activations)
+  // Service client for all DB operations (verify_jwt:true already validated the user)
   const serviceClient = createClient(supabaseUrl, supabaseServiceKey)
 
   try {
-    // 1. Authenticate user
+    // 1. Extract user ID from JWT claims (gateway already verified the signature)
     const jwt = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: userError } = await userClient.auth.getUser(jwt)
-    if (userError || !user) {
+    let userId: string
+    try {
+      const claims = decodeJwtPayload(jwt)
+      userId = claims.sub
+      if (!userId) throw new Error('Missing sub claim')
+    } catch (_) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -169,10 +176,10 @@ Deno.serve(async (req) => {
     }
 
     // 2. Check role (must be owner or admin)
-    const { data: roleData } = await userClient
+    const { data: roleData } = await serviceClient
       .from('user_roles')
       .select('role')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single()
 
     if (!roleData || !['owner', 'admin', 'superadmin'].includes(roleData.role)) {
@@ -183,10 +190,10 @@ Deno.serve(async (req) => {
     }
 
     // 3. Get user's tenant ID
-    const { data: profileData } = await userClient
+    const { data: profileData } = await serviceClient
       .from('profiles')
       .select('tenant_id')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single()
 
     if (!profileData?.tenant_id) {

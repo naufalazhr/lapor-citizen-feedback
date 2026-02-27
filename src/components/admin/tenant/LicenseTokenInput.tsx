@@ -51,30 +51,12 @@ export function LicenseTokenInput({ onActivated }: LicenseTokenInputProps) {
     setError(null);
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const { data: result, error: fnError } = await supabase.functions.invoke(
+        "redeem-license",
+        { body: { token_code: rawToken } }
+      );
 
-      if (!session) {
-        setError("Sesi tidak valid. Silakan login ulang.");
-        setLoading(false);
-        return;
-      }
-
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const response = await fetch(`${supabaseUrl}/functions/v1/redeem-license`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        },
-        body: JSON.stringify({ token_code: rawToken }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
+      if (fnError) {
         const errorMessages: Record<string, string> = {
           TOKEN_ALREADY_USED: "Token ini sudah pernah digunakan.",
           TOKEN_SIGNATURE_INVALID: "Token tidak valid. Pastikan token yang dimasukkan benar.",
@@ -83,9 +65,11 @@ export function LicenseTokenInput({ onActivated }: LicenseTokenInputProps) {
           TOKEN_VERSION_UNSUPPORTED: "Versi token tidak didukung oleh sistem ini.",
           ACCESS_DENIED: "Anda tidak memiliki izin untuk mengaktifkan lisensi.",
         };
+        const body = (fnError as any).context?.body ?? {};
         setError(
-          errorMessages[result.error] ??
-            result.message ??
+          errorMessages[body.error] ??
+            body.message ??
+            fnError.message ??
             "Terjadi kesalahan saat mengaktifkan token."
         );
         return;
@@ -95,8 +79,8 @@ export function LicenseTokenInput({ onActivated }: LicenseTokenInputProps) {
       setTokenValue("");
       toast({
         title: "Lisensi Berhasil Diaktifkan!",
-        description: `Plan ${result.license?.plan?.toUpperCase()} aktif hingga ${new Date(
-          result.license?.expires_at
+        description: `Plan ${result?.license?.plan?.toUpperCase()} aktif hingga ${new Date(
+          result?.license?.expires_at
         ).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}.`,
       });
 
