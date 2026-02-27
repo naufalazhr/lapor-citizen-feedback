@@ -21,9 +21,19 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   MessageSquare, Search, RefreshCw, Phone, FileText, X,
   Bot, Settings2, ChevronLeft, ChevronRight, UserCircle, Send,
-  Upload, MapPin
+  Upload, MapPin, Info, CheckCircle2, Sparkles
 } from "lucide-react";
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -36,6 +46,14 @@ import AttachmentDisplay from "@/components/AttachmentDisplay";
 import AIThinkingCollapsible from "@/components/admin/AIThinkingCollapsible";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/use-user-role";
+import { useSLATimer } from "@/hooks/use-sla-timer";
+import { SLATimerBadge } from "@/components/admin/SLATimerBadge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 
 interface Conversation {
   id: string;
@@ -122,6 +140,7 @@ const Conversations = () => {
   // Human takeover state
   const [replyText, setReplyText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [showTakeoverConfirm, setShowTakeoverConfirm] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [reportForm, setReportForm] = useState<ReportForm>({
@@ -134,8 +153,12 @@ const Conversations = () => {
   // Report dialog — photo & location
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>('');
+  const [prefilledPhotoUrl, setPrefilledPhotoUrl] = useState<string | null>(null);
   const [reportLocation, setReportLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
+  // True when a "non-text message" (location share) was detected in the conversation
+  // but coordinates were never stored (old data before webhook fix).
+  const [locationHint, setLocationHint] = useState(false);
 
   const pageSize = 20;
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -144,6 +167,38 @@ const Conversations = () => {
   const { level } = usePIIMasking();
   const { isAdmin, isOwner, isMember } = useUserRole();
   const canTakeover = isAdmin || isOwner || isMember;
+  const { getSLAState, slaWindowMinutes } = useSLATimer({ tenantId: currentTenantId });
+
+  // ── SLA Response derived state ─────────────────────────────────────────────
+  // Citizen is "waiting" when the last message is from them (not AI / human CS).
+  // Uses the already-loaded `messages` state — no extra DB query needed.
+  const lastMsg = messages.at(-1);
+  const citizenIsWaiting =
+    selectedConversation?.status === 'active' &&
+    !!lastMsg && lastMsg.role === 'user' && !lastMsg.sent_by_human;
+
+  // Last citizen message time — the accurate start-of-wait reference for SLA.
+  const lastCitizenMsg = citizenIsWaiting
+    ? lastMsg
+    : [...messages].reverse().find(m => m.role === 'user' && !m.sent_by_human) ?? null;
+
+  // Patched conv with last CITIZEN msg time so SLA doesn't count AI reply time.
+  const slaRespConv = selectedConversation && citizenIsWaiting && lastCitizenMsg
+    ? { ...selectedConversation, last_message_at: lastCitizenMsg.created_at }
+    : selectedConversation;
+
+  // Pre-compute both states once per tick (getSLAState updates every second).
+  const sessionState = selectedConversation ? getSLAState(selectedConversation) : null;
+  const slaRespState  = slaRespConv         ? getSLAState(slaRespConv)         : null;
+
+  // Urgency → progress bar color (local map, no extra import needed)
+  const SLA_BAR_COLOR: Record<string, string> = {
+    green:    'bg-green-500',
+    yellow:   'bg-yellow-400',
+    red:      'bg-red-500',
+    breached: 'bg-red-600',
+  };
+  // ──────────────────────────────────────────────────────────────────────────
 
   // Get current user ID and tenant ID
   useEffect(() => {
@@ -187,6 +242,18 @@ const Conversations = () => {
         (payload) => {
           if (payload.new?.conversation_id === convId) {
             fetchMessages(convId);
+            // Keep last_message_at fresh so the SLA idle timer resets on new messages
+            const msgCreatedAt: string = payload.new?.created_at;
+            if (msgCreatedAt) {
+              setConversations(prev =>
+                prev.map(c =>
+                  c.id === convId ? { ...c, last_message_at: msgCreatedAt } : c
+                )
+              );
+              setSelectedConversation(prev =>
+                prev ? { ...prev, last_message_at: msgCreatedAt } : prev
+              );
+            }
           }
         }
       )
@@ -461,11 +528,53 @@ const Conversations = () => {
         description: extracted.description || '',
         type: extracted.type === 'aspirasi' ? 'aspirasi' : 'lapor'
       });
-      // Reset photo from any previous dialog session; pre-fill location if AI extracted one
+      // Reset photo/location state from any previous dialog session
       setPhotoFile(null);
       setPhotoPreview('');
-      setReportLocation(extracted.geo_location || null);
+      setPrefilledPhotoUrl(null);
       setShowLocationPicker(false);
+      setLocationHint(false);
+
+      // Pre-fill location: use AI result if available, otherwise scan loaded messages.
+      setLocationHint(false);
+      if (extracted.geo_location) {
+        setReportLocation(extracted.geo_location);
+      } else {
+        // Fallback: scan citizen messages for [Lokasi: lat, lng] content.
+        // Also detect "non-text message" (Fonnte label for GPS shares in old conversations
+        // where coordinates were never stored) so we can show a manual-entry hint.
+        const locPattern = /\[Lokasi:\s*(-?\d+\.?\d*),\s*(-?\d+\.?\d*)\]/;
+        let foundLocation: { lat: number; lng: number } | null = null;
+        let locationWasShared = false;
+        for (const msg of messages) {
+          if (msg.role !== 'user' || msg.sent_by_human) continue;
+          const content = msg.content || '';
+          if (content.toLowerCase() === 'non-text message') {
+            locationWasShared = true; // coords never stored for this old message
+          }
+          const m = content.match(locPattern);
+          if (m) {
+            foundLocation = { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+            break;
+          }
+        }
+        setReportLocation(foundLocation);
+        // Show a hint only when a location was shared but we have no coordinates
+        if (!foundLocation && locationWasShared) setLocationHint(true);
+      }
+
+      // Pre-fill image: find first citizen image attachment already in Supabase Storage
+      for (const msg of messages) {
+        if (msg.role !== 'user' || msg.sent_by_human) continue;
+        const imgAtt = msg.attachments?.find(
+          (a) => a.mime_type?.startsWith('image/') && a.storage_url
+        );
+        if (imgAtt) {
+          setPrefilledPhotoUrl(imgAtt.storage_url);
+          break;
+        }
+      }
+
       setShowReportDialog(true);
     } catch (error: any) {
       toast({ title: "Gagal menganalisis percakapan", description: error.message, variant: "destructive" });
@@ -478,8 +587,9 @@ const Conversations = () => {
     if (!selectedConversation || submittingReport) return;
     setSubmittingReport(true);
     try {
-      // Upload photo if selected
-      let photoUrl: string | null = null;
+      // Use pre-filled URL from conversation attachment (already in storage),
+      // or upload a new file if the user selected one (new file overrides pre-fill)
+      let photoUrl: string | null = prefilledPhotoUrl;
       if (photoFile) {
         const fileExt = photoFile.name.split('.').pop();
         const fileName = `admin-${selectedConversation.id}-${Date.now()}.${fileExt}`;
@@ -511,7 +621,9 @@ const Conversations = () => {
       setShowReportDialog(false);
       setPhotoFile(null);
       setPhotoPreview('');
+      setPrefilledPhotoUrl(null);
       setReportLocation(null);
+      setLocationHint(false);
       // Conversation is now completed — refresh list and deselect
       await fetchConversations();
       setSelectedConversation(null);
@@ -533,6 +645,48 @@ const Conversations = () => {
   useEffect(() => {
     fetchConversations();
   }, [currentPage, statusFilter, dateFrom, dateTo, currentTenantId]);
+
+  // ── Auto-expire stale active conversations ─────────────────────────────────
+  // The fonnte-webhook marks conversations 'abandoned' lazily (only when a new
+  // message arrives). This effect fills the gap: when the admin opens the page,
+  // active conversations idle longer than slaWindowMinutes are immediately
+  // set to 'abandoned' without waiting for another WhatsApp message.
+  useEffect(() => {
+    if (!slaWindowMinutes || conversations.length === 0) return;
+
+    const now = new Date();
+    const timeoutMs = slaWindowMinutes * 60 * 1000;
+
+    const expiredIds = conversations
+      .filter(c =>
+        c.status === 'active' &&
+        !c.report_id &&
+        (now.getTime() - new Date(c.last_message_at).getTime()) > timeoutMs
+      )
+      .map(c => c.id);
+
+    if (expiredIds.length === 0) return;
+
+    const completedAt = now.toISOString();
+    supabase
+      .from('conversations')
+      .update({ status: 'abandoned', completed_at: completedAt })
+      .in('id', expiredIds)
+      .then(({ error }) => {
+        if (error) return; // silent fail — next page load retries
+        setConversations(prev => prev.map(c =>
+          expiredIds.includes(c.id)
+            ? { ...c, status: 'abandoned' as const, completed_at: completedAt }
+            : c
+        ));
+        setSelectedConversation(prev =>
+          prev && expiredIds.includes(prev.id)
+            ? { ...prev, status: 'abandoned' as const, completed_at: completedAt }
+            : prev
+        );
+      });
+  }, [conversations, slaWindowMinutes]); // eslint-disable-line react-hooks/exhaustive-deps
+  // ──────────────────────────────────────────────────────────────────────────
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -670,9 +824,14 @@ const Conversations = () => {
                       <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold">
                         {initials}
                       </div>
-                      {isActive && (
-                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-card" />
-                      )}
+                      <span
+                        className={cn(
+                          "absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-card",
+                          conv.status === "active"    && "bg-green-500",
+                          conv.status === "abandoned" && "bg-red-400",
+                          conv.status === "completed" && "bg-gray-400"
+                        )}
+                      />
                     </div>
 
                     {/* Info */}
@@ -692,7 +851,6 @@ const Conversations = () => {
                           {conv.is_human_handled && (
                             <UserCircle className="h-3.5 w-3.5 text-blue-500" title="Human Mode" />
                           )}
-                          {getStatusBadge(conv.status)}
                         </div>
                       </div>
                     </div>
@@ -778,83 +936,19 @@ const Conversations = () => {
                     <span className="font-mono text-xs text-muted-foreground">
                       {maskPhone(selectedConversation.phone_number, level)}
                     </span>
-                    {getStatusBadge(selectedConversation.status)}
-                    {getChannelBadge(selectedConversation.channel)}
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
-                  <span className="text-xs text-muted-foreground hidden sm:inline">
-                    {selectedConversation.message_count || 0} pesan
-                  </span>
-
-                  {/* Existing report link */}
-                  {selectedConversation.report_id && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 text-xs"
-                      onClick={() => handleViewReport(selectedConversation.report_id!)}
-                    >
-                      <FileText className="h-3.5 w-3.5 mr-1" />
-                      Lihat Laporan
-                    </Button>
-                  )}
-
-                  {/* Human takeover controls — only for active conversations with canTakeover role */}
-                  {canTakeover && selectedConversation.status === 'active' && (
-                    <>
-                      {!selectedConversation.is_human_handled ? (
-                        /* Not yet taken over — show Ambil Alih button */
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 text-xs border-blue-300 text-blue-700 hover:bg-blue-50"
-                          onClick={handleTakeover}
-                        >
-                          <UserCircle className="h-3.5 w-3.5 mr-1" />
-                          Ambil Alih
-                        </Button>
-                      ) : (
-                        /* In human mode — show Buat Laporan + Selesaikan */
-                        <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-xs"
-                            onClick={handleExtractAndOpenReport}
-                            disabled={extracting}
-                          >
-                            {extracting ? (
-                              <><RefreshCw className="h-3.5 w-3.5 mr-1 animate-spin" />Menganalisis...</>
-                            ) : (
-                              <><FileText className="h-3.5 w-3.5 mr-1" />Buat Laporan</>
-                            )}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-xs border-red-200 text-red-600 hover:bg-red-50"
-                            onClick={handleSelesaikan}
-                          >
-                            Selesaikan
-                          </Button>
-                        </>
-                      )}
-                    </>
-                  )}
-
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setSelectedConversation(null)}
-                    title="Tutup"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
+                {/* Close */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 flex-shrink-0"
+                  onClick={() => setSelectedConversation(null)}
+                  title="Tutup"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
 
               {/* Messages Area */}
@@ -884,6 +978,18 @@ const Conversations = () => {
                         </div>
                       );
                     }
+
+                    // "non-button message" = Fonnte label for button/list UI — meaningless as chat text.
+                    // "non-text message"   = Fonnte label when citizen shares GPS location.
+                    //   → Do NOT hide these: render a 📍 location placeholder instead (see below).
+                    // Only skip bubbles that are completely empty (no content, no attachments, no AI data).
+                    const isNonButtonLabel = (message.content || '').toLowerCase() === 'non-button message';
+                    const hasAttachments = !!(message.attachments && message.attachments.length > 0);
+                    const hasAIThinking = message.role === 'assistant' && !isSentByHuman && !!message.agent_flow_data;
+                    // Treat empty string and "non-button message" as no-content; everything else (including
+                    // "non-text message") is renderable and gets its own branch in the content IIFE below.
+                    const isEffectivelyEmpty = !message.content || isNonButtonLabel;
+                    if (isEffectivelyEmpty && !hasAttachments && !hasAIThinking) return null;
 
                     return (
                       <div
@@ -915,9 +1021,25 @@ const Conversations = () => {
                             </p>
                           )}
 
-                          {/* Skip [Gambar] placeholder — <AttachmentDisplay> below already renders the image */}
-                          {message.content && message.content !== '[Gambar]' && (() => {
-                            // Detect location content: "[Lokasi: lat, lng]" format saved by the webhook
+                          {/* Message content — rendered based on type */}
+                          {message.content && !isNonButtonLabel && (() => {
+                            const lc = message.content.toLowerCase();
+
+                            // "non-text message" = Fonnte system label for GPS location shares.
+                            // Old rows (before webhook fix) never stored coordinates, so show a placeholder.
+                            if (lc === 'non-text message') {
+                              return (
+                                <div className="flex items-center gap-1.5 text-sm opacity-75">
+                                  <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-current" />
+                                  <span className="text-xs italic">Lokasi dibagikan</span>
+                                </div>
+                              );
+                            }
+
+                            // "[Gambar]" placeholder — attachments section below renders the actual image.
+                            if (message.content === '[Gambar]') return null;
+
+                            // "[Lokasi: lat, lng]" format stored by the webhook (new messages after fix).
                             const locMatch = message.content.match(/^\[Lokasi:\s*(-?\d+\.?\d*),\s*(-?\d+\.?\d*)\]$/);
                             if (locMatch) {
                               return (
@@ -927,6 +1049,7 @@ const Conversations = () => {
                                 </div>
                               );
                             }
+
                             return <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>;
                           })()}
 
@@ -1019,6 +1142,232 @@ const Conversations = () => {
             </>
           )}
         </div>
+
+        {/* ── RIGHT PANEL: Info & Actions Sidebar ── */}
+        {selectedConversation && (
+          <div className="w-64 flex-shrink-0 border-l bg-card flex flex-col overflow-y-auto">
+
+            {/* Section 1: Quick Actions */}
+            <div className="p-4 border-b">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Tindakan</p>
+              <div className="flex flex-col gap-2">
+                {/* Lihat Laporan — only when report_id exists */}
+                {selectedConversation.report_id && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full h-8 text-xs justify-start"
+                    onClick={() => handleViewReport(selectedConversation.report_id!)}
+                  >
+                    <FileText className="h-3.5 w-3.5 mr-2 flex-shrink-0" />
+                    Lihat Laporan
+                  </Button>
+                )}
+                {/* Ambil Alih — active + not human-handled + canTakeover */}
+                {canTakeover && selectedConversation.status === 'active' && !selectedConversation.is_human_handled && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full h-8 text-xs justify-start border-blue-300 text-blue-700 hover:bg-blue-50"
+                    onClick={() => setShowTakeoverConfirm(true)}
+                  >
+                    <UserCircle className="h-3.5 w-3.5 mr-2 flex-shrink-0" />
+                    Ambil Alih
+                  </Button>
+                )}
+                {/* Buat Laporan — shown whenever human-handled + no report yet.
+                    Only disabled while extracting; hidden once report_id is set. */}
+                {canTakeover && selectedConversation.is_human_handled && !selectedConversation.report_id && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full h-8 text-xs justify-start"
+                    onClick={handleExtractAndOpenReport}
+                    disabled={extracting}
+                  >
+                    {extracting ? (
+                      <><RefreshCw className="h-3.5 w-3.5 mr-2 animate-spin flex-shrink-0" />Menganalisis...</>
+                    ) : (
+                      <><FileText className="h-3.5 w-3.5 mr-2 flex-shrink-0" />Buat Laporan</>
+                    )}
+                  </Button>
+                )}
+                {/* Selesaikan — active conversations only; disappears naturally once done */}
+                {canTakeover && selectedConversation.status === 'active' && selectedConversation.is_human_handled && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full h-8 text-xs justify-start border-red-200 text-red-600 hover:bg-red-50"
+                    onClick={handleSelesaikan}
+                  >
+                    Selesaikan
+                  </Button>
+                )}
+                {/* No actions fallback */}
+                {!selectedConversation.report_id &&
+                  !(canTakeover && selectedConversation.status === 'active') &&
+                  !(canTakeover && selectedConversation.is_human_handled) && (
+                  <p className="text-xs text-muted-foreground italic">Tidak ada tindakan tersedia</p>
+                )}
+              </div>
+            </div>
+
+            {/* Section 2: Timer */}
+            <div className="p-4 border-b">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timer</p>
+              <TooltipProvider delayDuration={300}>
+                <div className="space-y-2">
+
+                  {/* Row 1: Sesi — total conversation age from started_at */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground">Sesi</span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="left" className="text-xs max-w-[180px]">
+                          Durasi total percakapan sejak pesan pertama warga masuk
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <span className="text-xs font-mono font-medium">
+                      {sessionState?.totalFormatted ?? '—'}
+                    </span>
+                  </div>
+
+                  {/* Row 2: SLA — countdown from last CITIZEN message */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground">SLA</span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="left" className="text-xs max-w-[200px]">
+                          Waktu tersisa untuk merespons pesan warga. Batas SLA: {slaWindowMinutes} menit
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    {selectedConversation.status !== 'active' ? (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    ) : citizenIsWaiting && slaRespState ? (
+                      <SLATimerBadge
+                        state={slaRespState}
+                        variant="compact"
+                        slaWindowMinutes={slaWindowMinutes}
+                      />
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-xs bg-green-50 border-green-200 text-green-700">
+                        <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
+                        Sudah direspons
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Progress bar — drains from full (green) to empty (breached) */}
+                  {selectedConversation.status === 'active' && citizenIsWaiting && slaRespState && (
+                    <div className="h-1 w-full rounded-full bg-gray-200 overflow-hidden">
+                      <div
+                        className={cn(
+                          'h-full rounded-full transition-all duration-1000',
+                          SLA_BAR_COLOR[slaRespState.urgency]
+                        )}
+                        style={{ width: `${slaRespState.remainingPercent}%` }}
+                      />
+                    </div>
+                  )}
+
+                </div>
+              </TooltipProvider>
+            </div>
+
+            {/* Section 3: Conversation Info */}
+            <div className="p-4 border-b">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Informasi</p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-xs text-muted-foreground flex items-center gap-0.5 cursor-help">
+                          Status <Info className="h-3 w-3" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" className="text-xs max-w-[210px] space-y-1">
+                        <p><span className="font-medium">Active</span> — percakapan berlangsung, warga/AI masih aktif.</p>
+                        <p><span className="font-medium">Abandoned</span> — tidak ada respons &gt;{slaWindowMinutes} menit dari warga, sesi otomatis ditutup.</p>
+                        <p><span className="font-medium">Completed</span> — laporan dibuat atau sesi ditutup.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  {getStatusBadge(selectedConversation.status)}
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">Kanal</span>
+                  {getChannelBadge(selectedConversation.channel)}
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">Pesan</span>
+                  <span className="text-xs font-medium">{selectedConversation.message_count || 0} pesan</span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs text-muted-foreground">Dimulai</span>
+                  <span className="text-xs font-medium">
+                    {new Date(selectedConversation.started_at).toLocaleString("id-ID", {
+                      day: "2-digit", month: "short", year: "numeric",
+                      hour: "2-digit", minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">Device</span>
+                  <span className="text-xs font-medium font-mono truncate max-w-[120px]">
+                    {selectedConversation.device_number || "—"}
+                  </span>
+                </div>
+                {selectedConversation.completed_at && (
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs text-muted-foreground">Selesai</span>
+                    <span className="text-xs font-medium">
+                      {new Date(selectedConversation.completed_at).toLocaleString("id-ID", {
+                        day: "2-digit", month: "short", year: "numeric",
+                        hour: "2-digit", minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                )}
+                <div className="pt-1 border-t border-dashed">
+                  <span className="text-[10px] font-mono text-muted-foreground/50 break-all select-all">
+                    {selectedConversation.id}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 4: Human Mode info */}
+            {selectedConversation.is_human_handled && (
+              <div className="p-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Human Mode</p>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <UserCircle className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+                    <span className="text-xs text-blue-700 font-medium">Diambil alih</span>
+                  </div>
+                  {selectedConversation.human_handled_at && (
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs text-muted-foreground">Waktu</span>
+                      <span className="text-xs font-medium">
+                        {formatDistanceToNow(new Date(selectedConversation.human_handled_at), { addSuffix: true })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+          </div>
+        )}
       </div>
 
       {/* ── Report Submission Dialog ── */}
@@ -1035,9 +1384,13 @@ const Conversations = () => {
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">
-              Data diekstrak oleh AI dari percakapan. Periksa dan edit sebelum menyimpan.
-            </p>
+            <div className="flex items-start gap-2 p-3 rounded-md bg-blue-50 border border-blue-100 text-xs text-blue-700">
+              <Sparkles className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+              <span>
+                Data diisi otomatis oleh AI berdasarkan percakapan.{" "}
+                <span className="font-medium">Periksa dan verifikasi setiap kolom sebelum mengirim.</span>
+              </span>
+            </div>
 
             <div className="space-y-3">
               {/* Name + Phone */}
@@ -1130,7 +1483,7 @@ const Conversations = () => {
                     onClick={() => document.getElementById('report-photo-input')?.click()}
                   >
                     <Upload className="h-3.5 w-3.5 mr-1" />
-                    {photoFile ? 'Ganti Foto' : 'Pilih Foto'}
+                    {photoFile ? 'Ganti Foto' : prefilledPhotoUrl ? 'Ganti Foto' : 'Pilih Foto'}
                   </Button>
                   {photoFile && (
                     <span className="text-xs text-muted-foreground truncate max-w-[180px]">
@@ -1138,6 +1491,26 @@ const Conversations = () => {
                     </span>
                   )}
                 </div>
+                {/* Pre-filled image from conversation — shown when no new file is selected */}
+                {prefilledPhotoUrl && !photoFile && (
+                  <div className="flex items-center gap-3 mt-1.5">
+                    <img
+                      src={prefilledPhotoUrl}
+                      alt="Foto dari percakapan"
+                      className="h-16 w-16 rounded object-cover border"
+                    />
+                    <div className="text-xs text-muted-foreground space-y-0.5">
+                      <p>Foto dari percakapan</p>
+                      <button
+                        type="button"
+                        className="text-red-500 hover:underline"
+                        onClick={() => setPrefilledPhotoUrl(null)}
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <input
                   id="report-photo-input"
                   type="file"
@@ -1174,6 +1547,13 @@ const Conversations = () => {
               {/* Location / GPS picker */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium">Koordinat GPS</Label>
+                {/* Hint: citizen shared location but coords were not stored (old data before webhook fix) */}
+                {locationHint && !reportLocation && (
+                  <div className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-2">
+                    <MapPin className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                    <span>Warga membagikan lokasi dalam percakapan ini, namun koordinat tidak tersimpan. Pilih lokasi secara manual di bawah.</span>
+                  </div>
+                )}
                 {reportLocation ? (
                   <div className="flex items-center gap-2">
                     <div className="flex-1 bg-muted rounded-md px-3 py-2 text-xs font-mono text-muted-foreground">
@@ -1252,6 +1632,36 @@ const Conversations = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Ambil Alih Confirmation ── */}
+      <AlertDialog open={showTakeoverConfirm} onOpenChange={setShowTakeoverConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ambil alih percakapan?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <span className="block">
+                AI akan berhenti merespons secara otomatis. Seluruh balasan selanjutnya akan dikirim <span className="font-medium text-foreground">oleh Anda</span> melalui kotak balasan di bawah.
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                Warga tidak akan menerima notifikasi khusus tentang pergantian ini.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => {
+                setShowTakeoverConfirm(false);
+                handleTakeover();
+              }}
+            >
+              <UserCircle className="h-4 w-4 mr-2" />
+              Ya, Ambil Alih
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dashboard>
   );
 };
