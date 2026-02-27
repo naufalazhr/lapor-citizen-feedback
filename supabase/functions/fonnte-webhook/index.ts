@@ -171,7 +171,12 @@ serve(async (req: Request) => {
     if (conversation.is_human_handled) {
       console.log('👤 Human takeover active — saving message for admin, skipping AI');
 
-      const humanModeContent = normalized.message ||
+      // Strip Fonnte's internal type label ("non-button message") — it is not user text
+      const humanMsgText = (normalized.message || '').toLowerCase() === 'non-button message'
+        ? ''
+        : normalized.message;
+
+      const humanModeContent = humanMsgText ||
         (normalized.hasAttachment ? '[Gambar]' :
         (normalized.location
           ? `[Lokasi: ${normalized.location.lat}, ${normalized.location.lng}]`
@@ -221,7 +226,12 @@ serve(async (req: Request) => {
     // 6. Prepare message content
     // For image-only messages, use placeholder for database storage
     // The actual image URL will be appended in buildFlowiseRequest
-    const messageContent = normalized.message ||
+    // Strip Fonnte's internal type label ("non-button message") — it is not user text
+    const msgText = (normalized.message || '').toLowerCase() === 'non-button message'
+      ? ''
+      : normalized.message;
+
+    const messageContent = msgText ||
       (normalized.hasAttachment ? '[Gambar]' :
       (normalized.location
         ? `[Lokasi: ${normalized.location.lat}, ${normalized.location.lng}]`

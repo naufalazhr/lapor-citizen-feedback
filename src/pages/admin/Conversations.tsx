@@ -23,7 +23,7 @@ import {
 import {
   MessageSquare, Search, RefreshCw, Phone, FileText, X,
   Bot, Settings2, ChevronLeft, ChevronRight, UserCircle, Send,
-  Upload, MapPin
+  Upload, MapPin, Info, CheckCircle2
 } from "lucide-react";
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -36,6 +36,14 @@ import AttachmentDisplay from "@/components/AttachmentDisplay";
 import AIThinkingCollapsible from "@/components/admin/AIThinkingCollapsible";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/use-user-role";
+import { useSLATimer } from "@/hooks/use-sla-timer";
+import { SLATimerBadge } from "@/components/admin/SLATimerBadge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 
 interface Conversation {
   id: string;
@@ -144,6 +152,38 @@ const Conversations = () => {
   const { level } = usePIIMasking();
   const { isAdmin, isOwner, isMember } = useUserRole();
   const canTakeover = isAdmin || isOwner || isMember;
+  const { getSLAState, slaWindowMinutes } = useSLATimer({ tenantId: currentTenantId });
+
+  // ── SLA Response derived state ─────────────────────────────────────────────
+  // Citizen is "waiting" when the last message is from them (not AI / human CS).
+  // Uses the already-loaded `messages` state — no extra DB query needed.
+  const lastMsg = messages.at(-1);
+  const citizenIsWaiting =
+    selectedConversation?.status === 'active' &&
+    !!lastMsg && lastMsg.role === 'user' && !lastMsg.sent_by_human;
+
+  // Last citizen message time — the accurate start-of-wait reference for SLA.
+  const lastCitizenMsg = citizenIsWaiting
+    ? lastMsg
+    : [...messages].reverse().find(m => m.role === 'user' && !m.sent_by_human) ?? null;
+
+  // Patched conv with last CITIZEN msg time so SLA doesn't count AI reply time.
+  const slaRespConv = selectedConversation && citizenIsWaiting && lastCitizenMsg
+    ? { ...selectedConversation, last_message_at: lastCitizenMsg.created_at }
+    : selectedConversation;
+
+  // Pre-compute both states once per tick (getSLAState updates every second).
+  const sessionState = selectedConversation ? getSLAState(selectedConversation) : null;
+  const slaRespState  = slaRespConv         ? getSLAState(slaRespConv)         : null;
+
+  // Urgency → progress bar color (local map, no extra import needed)
+  const SLA_BAR_COLOR: Record<string, string> = {
+    green:    'bg-green-500',
+    yellow:   'bg-yellow-400',
+    red:      'bg-red-500',
+    breached: 'bg-red-600',
+  };
+  // ──────────────────────────────────────────────────────────────────────────
 
   // Get current user ID and tenant ID
   useEffect(() => {
@@ -187,6 +227,18 @@ const Conversations = () => {
         (payload) => {
           if (payload.new?.conversation_id === convId) {
             fetchMessages(convId);
+            // Keep last_message_at fresh so the SLA idle timer resets on new messages
+            const msgCreatedAt: string = payload.new?.created_at;
+            if (msgCreatedAt) {
+              setConversations(prev =>
+                prev.map(c =>
+                  c.id === convId ? { ...c, last_message_at: msgCreatedAt } : c
+                )
+              );
+              setSelectedConversation(prev =>
+                prev ? { ...prev, last_message_at: msgCreatedAt } : prev
+              );
+            }
           }
         }
       )
@@ -534,6 +586,48 @@ const Conversations = () => {
     fetchConversations();
   }, [currentPage, statusFilter, dateFrom, dateTo, currentTenantId]);
 
+  // ── Auto-expire stale active conversations ─────────────────────────────────
+  // The fonnte-webhook marks conversations 'abandoned' lazily (only when a new
+  // message arrives). This effect fills the gap: when the admin opens the page,
+  // active conversations idle longer than slaWindowMinutes are immediately
+  // set to 'abandoned' without waiting for another WhatsApp message.
+  useEffect(() => {
+    if (!slaWindowMinutes || conversations.length === 0) return;
+
+    const now = new Date();
+    const timeoutMs = slaWindowMinutes * 60 * 1000;
+
+    const expiredIds = conversations
+      .filter(c =>
+        c.status === 'active' &&
+        !c.report_id &&
+        (now.getTime() - new Date(c.last_message_at).getTime()) > timeoutMs
+      )
+      .map(c => c.id);
+
+    if (expiredIds.length === 0) return;
+
+    const completedAt = now.toISOString();
+    supabase
+      .from('conversations')
+      .update({ status: 'abandoned', completed_at: completedAt })
+      .in('id', expiredIds)
+      .then(({ error }) => {
+        if (error) return; // silent fail — next page load retries
+        setConversations(prev => prev.map(c =>
+          expiredIds.includes(c.id)
+            ? { ...c, status: 'abandoned' as const, completed_at: completedAt }
+            : c
+        ));
+        setSelectedConversation(prev =>
+          prev && expiredIds.includes(prev.id)
+            ? { ...prev, status: 'abandoned' as const, completed_at: completedAt }
+            : prev
+        );
+      });
+  }, [conversations, slaWindowMinutes]); // eslint-disable-line react-hooks/exhaustive-deps
+  // ──────────────────────────────────────────────────────────────────────────
+
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       active: "default",
@@ -670,9 +764,14 @@ const Conversations = () => {
                       <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold">
                         {initials}
                       </div>
-                      {isActive && (
-                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-card" />
-                      )}
+                      <span
+                        className={cn(
+                          "absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-card",
+                          conv.status === "active"    && "bg-green-500",
+                          conv.status === "abandoned" && "bg-red-400",
+                          conv.status === "completed" && "bg-gray-400"
+                        )}
+                      />
                     </div>
 
                     {/* Info */}
@@ -692,7 +791,6 @@ const Conversations = () => {
                           {conv.is_human_handled && (
                             <UserCircle className="h-3.5 w-3.5 text-blue-500" title="Human Mode" />
                           )}
-                          {getStatusBadge(conv.status)}
                         </div>
                       </div>
                     </div>
@@ -778,83 +876,19 @@ const Conversations = () => {
                     <span className="font-mono text-xs text-muted-foreground">
                       {maskPhone(selectedConversation.phone_number, level)}
                     </span>
-                    {getStatusBadge(selectedConversation.status)}
-                    {getChannelBadge(selectedConversation.channel)}
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
-                  <span className="text-xs text-muted-foreground hidden sm:inline">
-                    {selectedConversation.message_count || 0} pesan
-                  </span>
-
-                  {/* Existing report link */}
-                  {selectedConversation.report_id && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 text-xs"
-                      onClick={() => handleViewReport(selectedConversation.report_id!)}
-                    >
-                      <FileText className="h-3.5 w-3.5 mr-1" />
-                      Lihat Laporan
-                    </Button>
-                  )}
-
-                  {/* Human takeover controls — only for active conversations with canTakeover role */}
-                  {canTakeover && selectedConversation.status === 'active' && (
-                    <>
-                      {!selectedConversation.is_human_handled ? (
-                        /* Not yet taken over — show Ambil Alih button */
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 text-xs border-blue-300 text-blue-700 hover:bg-blue-50"
-                          onClick={handleTakeover}
-                        >
-                          <UserCircle className="h-3.5 w-3.5 mr-1" />
-                          Ambil Alih
-                        </Button>
-                      ) : (
-                        /* In human mode — show Buat Laporan + Selesaikan */
-                        <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-xs"
-                            onClick={handleExtractAndOpenReport}
-                            disabled={extracting}
-                          >
-                            {extracting ? (
-                              <><RefreshCw className="h-3.5 w-3.5 mr-1 animate-spin" />Menganalisis...</>
-                            ) : (
-                              <><FileText className="h-3.5 w-3.5 mr-1" />Buat Laporan</>
-                            )}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-xs border-red-200 text-red-600 hover:bg-red-50"
-                            onClick={handleSelesaikan}
-                          >
-                            Selesaikan
-                          </Button>
-                        </>
-                      )}
-                    </>
-                  )}
-
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setSelectedConversation(null)}
-                    title="Tutup"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
+                {/* Close */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 flex-shrink-0"
+                  onClick={() => setSelectedConversation(null)}
+                  title="Tutup"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
 
               {/* Messages Area */}
@@ -915,8 +949,8 @@ const Conversations = () => {
                             </p>
                           )}
 
-                          {/* Skip [Gambar] placeholder — <AttachmentDisplay> below already renders the image */}
-                          {message.content && message.content !== '[Gambar]' && (() => {
+                          {/* Skip [Gambar] placeholder and "non-button message" Fonnte system label — <AttachmentDisplay> below already renders the image */}
+                          {message.content && message.content !== '[Gambar]' && message.content !== 'non-button message' && (() => {
                             // Detect location content: "[Lokasi: lat, lng]" format saved by the webhook
                             const locMatch = message.content.match(/^\[Lokasi:\s*(-?\d+\.?\d*),\s*(-?\d+\.?\d*)\]$/);
                             if (locMatch) {
@@ -1019,6 +1053,227 @@ const Conversations = () => {
             </>
           )}
         </div>
+
+        {/* ── RIGHT PANEL: Info & Actions Sidebar ── */}
+        {selectedConversation && (
+          <div className="w-64 flex-shrink-0 border-l bg-card flex flex-col overflow-y-auto">
+
+            {/* Section 1: Quick Actions */}
+            <div className="p-4 border-b">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Tindakan</p>
+              <div className="flex flex-col gap-2">
+                {/* Lihat Laporan — only when report_id exists */}
+                {selectedConversation.report_id && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full h-8 text-xs justify-start"
+                    onClick={() => handleViewReport(selectedConversation.report_id!)}
+                  >
+                    <FileText className="h-3.5 w-3.5 mr-2 flex-shrink-0" />
+                    Lihat Laporan
+                  </Button>
+                )}
+                {/* Ambil Alih — active + not human-handled + canTakeover */}
+                {canTakeover && selectedConversation.status === 'active' && !selectedConversation.is_human_handled && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full h-8 text-xs justify-start border-blue-300 text-blue-700 hover:bg-blue-50"
+                    onClick={handleTakeover}
+                  >
+                    <UserCircle className="h-3.5 w-3.5 mr-2 flex-shrink-0" />
+                    Ambil Alih
+                  </Button>
+                )}
+                {/* Buat Laporan — shown whenever human-handled + no report yet.
+                    Only disabled while extracting; hidden once report_id is set. */}
+                {canTakeover && selectedConversation.is_human_handled && !selectedConversation.report_id && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full h-8 text-xs justify-start"
+                    onClick={handleExtractAndOpenReport}
+                    disabled={extracting}
+                  >
+                    {extracting ? (
+                      <><RefreshCw className="h-3.5 w-3.5 mr-2 animate-spin flex-shrink-0" />Menganalisis...</>
+                    ) : (
+                      <><FileText className="h-3.5 w-3.5 mr-2 flex-shrink-0" />Buat Laporan</>
+                    )}
+                  </Button>
+                )}
+                {/* Selesaikan — active conversations only; disappears naturally once done */}
+                {canTakeover && selectedConversation.status === 'active' && selectedConversation.is_human_handled && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full h-8 text-xs justify-start border-red-200 text-red-600 hover:bg-red-50"
+                    onClick={handleSelesaikan}
+                  >
+                    Selesaikan
+                  </Button>
+                )}
+                {/* No actions fallback */}
+                {!selectedConversation.report_id &&
+                  !(canTakeover && selectedConversation.status === 'active') &&
+                  !(canTakeover && selectedConversation.is_human_handled) && (
+                  <p className="text-xs text-muted-foreground italic">Tidak ada tindakan tersedia</p>
+                )}
+              </div>
+            </div>
+
+            {/* Section 2: Timer */}
+            <div className="p-4 border-b">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Timer</p>
+              <TooltipProvider delayDuration={300}>
+                <div className="space-y-2">
+
+                  {/* Row 1: Sesi — total conversation age from started_at */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground">Sesi</span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="left" className="text-xs max-w-[180px]">
+                          Durasi total percakapan sejak pesan pertama warga masuk
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <span className="text-xs font-mono font-medium">
+                      {sessionState?.totalFormatted ?? '—'}
+                    </span>
+                  </div>
+
+                  {/* Row 2: SLA — countdown from last CITIZEN message */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground">SLA</span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="left" className="text-xs max-w-[200px]">
+                          Waktu tersisa untuk merespons pesan warga. Batas SLA: {slaWindowMinutes} menit
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    {selectedConversation.status !== 'active' ? (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    ) : citizenIsWaiting && slaRespState ? (
+                      <SLATimerBadge
+                        state={slaRespState}
+                        variant="compact"
+                        slaWindowMinutes={slaWindowMinutes}
+                      />
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-xs bg-green-50 border-green-200 text-green-700">
+                        <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
+                        Sudah direspons
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Progress bar — drains from full (green) to empty (breached) */}
+                  {selectedConversation.status === 'active' && citizenIsWaiting && slaRespState && (
+                    <div className="h-1 w-full rounded-full bg-gray-200 overflow-hidden">
+                      <div
+                        className={cn(
+                          'h-full rounded-full transition-all duration-1000',
+                          SLA_BAR_COLOR[slaRespState.urgency]
+                        )}
+                        style={{ width: `${slaRespState.remainingPercent}%` }}
+                      />
+                    </div>
+                  )}
+
+                </div>
+              </TooltipProvider>
+            </div>
+
+            {/* Section 3: Conversation Info */}
+            <div className="p-4 border-b">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Informasi</p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-xs text-muted-foreground flex items-center gap-0.5 cursor-help">
+                          Status <Info className="h-3 w-3" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" className="text-xs max-w-[210px] space-y-1">
+                        <p><span className="font-medium">Active</span> — percakapan berlangsung, warga/AI masih aktif.</p>
+                        <p><span className="font-medium">Abandoned</span> — tidak ada respons &gt;{slaWindowMinutes} menit dari warga, sesi otomatis ditutup.</p>
+                        <p><span className="font-medium">Completed</span> — laporan dibuat atau sesi ditutup.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  {getStatusBadge(selectedConversation.status)}
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">Kanal</span>
+                  {getChannelBadge(selectedConversation.channel)}
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">Pesan</span>
+                  <span className="text-xs font-medium">{selectedConversation.message_count || 0} pesan</span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs text-muted-foreground">Dimulai</span>
+                  <span className="text-xs font-medium">
+                    {new Date(selectedConversation.started_at).toLocaleString("id-ID", {
+                      day: "2-digit", month: "short", year: "numeric",
+                      hour: "2-digit", minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">Device</span>
+                  <span className="text-xs font-medium font-mono truncate max-w-[120px]">
+                    {selectedConversation.device_number || "—"}
+                  </span>
+                </div>
+                {selectedConversation.completed_at && (
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs text-muted-foreground">Selesai</span>
+                    <span className="text-xs font-medium">
+                      {new Date(selectedConversation.completed_at).toLocaleString("id-ID", {
+                        day: "2-digit", month: "short", year: "numeric",
+                        hour: "2-digit", minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Section 4: Human Mode info */}
+            {selectedConversation.is_human_handled && (
+              <div className="p-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Human Mode</p>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <UserCircle className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+                    <span className="text-xs text-blue-700 font-medium">Diambil alih</span>
+                  </div>
+                  {selectedConversation.human_handled_at && (
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs text-muted-foreground">Waktu</span>
+                      <span className="text-xs font-medium">
+                        {formatDistanceToNow(new Date(selectedConversation.human_handled_at), { addSuffix: true })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+          </div>
+        )}
       </div>
 
       {/* ── Report Submission Dialog ── */}
