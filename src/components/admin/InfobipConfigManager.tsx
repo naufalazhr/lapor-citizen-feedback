@@ -2,42 +2,42 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle } from "lucide-react";
+import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle, Copy, Check, ExternalLink } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
-interface FlowiseConfig {
+interface InfobipConfig {
   id: string;
   config_name: string;
   is_active: boolean;
-  api_url: string;
-  api_key: string;
-  chatflow_id: string;
-  streaming: boolean;
-  timeout_seconds: number;
-  session_variables: Record<string, any> | null;
+  api_key: string | null;
+  base_url: string | null;
+  sender_number: string | null;
+  auto_reply_enabled: boolean;
+  session_timeout_minutes: number;
   updated_at: string;
 }
 
-export const FlowiseConfigManager = () => {
+export const InfobipConfigManager = ({ onSaved }: { onSaved?: () => void } = {}) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [config, setConfig] = useState<FlowiseConfig | null>(null);
+  const [config, setConfig] = useState<InfobipConfig | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
   const [formData, setFormData] = useState({
-    api_url: "",
     api_key: "",
-    chatflow_id: "",
-    streaming: false,
-    timeout_seconds: 30,
-    session_variables: "",
+    base_url: "",
+    sender_number: "",
+    auto_reply_enabled: true,
+    session_timeout_minutes: 30,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
+
+  const webhookUrl = "https://ykaawgnggvwleiyzvilf.supabase.co/functions/v1/infobip-webhook";
 
   useEffect(() => {
     fetchConfig();
@@ -46,38 +46,27 @@ export const FlowiseConfigManager = () => {
   const fetchConfig = async () => {
     try {
       setLoading(true);
-      // Fetch any existing config (active or inactive) so the INSERT vs UPDATE
-      // logic works correctly even when a config exists but is currently inactive.
-      // Prefer active configs, then fall back to most recently updated.
       const { data, error } = await supabase
-        .from("flowise_config")
+        .from("infobip_config" as any)
         .select("*")
-        .order("is_active", { ascending: false })
-        .order("updated_at", { ascending: false })
-        .limit(1)
+        .eq("is_active", true)
         .maybeSingle();
 
       if (error) throw error;
 
       if (data) {
-        const configData = {
-          ...data,
-          session_variables: data.session_variables as Record<string, any> | null
-        };
+        const configData = data as unknown as InfobipConfig;
         setConfig(configData);
         setFormData({
-          api_url: data.api_url,
-          api_key: data.api_key,
-          chatflow_id: data.chatflow_id,
-          streaming: data.streaming,
-          timeout_seconds: data.timeout_seconds,
-          session_variables: data.session_variables
-            ? JSON.stringify(data.session_variables, null, 2)
-            : "",
+          api_key: configData.api_key || "",
+          base_url: configData.base_url || "",
+          sender_number: configData.sender_number || "",
+          auto_reply_enabled: configData.auto_reply_enabled,
+          session_timeout_minutes: configData.session_timeout_minutes,
         });
       }
     } catch (error: any) {
-      console.error("Error fetching Flowise config:", error);
+      console.error("Error fetching Infobip config:", error);
       toast({
         title: "Error",
         description: error.message || "Failed to load configuration",
@@ -91,40 +80,25 @@ export const FlowiseConfigManager = () => {
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    // Validate API URL
-    if (!formData.api_url.trim()) {
-      newErrors.api_url = "API URL is required";
-    } else {
-      try {
-        new URL(formData.api_url);
-      } catch {
-        newErrors.api_url = "Invalid URL format";
-      }
-    }
-
-    // Validate API Key
     if (!formData.api_key.trim()) {
       newErrors.api_key = "API Key is required";
     }
 
-    // Validate Chatflow ID
-    if (!formData.chatflow_id.trim()) {
-      newErrors.chatflow_id = "Chatflow ID is required";
+    if (!formData.base_url.trim()) {
+      newErrors.base_url = "Base URL is required";
+    } else if (formData.base_url.includes("://")) {
+      newErrors.base_url = "Enter the hostname only, e.g. xxxxx.api.infobip.com (no https://)";
     }
 
-    // Validate timeout
-    const timeout = Number(formData.timeout_seconds);
-    if (isNaN(timeout) || timeout < 10 || timeout > 120) {
-      newErrors.timeout_seconds = "Timeout must be between 10 and 120 seconds";
+    if (!formData.sender_number.trim()) {
+      newErrors.sender_number = "Sender number is required";
+    } else if (!/^\d+$/.test(formData.sender_number.trim())) {
+      newErrors.sender_number = "Sender number must contain digits only (e.g. 628123456789)";
     }
 
-    // Validate session variables JSON
-    if (formData.session_variables.trim()) {
-      try {
-        JSON.parse(formData.session_variables);
-      } catch {
-        newErrors.session_variables = "Invalid JSON format";
-      }
+    const timeout = Number(formData.session_timeout_minutes);
+    if (isNaN(timeout) || timeout < 5 || timeout > 1440) {
+      newErrors.session_timeout_minutes = "Timeout must be between 5 and 1440 minutes (1 day)";
     }
 
     setErrors(newErrors);
@@ -145,22 +119,18 @@ export const FlowiseConfigManager = () => {
       setSaving(true);
 
       const updateData = {
-        api_url: formData.api_url.trim(),
         api_key: formData.api_key.trim(),
-        chatflow_id: formData.chatflow_id.trim(),
-        streaming: formData.streaming,
-        timeout_seconds: Number(formData.timeout_seconds),
-        session_variables: formData.session_variables.trim()
-          ? JSON.parse(formData.session_variables)
-          : null,
-        is_active: true,
+        base_url: formData.base_url.trim().replace(/^https?:\/\//, ""),
+        sender_number: formData.sender_number.trim(),
+        auto_reply_enabled: formData.auto_reply_enabled,
+        session_timeout_minutes: Number(formData.session_timeout_minutes),
         updated_at: new Date().toISOString(),
       };
 
       if (config) {
         // Update existing config
         const { error } = await supabase
-          .from("flowise_config")
+          .from("infobip_config" as any)
           .update(updateData)
           .eq("id", config.id);
 
@@ -178,34 +148,28 @@ export const FlowiseConfigManager = () => {
 
         if (!profile?.tenant_id) throw new Error("Tenant ID not found");
 
-        // Upsert new config — handles the case where a row already exists
-        // (e.g. inactive) to avoid duplicate key violations on config_name.
-        const { error } = await supabase.from("flowise_config").upsert({
-          api_url: formData.api_url.trim(),
-          api_key: formData.api_key.trim(),
-          chatflow_id: formData.chatflow_id.trim(),
-          streaming: formData.streaming,
-          timeout_seconds: Number(formData.timeout_seconds),
-          session_variables: formData.session_variables.trim()
-            ? JSON.parse(formData.session_variables)
-            : null,
-          config_name: "default",
-          is_active: true,
-          tenant_id: profile.tenant_id,
-        }, { onConflict: "tenant_id,config_name" });
+        // Create new config
+        const { error } = await supabase
+          .from("infobip_config" as any)
+          .insert([{
+            ...updateData,
+            config_name: "default",
+            is_active: true,
+            tenant_id: profile.tenant_id,
+          }]);
 
         if (error) throw error;
       }
 
       toast({
         title: "Success",
-        description: "Flowise configuration saved successfully",
+        description: "Infobip configuration saved successfully",
       });
 
-      // Refresh config
       await fetchConfig();
+      onSaved?.();
     } catch (error: any) {
-      console.error("Error saving config:", error);
+      console.error("Error saving Infobip config:", error);
       toast({
         title: "Error",
         description: error.message || "Failed to save configuration",
@@ -218,7 +182,6 @@ export const FlowiseConfigManager = () => {
 
   const handleInputChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    // Clear error for this field
     if (errors[field]) {
       setErrors((prev) => {
         const newErrors = { ...prev };
@@ -226,6 +189,16 @@ export const FlowiseConfigManager = () => {
         return newErrors;
       });
     }
+  };
+
+  const copyWebhookUrl = () => {
+    navigator.clipboard.writeText(webhookUrl);
+    setCopiedWebhook(true);
+    toast({
+      title: "Copied to clipboard",
+      description: "Webhook URL has been copied",
+    });
+    setTimeout(() => setCopiedWebhook(false), 2000);
   };
 
   if (loading) {
@@ -258,31 +231,50 @@ export const FlowiseConfigManager = () => {
         </Alert>
       )}
 
+      {/* Webhook URL Info */}
+      <div className="border rounded-lg p-4 bg-muted/50">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-base font-semibold">Webhook URL</Label>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => window.open("https://portal.infobip.com/", "_blank")}
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Open Infobip Portal
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Paste this URL in Infobip Portal → Channels &amp; Numbers → WhatsApp → [Your Number] → Inbound forwarding
+          </p>
+          <div className="flex gap-2">
+            <Input
+              value={webhookUrl}
+              readOnly
+              className="font-mono text-sm"
+            />
+            <Button
+              size="icon"
+              variant="outline"
+              onClick={copyWebhookUrl}
+            >
+              {copiedWebhook ? (
+                <Check className="h-4 w-4" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
+
       <div className="border rounded-lg p-6 space-y-6">
         {/* API Configuration Section */}
         <div className="space-y-4">
           <h3 className="text-lg font-semibold">API Configuration</h3>
 
-          <div className="space-y-2">
-            <Label htmlFor="api_url">
-              API URL <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="api_url"
-              type="url"
-              placeholder="https://your-flowise-instance.com"
-              value={formData.api_url}
-              onChange={(e) => handleInputChange("api_url", e.target.value)}
-              className={errors.api_url ? "border-destructive" : ""}
-            />
-            {errors.api_url && (
-              <p className="text-sm text-destructive">{errors.api_url}</p>
-            )}
-            <p className="text-sm text-muted-foreground">
-              The base URL of your Flowise instance
-            </p>
-          </div>
-
+          {/* API Key */}
           <div className="space-y-2">
             <Label htmlFor="api_key">
               API Key <span className="text-destructive">*</span>
@@ -291,7 +283,7 @@ export const FlowiseConfigManager = () => {
               <Input
                 id="api_key"
                 type={showApiKey ? "text" : "password"}
-                placeholder="Enter your Flowise API key"
+                placeholder="Enter your Infobip API key"
                 value={formData.api_key}
                 onChange={(e) => handleInputChange("api_key", e.target.value)}
                 className={errors.api_key ? "border-destructive pr-10" : "pr-10"}
@@ -314,27 +306,53 @@ export const FlowiseConfigManager = () => {
               <p className="text-sm text-destructive">{errors.api_key}</p>
             )}
             <p className="text-sm text-muted-foreground">
-              Bearer token for Flowise API authentication
+              Found in Infobip Portal → Account → API Keys
             </p>
           </div>
 
+          {/* Base URL */}
           <div className="space-y-2">
-            <Label htmlFor="chatflow_id">
-              Chatflow ID <span className="text-destructive">*</span>
+            <Label htmlFor="base_url">
+              Base URL <span className="text-destructive">*</span>
             </Label>
             <Input
-              id="chatflow_id"
+              id="base_url"
               type="text"
-              placeholder="487749ef-c4cd-4e17-b7a2-ec6376e482ea"
-              value={formData.chatflow_id}
-              onChange={(e) => handleInputChange("chatflow_id", e.target.value)}
-              className={errors.chatflow_id ? "border-destructive" : ""}
+              placeholder="xxxxx.api.infobip.com"
+              value={formData.base_url}
+              onChange={(e) => handleInputChange("base_url", e.target.value)}
+              className={errors.base_url ? "border-destructive font-mono" : "font-mono"}
             />
-            {errors.chatflow_id && (
-              <p className="text-sm text-destructive">{errors.chatflow_id}</p>
+            {errors.base_url && (
+              <p className="text-sm text-destructive">{errors.base_url}</p>
             )}
             <p className="text-sm text-muted-foreground">
-              The ID of the chatflow to use for conversations
+              Your Infobip subdomain (without https://). Shown in your portal after login.
+            </p>
+          </div>
+        </div>
+
+        {/* Device Configuration Section */}
+        <div className="space-y-4 pt-4 border-t">
+          <h3 className="text-lg font-semibold">WhatsApp Number</h3>
+
+          <div className="space-y-2">
+            <Label htmlFor="sender_number">
+              Sender Number <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="sender_number"
+              type="text"
+              placeholder="628123456789"
+              value={formData.sender_number}
+              onChange={(e) => handleInputChange("sender_number", e.target.value)}
+              className={errors.sender_number ? "border-destructive font-mono" : "font-mono"}
+            />
+            {errors.sender_number && (
+              <p className="text-sm text-destructive">{errors.sender_number}</p>
+            )}
+            <p className="text-sm text-muted-foreground">
+              Your WhatsApp Business number in E.164 format without +. Found in Infobip Portal → Channels &amp; Numbers → WhatsApp.
             </p>
           </div>
         </div>
@@ -345,62 +363,42 @@ export const FlowiseConfigManager = () => {
 
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label htmlFor="streaming">Enable Streaming</Label>
+              <Label htmlFor="auto_reply_enabled">Enable Auto Reply</Label>
               <p className="text-sm text-muted-foreground">
-                Stream responses from Flowise in real-time
+                Automatically reply to incoming WhatsApp messages
               </p>
             </div>
             <Switch
-              id="streaming"
-              checked={formData.streaming}
-              onCheckedChange={(checked) => handleInputChange("streaming", checked)}
+              id="auto_reply_enabled"
+              checked={formData.auto_reply_enabled}
+              onCheckedChange={(checked) =>
+                handleInputChange("auto_reply_enabled", checked)
+              }
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="timeout_seconds">
-              Timeout (seconds) <span className="text-destructive">*</span>
+            <Label htmlFor="session_timeout_minutes">
+              Session Timeout (minutes) <span className="text-destructive">*</span>
             </Label>
             <Input
-              id="timeout_seconds"
+              id="session_timeout_minutes"
               type="number"
-              min="10"
-              max="120"
-              value={formData.timeout_seconds}
+              min="5"
+              max="1440"
+              value={formData.session_timeout_minutes}
               onChange={(e) =>
-                handleInputChange("timeout_seconds", e.target.value)
+                handleInputChange("session_timeout_minutes", e.target.value)
               }
-              className={errors.timeout_seconds ? "border-destructive" : ""}
+              className={errors.session_timeout_minutes ? "border-destructive" : ""}
             />
-            {errors.timeout_seconds && (
-              <p className="text-sm text-destructive">{errors.timeout_seconds}</p>
+            {errors.session_timeout_minutes && (
+              <p className="text-sm text-destructive">
+                {errors.session_timeout_minutes}
+              </p>
             )}
             <p className="text-sm text-muted-foreground">
-              Maximum time to wait for Flowise response (10-120 seconds)
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="session_variables">
-              Session Variables (Optional)
-            </Label>
-            <Textarea
-              id="session_variables"
-              placeholder='{"key": "value"}'
-              rows={4}
-              value={formData.session_variables}
-              onChange={(e) =>
-                handleInputChange("session_variables", e.target.value)
-              }
-              className={
-                errors.session_variables ? "border-destructive font-mono" : "font-mono"
-              }
-            />
-            {errors.session_variables && (
-              <p className="text-sm text-destructive">{errors.session_variables}</p>
-            )}
-            <p className="text-sm text-muted-foreground">
-              Additional variables to pass to Flowise (JSON format)
+              Time before a conversation session expires (5–1440 minutes)
             </p>
           </div>
         </div>
