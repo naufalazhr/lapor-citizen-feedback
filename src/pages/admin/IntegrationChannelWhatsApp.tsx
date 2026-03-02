@@ -224,12 +224,10 @@ const IntegrationChannelWhatsApp = () => {
                 name="Infobip"
                 description="Platform komunikasi enterprise dengan WhatsApp Business API resmi"
                 logo={<InfobipLogo />}
-                isActive={activeProvider === "infobip"}
-                isConfigured={hasInfobipCredentials}
-                isActivating={activatingProvider === "infobip"}
-                isConfigOpen={openPanel === "infobip"}
-                onActivate={() => activateProvider("infobip")}
-                onConfigure={() => togglePanel("infobip")}
+                isActive={false}
+                isConfigured={false}
+                isComingSoon
+                onConfigure={() => {}}
               />
               <ChannelProviderCard
                 name="WhatsApp Cloud API"
@@ -267,19 +265,6 @@ const IntegrationChannelWhatsApp = () => {
               </div>
             )}
 
-            {/* Infobip Config Panel */}
-            {openPanel === "infobip" && (
-              <div className="mt-2">
-                <Separator className="mb-6" />
-                <div>
-                  <h3 className="text-base font-semibold mb-1">Konfigurasi Infobip</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Atur API Key, Base URL, dan nomor pengirim WhatsApp Infobip Anda
-                  </p>
-                  <InfobipConfigManager onSaved={refreshCredentials} />
-                </div>
-              </div>
-            )}
 
             {/* WhatsApp Cloud API Config Panel */}
             {openPanel === "whatsapp_cloud" && (
