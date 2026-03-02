@@ -8,6 +8,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import type { IWhatsAppProvider, WhatsAppProviderType, WhatsAppProviderConfig } from './types.ts';
 import { FonnteProvider } from './fonnte-provider.ts';
 import { TwilioProvider } from './twilio-provider.ts';
+import { InfobipProvider } from './infobip-provider.ts';
+import { WhatsAppCloudProvider } from './whatsapp-cloud-provider.ts';
 
 // Debug utility
 const debugLog = (...args: any[]) => {
@@ -46,6 +48,10 @@ export async function createWhatsAppProvider(): Promise<IWhatsAppProvider> {
   switch (config.provider) {
     case 'twilio':
       return await createTwilioProvider(config);
+    case 'infobip':
+      return await createInfobipProvider(config, supabase);
+    case 'whatsapp_cloud':
+      return await createWhatsAppCloudProvider(config, supabase);
     case 'fonnte':
     default:
       return await createFonnteProvider(supabase);
@@ -109,6 +115,72 @@ async function createTwilioProvider(config: WhatsAppProviderConfig): Promise<Twi
   return provider;
 }
 
+/**
+ * Create Infobip provider with credentials from infobip_config table
+ */
+async function createInfobipProvider(
+  config: WhatsAppProviderConfig,
+  supabase: ReturnType<typeof createClient>
+): Promise<InfobipProvider> {
+  const { data, error } = await supabase
+    .from('infobip_config')
+    .select('api_key, base_url, sender_number')
+    .eq('tenant_id', config.tenant_id)
+    .eq('is_active', true)
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) {
+    throw new Error('No active Infobip configuration found. Please configure Infobip API settings.');
+  }
+
+  if (!data.api_key || !data.base_url || !data.sender_number) {
+    throw new Error('Infobip configuration is incomplete. Please provide api_key, base_url, and sender_number.');
+  }
+
+  const provider = new InfobipProvider(data.api_key, data.base_url, data.sender_number);
+
+  if (!provider.validateConfig()) {
+    throw new Error('Infobip credentials are invalid.');
+  }
+
+  console.log('Created Infobip provider');
+  return provider;
+}
+
+/**
+ * Create WhatsApp Cloud provider with credentials from whatsapp_cloud_config table
+ */
+async function createWhatsAppCloudProvider(
+  config: WhatsAppProviderConfig,
+  supabase: ReturnType<typeof createClient>
+): Promise<WhatsAppCloudProvider> {
+  const { data, error } = await supabase
+    .from('whatsapp_cloud_config')
+    .select('phone_number_id, access_token')
+    .eq('tenant_id', config.tenant_id)
+    .eq('is_active', true)
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) {
+    throw new Error('No active WhatsApp Cloud configuration found. Please configure WhatsApp Cloud API settings.');
+  }
+
+  if (!data.phone_number_id || !data.access_token) {
+    throw new Error('WhatsApp Cloud configuration is incomplete. Please provide phone_number_id and access_token.');
+  }
+
+  const provider = new WhatsAppCloudProvider(data.phone_number_id, data.access_token);
+
+  if (!provider.validateConfig()) {
+    throw new Error('WhatsApp Cloud credentials are invalid.');
+  }
+
+  console.log('Created WhatsApp Cloud provider');
+  return provider;
+}
+
 // Re-export providers for direct use if needed
-export { FonnteProvider, TwilioProvider };
+export { FonnteProvider, TwilioProvider, InfobipProvider, WhatsAppCloudProvider };
 export type { IWhatsAppProvider, WhatsAppProviderType, WhatsAppProviderConfig };

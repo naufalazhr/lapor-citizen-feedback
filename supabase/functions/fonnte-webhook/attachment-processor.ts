@@ -98,7 +98,7 @@ async function downloadAttachment(url: string): Promise<{
 // -----------------------------------------------------------------------------
 // Upload to Supabase Storage
 // -----------------------------------------------------------------------------
-async function uploadToStorage(
+export async function uploadToStorage(
   data: Uint8Array,
   filename: string,
   mimeType: string
@@ -139,7 +139,7 @@ async function uploadToStorage(
 // -----------------------------------------------------------------------------
 // Convert to Base64 Data URI
 // -----------------------------------------------------------------------------
-function convertToBase64DataUri(data: Uint8Array, mimeType: string): string {
+export function convertToBase64DataUri(data: Uint8Array, mimeType: string): string {
   // Convert Uint8Array to base64
   const binary = Array.from(data, byte => String.fromCharCode(byte)).join('');
   const base64 = btoa(binary);
@@ -150,7 +150,7 @@ function convertToBase64DataUri(data: Uint8Array, mimeType: string): string {
 // -----------------------------------------------------------------------------
 // Save Attachment Metadata
 // -----------------------------------------------------------------------------
-async function saveAttachmentMetadata(params: {
+export async function saveAttachmentMetadata(params: {
   message_id: string;
   original_url: string;
   filename: string;

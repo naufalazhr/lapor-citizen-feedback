@@ -91,14 +91,27 @@ export async function isDuplicateMessage(
 
 // -----------------------------------------------------------------------------
 // Find or Create Conversation
+// options: optional provider config bypass — when supplied, skips getFonnteConfig()
+//          and uses the provided tenantId and sessionTimeoutMinutes directly.
+//          Fonnte callers that omit options are unaffected.
 // -----------------------------------------------------------------------------
 export async function findOrCreateConversation(
   phoneNumber: string,
   deviceNumber: string,
-  senderName?: string
+  senderName?: string,
+  options?: { tenantId?: string; sessionTimeoutMinutes?: number }
 ): Promise<Conversation> {
-  const config = await getFonnteConfig();
-  const timeoutMinutes = config.session_timeout_minutes;
+  let timeoutMinutes: number;
+  let resolvedTenantId: string | null;
+
+  if (options) {
+    timeoutMinutes = options.sessionTimeoutMinutes ?? 30;
+    resolvedTenantId = options.tenantId ?? null;
+  } else {
+    const config = await getFonnteConfig();
+    timeoutMinutes = config.session_timeout_minutes;
+    resolvedTenantId = config.tenant_id || null;
+  }
 
   // Calculate cutoff time for active sessions
   const cutoffTime = new Date(Date.now() - timeoutMinutes * 60000).toISOString();
@@ -189,7 +202,7 @@ export async function findOrCreateConversation(
       channel: 'whatsapp',
       last_message_at: new Date().toISOString(),
       started_at: new Date().toISOString(),
-      tenant_id: config.tenant_id || null
+      tenant_id: resolvedTenantId
     })
     .select()
     .single();

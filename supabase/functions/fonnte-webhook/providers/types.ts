@@ -6,7 +6,7 @@
 /**
  * Supported WhatsApp messaging providers
  */
-export type WhatsAppProviderType = 'fonnte' | 'twilio';
+export type WhatsAppProviderType = 'fonnte' | 'twilio' | 'infobip' | 'whatsapp_cloud';
 
 /**
  * Parameters for sending a WhatsApp message

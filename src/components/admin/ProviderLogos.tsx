@@ -68,3 +68,38 @@ export const TwilioLogo = () => (
     <img src={twilioLogo} alt="Twilio" className="w-full h-full object-contain" />
   </div>
 );
+
+/** WhatsApp Cloud (Meta) — Meta blue gradient "M" wordmark on white */
+export const WhatsAppCloudLogo = () => (
+  <div className="w-full h-full bg-white flex items-center justify-center p-1.5">
+    <svg viewBox="0 0 80 28" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-auto">
+      <defs>
+        <linearGradient id="meta-grad" x1="0" y1="0" x2="80" y2="28" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#0082FB" />
+          <stop offset="100%" stopColor="#00C6FF" />
+        </linearGradient>
+      </defs>
+      {/* Meta "M" shape */}
+      <path
+        d="M4 22V8L14 18L24 8V22"
+        stroke="url(#meta-grad)"
+        strokeWidth="3.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      {/* "eta" wordmark */}
+      <text
+        x="30"
+        y="20"
+        fontFamily="Helvetica Neue, Arial, sans-serif"
+        fontWeight="700"
+        fontSize="13"
+        fill="url(#meta-grad)"
+        letterSpacing="-0.3"
+      >
+        Meta
+      </text>
+    </svg>
+  </div>
+);

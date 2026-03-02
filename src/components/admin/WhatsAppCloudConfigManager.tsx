@@ -2,42 +2,46 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Eye, EyeOff, Save, AlertCircle, CheckCircle, Copy, Check, ExternalLink } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
-interface FonnteConfig {
+interface WhatsAppCloudConfig {
   id: string;
   config_name: string;
   is_active: boolean;
-  api_token: string | null;
-  device_numbers: string[];
+  phone_number_id: string | null;
+  access_token: string | null;
+  verify_token: string | null;
+  app_secret: string | null;
   auto_reply_enabled: boolean;
   session_timeout_minutes: number;
   updated_at: string;
 }
 
-export const FonnteConfigManager = ({ onSaved }: { onSaved?: () => void } = {}) => {
+export const WhatsAppCloudConfigManager = ({ onSaved }: { onSaved?: () => void } = {}) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [config, setConfig] = useState<FonnteConfig | null>(null);
-  const [showApiToken, setShowApiToken] = useState(false);
+  const [config, setConfig] = useState<WhatsAppCloudConfig | null>(null);
+  const [showAccessToken, setShowAccessToken] = useState(false);
+  const [showAppSecret, setShowAppSecret] = useState(false);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
   const [formData, setFormData] = useState({
-    api_token: "",
-    device_numbers: "",
+    phone_number_id: "",
+    access_token: "",
+    verify_token: "",
+    app_secret: "",
     auto_reply_enabled: true,
     session_timeout_minutes: 30,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
-  const webhookUrl = "https://ykaawgnggvwleiyzvilf.supabase.co/functions/v1/fonnte-webhook";
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+  const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-cloud-webhook`;
 
   useEffect(() => {
     fetchConfig();
@@ -47,7 +51,7 @@ export const FonnteConfigManager = ({ onSaved }: { onSaved?: () => void } = {}) 
     try {
       setLoading(true);
       const { data, error } = await supabase
-        .from("fonnte_config")
+        .from("whatsapp_cloud_config" as any)
         .select("*")
         .eq("is_active", true)
         .maybeSingle();
@@ -55,20 +59,19 @@ export const FonnteConfigManager = ({ onSaved }: { onSaved?: () => void } = {}) 
       if (error) throw error;
 
       if (data) {
-        const configData = {
-          ...data,
-          api_token: (data as any).api_token || null
-        };
+        const configData = data as unknown as WhatsAppCloudConfig;
         setConfig(configData);
         setFormData({
-          api_token: (data as any).api_token || "",
-          device_numbers: data.device_numbers.join(", "),
-          auto_reply_enabled: data.auto_reply_enabled,
-          session_timeout_minutes: data.session_timeout_minutes,
+          phone_number_id: configData.phone_number_id || "",
+          access_token: configData.access_token || "",
+          verify_token: configData.verify_token || "",
+          app_secret: configData.app_secret || "",
+          auto_reply_enabled: configData.auto_reply_enabled,
+          session_timeout_minutes: configData.session_timeout_minutes,
         });
       }
     } catch (error: any) {
-      console.error("Error fetching Fonnte config:", error);
+      console.error("Error fetching WhatsApp Cloud config:", error);
       toast({
         title: "Error",
         description: error.message || "Failed to load configuration",
@@ -82,30 +85,23 @@ export const FonnteConfigManager = ({ onSaved }: { onSaved?: () => void } = {}) 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    // Validate API Token
-    if (!formData.api_token.trim()) {
-      newErrors.api_token = "API Token is required";
+    if (!formData.phone_number_id.trim()) {
+      newErrors.phone_number_id = "Phone Number ID is required";
+    } else if (!/^\d+$/.test(formData.phone_number_id.trim())) {
+      newErrors.phone_number_id = "Phone Number ID must contain digits only";
     }
 
-    // Validate device numbers
-    if (!formData.device_numbers.trim()) {
-      newErrors.device_numbers = "At least one device number is required";
-    } else {
-      const numbers = formData.device_numbers
-        .split(",")
-        .map((n) => n.trim())
-        .filter((n) => n.length > 0);
-
-      if (numbers.length === 0) {
-        newErrors.device_numbers = "At least one device number is required";
-      }
+    if (!formData.access_token.trim()) {
+      newErrors.access_token = "Access Token is required";
     }
 
-    // Validate session timeout
+    if (!formData.verify_token.trim()) {
+      newErrors.verify_token = "Verify Token is required";
+    }
+
     const timeout = Number(formData.session_timeout_minutes);
     if (isNaN(timeout) || timeout < 5 || timeout > 1440) {
-      newErrors.session_timeout_minutes =
-        "Timeout must be between 5 and 1440 minutes (1 day)";
+      newErrors.session_timeout_minutes = "Timeout must be between 5 and 1440 minutes (1 day)";
     }
 
     setErrors(newErrors);
@@ -125,15 +121,11 @@ export const FonnteConfigManager = ({ onSaved }: { onSaved?: () => void } = {}) 
     try {
       setSaving(true);
 
-      // Parse device numbers
-      const deviceNumbers = formData.device_numbers
-        .split(",")
-        .map((n) => n.trim())
-        .filter((n) => n.length > 0);
-
       const updateData = {
-        api_token: formData.api_token.trim(),
-        device_numbers: deviceNumbers,
+        phone_number_id: formData.phone_number_id.trim(),
+        access_token: formData.access_token.trim(),
+        verify_token: formData.verify_token.trim(),
+        app_secret: formData.app_secret.trim() || null,
         auto_reply_enabled: formData.auto_reply_enabled,
         session_timeout_minutes: Number(formData.session_timeout_minutes),
         updated_at: new Date().toISOString(),
@@ -142,7 +134,7 @@ export const FonnteConfigManager = ({ onSaved }: { onSaved?: () => void } = {}) 
       if (config) {
         // Update existing config
         const { error } = await supabase
-          .from("fonnte_config")
+          .from("whatsapp_cloud_config" as any)
           .update(updateData)
           .eq("id", config.id);
 
@@ -161,29 +153,27 @@ export const FonnteConfigManager = ({ onSaved }: { onSaved?: () => void } = {}) 
         if (!profile?.tenant_id) throw new Error("Tenant ID not found");
 
         // Create new config
-        const { error } = await supabase.from("fonnte_config").insert([{
-          api_token: formData.api_token.trim(),
-          device_numbers: deviceNumbers,
-          auto_reply_enabled: formData.auto_reply_enabled,
-          session_timeout_minutes: Number(formData.session_timeout_minutes),
-          config_name: "default",
-          is_active: true,
-          tenant_id: profile.tenant_id,
-        }]);
+        const { error } = await supabase
+          .from("whatsapp_cloud_config" as any)
+          .insert([{
+            ...updateData,
+            config_name: "default",
+            is_active: true,
+            tenant_id: profile.tenant_id,
+          }]);
 
         if (error) throw error;
       }
 
       toast({
         title: "Success",
-        description: "Fonnte configuration saved successfully",
+        description: "WhatsApp Cloud configuration saved successfully",
       });
 
-      // Refresh config
       await fetchConfig();
       onSaved?.();
     } catch (error: any) {
-      console.error("Error saving config:", error);
+      console.error("Error saving WhatsApp Cloud config:", error);
       toast({
         title: "Error",
         description: error.message || "Failed to save configuration",
@@ -196,7 +186,6 @@ export const FonnteConfigManager = ({ onSaved }: { onSaved?: () => void } = {}) 
 
   const handleInputChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    // Clear error for this field
     if (errors[field]) {
       setErrors((prev) => {
         const newErrors = { ...prev };
@@ -254,14 +243,15 @@ export const FonnteConfigManager = ({ onSaved }: { onSaved?: () => void } = {}) 
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => window.open("https://fonnte.com/", "_blank")}
+              onClick={() => window.open("https://developers.facebook.com/apps/", "_blank")}
             >
               <ExternalLink className="h-4 w-4 mr-2" />
-              Open Fonnte Dashboard
+              Open Meta Developer Portal
             </Button>
           </div>
           <p className="text-sm text-muted-foreground">
-            Configure this URL in your Fonnte dashboard webhook settings
+            Paste this URL in Meta Developer Portal → WhatsApp → Configuration → Webhook.
+            Use your Verify Token below when registering.
           </p>
           <div className="flex gap-2">
             <Input
@@ -285,85 +275,131 @@ export const FonnteConfigManager = ({ onSaved }: { onSaved?: () => void } = {}) 
       </div>
 
       <div className="border rounded-lg p-6 space-y-6">
-        {/* API Configuration Section */}
+        {/* Phone Number Configuration */}
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold">API Configuration</h3>
+          <h3 className="text-lg font-semibold">Phone Number</h3>
 
+          {/* Phone Number ID */}
           <div className="space-y-2">
-            <Label htmlFor="api_token">
-              API Token <span className="text-destructive">*</span>
+            <Label htmlFor="phone_number_id">
+              Phone Number ID <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="phone_number_id"
+              type="text"
+              placeholder="123456789012345"
+              value={formData.phone_number_id}
+              onChange={(e) => handleInputChange("phone_number_id", e.target.value)}
+              className={errors.phone_number_id ? "border-destructive font-mono" : "font-mono"}
+            />
+            {errors.phone_number_id && (
+              <p className="text-sm text-destructive">{errors.phone_number_id}</p>
+            )}
+            <p className="text-sm text-muted-foreground">
+              Found in Meta Developer Portal → WhatsApp → API Setup → From (select your number).
+            </p>
+          </div>
+        </div>
+
+        {/* API Credentials */}
+        <div className="space-y-4 pt-4 border-t">
+          <h3 className="text-lg font-semibold">API Credentials</h3>
+
+          {/* Access Token */}
+          <div className="space-y-2">
+            <Label htmlFor="access_token">
+              Access Token <span className="text-destructive">*</span>
             </Label>
             <div className="relative">
               <Input
-                id="api_token"
-                type={showApiToken ? "text" : "password"}
-                placeholder="Enter your Fonnte API token"
-                value={formData.api_token}
-                onChange={(e) => handleInputChange("api_token", e.target.value)}
-                className={errors.api_token ? "border-destructive pr-10" : "pr-10"}
+                id="access_token"
+                type={showAccessToken ? "text" : "password"}
+                placeholder="EAAxxxxxxxxxx..."
+                value={formData.access_token}
+                onChange={(e) => handleInputChange("access_token", e.target.value)}
+                className={errors.access_token ? "border-destructive pr-10" : "pr-10"}
               />
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 className="absolute right-0 top-0 h-full"
-                onClick={() => setShowApiToken(!showApiToken)}
+                onClick={() => setShowAccessToken(!showAccessToken)}
               >
-                {showApiToken ? (
+                {showAccessToken ? (
                   <EyeOff className="h-4 w-4" />
                 ) : (
                   <Eye className="h-4 w-4" />
                 )}
               </Button>
             </div>
-            {errors.api_token && (
-              <p className="text-sm text-destructive">{errors.api_token}</p>
+            {errors.access_token && (
+              <p className="text-sm text-destructive">{errors.access_token}</p>
             )}
             <p className="text-sm text-muted-foreground">
-              Your Fonnte API token for authentication
+              Use a Permanent System User Token from Meta Business Manager → System Users for production.
             </p>
           </div>
-        </div>
 
-        {/* Device Configuration Section */}
-        <div className="space-y-4 pt-4 border-t">
-          <h3 className="text-lg font-semibold">Device Configuration</h3>
-
+          {/* Verify Token */}
           <div className="space-y-2">
-            <Label htmlFor="device_numbers">
-              Device Numbers <span className="text-destructive">*</span>
+            <Label htmlFor="verify_token">
+              Verify Token <span className="text-destructive">*</span>
             </Label>
-            <Textarea
-              id="device_numbers"
-              placeholder="628123456789, 628987654321"
-              rows={3}
-              value={formData.device_numbers}
-              onChange={(e) => handleInputChange("device_numbers", e.target.value)}
-              className={errors.device_numbers ? "border-destructive font-mono" : "font-mono"}
+            <Input
+              id="verify_token"
+              type="text"
+              placeholder="lapor_waba_2026"
+              value={formData.verify_token}
+              onChange={(e) => handleInputChange("verify_token", e.target.value)}
+              className={errors.verify_token ? "border-destructive font-mono" : "font-mono"}
             />
-            {errors.device_numbers && (
-              <p className="text-sm text-destructive">{errors.device_numbers}</p>
+            {errors.verify_token && (
+              <p className="text-sm text-destructive">{errors.verify_token}</p>
             )}
             <p className="text-sm text-muted-foreground">
-              WhatsApp device numbers (comma-separated)
+              A custom secret string you define. Enter the same value in Meta Developer Portal
+              when registering the webhook above.
             </p>
           </div>
 
-          {config && config.device_numbers.length > 0 && (
-            <div className="space-y-2">
-              <Label>Configured Devices:</Label>
-              <div className="flex flex-wrap gap-2">
-                {config.device_numbers.map((number, index) => (
-                  <Badge key={index} variant="secondary">
-                    {number}
-                  </Badge>
-                ))}
-              </div>
+          {/* App Secret (optional) */}
+          <div className="space-y-2">
+            <Label htmlFor="app_secret">
+              App Secret{" "}
+              <span className="text-muted-foreground text-xs">(optional)</span>
+            </Label>
+            <div className="relative">
+              <Input
+                id="app_secret"
+                type={showAppSecret ? "text" : "password"}
+                placeholder="Optional — for webhook payload verification"
+                value={formData.app_secret}
+                onChange={(e) => handleInputChange("app_secret", e.target.value)}
+                className="pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-0 top-0 h-full"
+                onClick={() => setShowAppSecret(!showAppSecret)}
+              >
+                {showAppSecret ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </Button>
             </div>
-          )}
+            <p className="text-sm text-muted-foreground">
+              Found in Meta Developer Portal → App Settings → Basic. Used for payload signature
+              verification if enabled.
+            </p>
+          </div>
         </div>
 
-        {/* Settings Section */}
+        {/* Settings */}
         <div className="space-y-4 pt-4 border-t">
           <h3 className="text-lg font-semibold">Settings</h3>
 
@@ -404,7 +440,7 @@ export const FonnteConfigManager = ({ onSaved }: { onSaved?: () => void } = {}) 
               </p>
             )}
             <p className="text-sm text-muted-foreground">
-              Time before a conversation session expires (5-1440 minutes)
+              Time before a conversation session expires (5–1440 minutes)
             </p>
           </div>
         </div>
