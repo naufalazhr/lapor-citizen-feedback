@@ -21,6 +21,7 @@ const IntegrationChannelWhatsApp = () => {
   // activeProvider = the provider currently routing messages (from whatsapp_provider_config)
   const [activeProvider, setActiveProvider] = useState<string | null>(null);
   const [activatingProvider, setActivatingProvider] = useState<string | null>(null);
+  const [tenantId, setTenantId] = useState<string | null>(null);
 
   // credential flags — has config saved, independent of which is routing
   const [hasFonnteCredentials, setHasFonnteCredentials] = useState(false);
@@ -56,15 +57,42 @@ const IntegrationChannelWhatsApp = () => {
       return;
     }
 
-    // Load which provider is currently routing
-    const { data: providerConfig } = await supabase
-      .from("whatsapp_provider_config" as any)
-      .select("provider")
-      .eq("is_active", true)
-      .maybeSingle();
+    // Fetch tenant_id once and cache it in state
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("tenant_id")
+      .eq("id", session.user.id)
+      .single();
+
+    const tid = profile?.tenant_id ?? null;
+    setTenantId(tid);
+
+    // Load which provider is currently routing.
+    // Always prefer the tenant-specific row; fall back to the legacy global (tenant_id=NULL) row.
+    let resolvedProvider: string | null = null;
+
+    if (tid) {
+      const { data: tenantConfig } = await supabase
+        .from("whatsapp_provider_config" as any)
+        .select("provider")
+        .eq("tenant_id", tid)
+        .eq("is_active", true)
+        .maybeSingle();
+      resolvedProvider = (tenantConfig as any)?.provider ?? null;
+    }
+
+    if (!resolvedProvider) {
+      const { data: globalConfig } = await supabase
+        .from("whatsapp_provider_config" as any)
+        .select("provider")
+        .is("tenant_id", null)
+        .eq("is_active", true)
+        .maybeSingle();
+      resolvedProvider = (globalConfig as any)?.provider ?? null;
+    }
 
     // Default to "fonnte" for backward compatibility if no routing row exists
-    setActiveProvider((providerConfig as any)?.provider ?? "fonnte");
+    setActiveProvider(resolvedProvider ?? "fonnte");
 
     // Load credential status for each provider independently
     const [fonnteRes, infobipRes, waCloudRes] = await Promise.all([
@@ -86,18 +114,24 @@ const IntegrationChannelWhatsApp = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("tenant_id")
-        .eq("id", session.user.id)
-        .single();
+      // Use cached tenantId; re-fetch only if not yet loaded
+      let tid = tenantId;
+      if (!tid) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("tenant_id")
+          .eq("id", session.user.id)
+          .single();
+        tid = profile?.tenant_id ?? null;
+        if (tid) setTenantId(tid);
+      }
 
-      if (!profile?.tenant_id) throw new Error("Tenant ID not found");
+      if (!tid) throw new Error("Tenant ID not found");
 
       const { error } = await supabase
         .from("whatsapp_provider_config" as any)
         .upsert({
-          tenant_id: profile.tenant_id,
+          tenant_id: tid,
           provider,
           is_active: true,
           config_name: "default",
@@ -190,12 +224,10 @@ const IntegrationChannelWhatsApp = () => {
                 name="Infobip"
                 description="Platform komunikasi enterprise dengan WhatsApp Business API resmi"
                 logo={<InfobipLogo />}
-                isActive={activeProvider === "infobip"}
-                isConfigured={hasInfobipCredentials}
-                isActivating={activatingProvider === "infobip"}
-                isConfigOpen={openPanel === "infobip"}
-                onActivate={() => activateProvider("infobip")}
-                onConfigure={() => togglePanel("infobip")}
+                isActive={false}
+                isConfigured={false}
+                isComingSoon
+                onConfigure={() => {}}
               />
               <ChannelProviderCard
                 name="WhatsApp Cloud API"
@@ -233,19 +265,6 @@ const IntegrationChannelWhatsApp = () => {
               </div>
             )}
 
-            {/* Infobip Config Panel */}
-            {openPanel === "infobip" && (
-              <div className="mt-2">
-                <Separator className="mb-6" />
-                <div>
-                  <h3 className="text-base font-semibold mb-1">Konfigurasi Infobip</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Atur API Key, Base URL, dan nomor pengirim WhatsApp Infobip Anda
-                  </p>
-                  <InfobipConfigManager onSaved={refreshCredentials} />
-                </div>
-              </div>
-            )}
 
             {/* WhatsApp Cloud API Config Panel */}
             {openPanel === "whatsapp_cloud" && (
