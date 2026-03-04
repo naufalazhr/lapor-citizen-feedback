@@ -128,6 +128,18 @@ const IntegrationChannelWhatsApp = () => {
 
       if (!tid) throw new Error("Tenant ID not found");
 
+      // Deactivate all existing providers for this tenant first
+      await supabase
+        .from("whatsapp_provider_config" as any)
+        .update({ is_active: false } as any)
+        .eq("tenant_id", tid);
+
+      // Also deactivate any legacy global (tenant_id=NULL) rows
+      await supabase
+        .from("whatsapp_provider_config" as any)
+        .update({ is_active: false } as any)
+        .is("tenant_id", null);
+
       const { error } = await supabase
         .from("whatsapp_provider_config" as any)
         .upsert({

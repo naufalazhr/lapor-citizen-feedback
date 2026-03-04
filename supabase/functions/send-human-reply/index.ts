@@ -7,6 +7,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
+import { createWhatsAppProvider } from '../fonnte-webhook/providers/provider-factory.ts';
 
 const ALLOWED_ROLES = ['superadmin', 'owner', 'admin', 'member'];
 
@@ -95,48 +96,28 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 5. Fetch Fonnte config for this tenant
-    let fonnteQuery = supabase
-      .from('fonnte_config')
-      .select('api_token')
-      .eq('is_active', true);
-
-    if (conversation.tenant_id) {
-      fonnteQuery = fonnteQuery.eq('tenant_id', conversation.tenant_id);
-    }
-
-    const { data: fonnteConfig, error: fonnteError } = await fonnteQuery
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (fonnteError || !fonnteConfig) {
-      console.error('Fonnte config error:', fonnteError);
+    // 5. Create WhatsApp provider (auto-detects Fonnte, WhatsApp Cloud, Infobip, etc.)
+    let provider;
+    try {
+      provider = await createWhatsAppProvider();
+    } catch (providerError) {
+      console.error('WhatsApp provider error:', providerError);
       return new Response(
-        JSON.stringify({ error: 'No active Fonnte configuration found' }),
+        JSON.stringify({ error: 'No active WhatsApp provider configured', details: providerError instanceof Error ? providerError.message : 'Unknown error' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 6. Send message via Fonnte API
-    const sendResponse = await fetch('https://api.fonnte.com/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': fonnteConfig.api_token,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        target: conversation.phone_number,
-        message: message.trim(),
-        countryCode: '62'
-      })
+    // 6. Send message via the active provider
+    const sendResult = await provider.sendMessage({
+      target: conversation.phone_number,
+      message: message.trim()
     });
 
-    const sendResult = await sendResponse.json();
-    console.log('Fonnte send result:', sendResult);
+    console.log(`[${provider.name}] Send result:`, sendResult);
 
     if (!sendResult.status) {
-      console.error('Fonnte API failed:', sendResult);
+      console.error(`[${provider.name}] Send failed:`, sendResult);
       return new Response(
         JSON.stringify({ error: 'Failed to send WhatsApp message', details: sendResult }),
         { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -158,6 +139,7 @@ Deno.serve(async (req: Request) => {
       .from('messages')
       .insert({
         conversation_id: conversationId,
+        tenant_id: conversation.tenant_id || null,
         role: 'assistant',
         content: message.trim(),
         message_index: nextIndex,
