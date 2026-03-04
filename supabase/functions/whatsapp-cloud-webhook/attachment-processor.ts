@@ -99,7 +99,8 @@ export async function processMetaAttachment(
   mediaId: string,
   mimeType: string,
   accessToken: string,
-  messageId: string
+  messageId: string,
+  tenantId?: string
 ): Promise<AttachmentResult | null> {
   try {
     console.log('[Meta Attachment] Processing image, mediaId:', mediaId);
@@ -126,6 +127,7 @@ export async function processMetaAttachment(
     // 7. Save metadata (shared utility)
     const attachmentId = await saveAttachmentMetadata({
       message_id: messageId,
+      tenant_id: tenantId,
       original_url: mediaUrl,
       filename,
       extension,

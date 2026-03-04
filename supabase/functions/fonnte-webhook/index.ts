@@ -293,7 +293,8 @@ serve(async (req: Request) => {
           normalized.url,
           normalized.filename,
           normalized.extension,
-          userMessage.id
+          userMessage.id,
+          tenantId
         );
         perfMetrics.attachment_processing = performance.now() - attachmentStart;
 

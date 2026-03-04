@@ -285,7 +285,8 @@ async function processMessage(
       normalized.mediaId,
       normalized.mimeType || 'image/jpeg',
       config.access_token,
-      userMessage.id
+      userMessage.id,
+      config.tenant_id
     );
   }
 

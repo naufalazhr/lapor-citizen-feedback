@@ -79,7 +79,8 @@ function resolveExtension(contentType: string, url: string): string {
 export async function processInfobipAttachment(
   imageUrl: string,
   apiKey: string,
-  messageId: string
+  messageId: string,
+  tenantId?: string
 ): Promise<AttachmentResult | null> {
   try {
     console.log('[Infobip Attachment] Processing image...');
@@ -103,6 +104,7 @@ export async function processInfobipAttachment(
     // 6. Save metadata (shared utility)
     const attachmentId = await saveAttachmentMetadata({
       message_id: messageId,
+      tenant_id: tenantId,
       original_url: imageUrl,
       filename,
       extension,

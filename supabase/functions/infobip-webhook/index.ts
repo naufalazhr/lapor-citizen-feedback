@@ -252,7 +252,8 @@ async function processResult(result: InfobipResult): Promise<void> {
     attachmentResult = await processInfobipAttachment(
       normalized.imageUrl,
       config.api_key,
-      userMessage.id
+      userMessage.id,
+      config.tenant_id
     );
   }
 

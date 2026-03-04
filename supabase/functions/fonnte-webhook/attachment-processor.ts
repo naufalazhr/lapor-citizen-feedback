@@ -128,11 +128,18 @@ export async function uploadToStorage(
     .from('report-photos')
     .getPublicUrl(storagePath);
 
+  // If a public-facing URL override is set (e.g., local Docker), rewrite the base
+  let publicUrl = urlData.publicUrl;
+  const supabasePublicUrl = Deno.env.get('SUPABASE_PUBLIC_URL');
+  if (supabasePublicUrl && publicUrl.startsWith(supabaseUrl)) {
+    publicUrl = publicUrl.replace(supabaseUrl, supabasePublicUrl);
+  }
+
   console.log('[Attachment] Uploaded successfully');
 
   return {
     storagePath,
-    storageUrl: urlData.publicUrl
+    storageUrl: publicUrl
   };
 }
 
@@ -152,6 +159,7 @@ export function convertToBase64DataUri(data: Uint8Array, mimeType: string): stri
 // -----------------------------------------------------------------------------
 export async function saveAttachmentMetadata(params: {
   message_id: string;
+  tenant_id?: string;
   original_url: string;
   filename: string;
   extension: string;
@@ -165,6 +173,7 @@ export async function saveAttachmentMetadata(params: {
     .from('attachments')
     .insert({
       message_id: params.message_id,
+      tenant_id: params.tenant_id || null,
       original_url: params.original_url,
       filename: params.filename,
       extension: params.extension,
@@ -219,7 +228,8 @@ export async function processAttachment(
   fonnteUrl: string,
   filename: string,
   extension: string,
-  messageId: string
+  messageId: string,
+  tenantId?: string
 ): Promise<AttachmentResult> {
   console.log('[Attachment] Processing:', filename);
 
@@ -253,6 +263,7 @@ export async function processAttachment(
     // 6. Save metadata
     const attachmentId = await saveAttachmentMetadata({
       message_id: messageId,
+      tenant_id: tenantId,
       original_url: fonnteUrl,
       filename,
       extension: extension.replace('.', ''),
@@ -298,10 +309,11 @@ export async function processAttachmentSafe(
   fonnteUrl: string,
   filename: string,
   extension: string,
-  messageId: string
+  messageId: string,
+  tenantId?: string
 ): Promise<AttachmentResult | null> {
   try {
-    return await processAttachment(fonnteUrl, filename, extension, messageId);
+    return await processAttachment(fonnteUrl, filename, extension, messageId, tenantId);
   } catch (error) {
     console.error('Attachment processing failed (continuing without attachment):', error);
     return null;
