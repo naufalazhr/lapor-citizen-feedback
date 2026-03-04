@@ -251,6 +251,7 @@ async function processMessage(
     const humanMsgIdx = await getNextMessageIndex(conversation.id);
     await saveMessage({
       conversation_id: conversation.id,
+      tenant_id: config.tenant_id,
       role: 'user',
       content: normalized.messageContent,
       message_index: humanMsgIdx,
@@ -270,6 +271,7 @@ async function processMessage(
   const messageIndex = await getNextMessageIndex(conversation.id);
   const userMessage = await saveMessage({
     conversation_id: conversation.id,
+    tenant_id: config.tenant_id,
     role: 'user',
     content: normalized.messageContent,
     message_index: messageIndex,
@@ -300,6 +302,7 @@ async function processMessage(
 
     await saveMessage({
       conversation_id: conversation.id,
+      tenant_id: config.tenant_id,
       role: 'assistant',
       content: aiConfig.preset_reply_text,
       message_index: messageIndex + 1
@@ -350,6 +353,7 @@ async function processMessage(
 
   await saveMessage({
     conversation_id: conversation.id,
+    tenant_id: config.tenant_id,
     role: 'assistant',
     content: responseText,
     message_index: messageIndex + 1,

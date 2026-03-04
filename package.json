@@ -7,6 +7,7 @@
     "dev": "vite",
     "dev:staging": "vite --mode staging",
     "dev:production": "vite --mode production",
+    "dev:local": "vite --mode local-network",
     "build": "vite build",
     "build:staging": "vite build --mode staging",
     "build:dev": "vite build --mode development",

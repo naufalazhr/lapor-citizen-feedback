@@ -14,8 +14,7 @@
     "noFallthroughCasesInSwitch": true,
     "allowJs": false,
     "checkJs": false,
-    "lib": ["deno.window", "esnext"],
-    "types": ["https://deno.land/x/types/index.d.ts"]
+    "lib": ["deno.window", "esnext"]
   },
   "tasks": {
     "dev": "deno run --watch --allow-all index.ts"

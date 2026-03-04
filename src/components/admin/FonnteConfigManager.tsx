@@ -37,7 +37,8 @@ export const FonnteConfigManager = ({ onSaved }: { onSaved?: () => void } = {}) 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
-  const webhookUrl = "https://ykaawgnggvwleiyzvilf.supabase.co/functions/v1/fonnte-webhook";
+  const webhookBaseUrl = (import.meta.env.VITE_WEBHOOK_BASE_URL || import.meta.env.VITE_SUPABASE_URL) as string;
+  const webhookUrl = `${webhookBaseUrl}/functions/v1/fonnte-webhook`;
 
   useEffect(() => {
     fetchConfig();

@@ -198,6 +198,7 @@ serve(async (req: Request) => {
       const humanMsgIdx = await getNextMessageIndex(conversation.id);
       await saveMessage({
         conversation_id: conversation.id,
+        tenant_id: tenantId,
         role: 'user',
         content: humanModeContent,
         message_index: humanMsgIdx,
@@ -264,6 +265,7 @@ serve(async (req: Request) => {
     const saveUserStart = performance.now();
     const userMessage = await saveMessage({
       conversation_id: conversation.id,
+      tenant_id: tenantId,
       role: 'user',
       content: messageContent,
       message_index: messageIndex,
@@ -361,6 +363,7 @@ serve(async (req: Request) => {
       const savePresetStart = performance.now();
       await saveMessage({
         conversation_id: conversation.id,
+        tenant_id: tenantId,
         role: 'assistant',
         content: presetResponseText,
         message_index: messageIndex + 1,
@@ -492,6 +495,7 @@ serve(async (req: Request) => {
     const saveAssistantStart = performance.now();
     await saveMessage({
       conversation_id: conversation.id,
+      tenant_id: tenantId,
       role: 'assistant',
       content: responseText,
       message_index: messageIndex + 1,

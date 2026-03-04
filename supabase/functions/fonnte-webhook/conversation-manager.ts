@@ -256,6 +256,7 @@ export async function getNextMessageIndex(conversationId: string): Promise<numbe
 // -----------------------------------------------------------------------------
 export async function saveMessage(params: {
   conversation_id: string;
+  tenant_id?: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   message_index: number;
@@ -269,6 +270,7 @@ export async function saveMessage(params: {
     .from('messages')
     .insert({
       conversation_id: params.conversation_id,
+      tenant_id: params.tenant_id || null,
       role: params.role,
       content: params.content,
       message_index: params.message_index,
