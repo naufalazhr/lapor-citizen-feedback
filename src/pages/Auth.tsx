@@ -67,15 +67,30 @@ const Auth = () => {
     fetchLoginConfig();
     checkInvitation();
 
+    const redirectByRole = async (userId: string) => {
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "superadmin")
+        .maybeSingle();
+
+      if (roleData) {
+        navigate("/admin/license-generator");
+      } else {
+        navigate("/admin");
+      }
+    };
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        navigate("/admin");
+        redirectByRole(session.user.id);
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session) {
-        navigate("/admin");
+        redirectByRole(session.user.id);
       }
     });
 

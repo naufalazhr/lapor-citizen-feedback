@@ -26,6 +26,7 @@ import IntegrationChannelWhatsApp from "./pages/admin/IntegrationChannelWhatsApp
 import IntegrationChannelAIInsight from "./pages/admin/IntegrationChannelAIInsight";
 import TenantLoginConfig from "./pages/admin/tenant/TenantLoginConfig";
 import TenantConfig from "./pages/admin/tenant/TenantConfig";
+import LicenseGenerator from "./pages/admin/LicenseGenerator";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -57,6 +58,7 @@ const App = () => (
           <Route path="/admin/recent-reports" element={<RecentReports />} />
           <Route path="/admin/tenant/login-config" element={<TenantLoginConfig />} />
           <Route path="/admin/tenant/config" element={<TenantConfig />} />
+          <Route path="/admin/license-generator" element={<LicenseGenerator />} />
           <Route path="/admin/users" element={<Users />} />
           <Route path="/admin/opds" element={<OPDs />} />
           <Route path="/admin" element={<DashboardOverview />} />
