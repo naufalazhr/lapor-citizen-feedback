@@ -28,6 +28,7 @@ import {
   Building2,
   Clock,
   Key,
+  KeyRound,
   Layers,
   Brain,
   Cpu,
@@ -114,6 +115,7 @@ export function AppSidebar() {
   const isTenantActive = TENANT_PATHS.some((p) => location.pathname.startsWith(p));
 
   const isAdminUser = userRole !== null && ['admin', 'owner', 'superadmin'].includes(userRole);
+  const isSuperadmin = userRole === 'superadmin';
   const isCollapsed = state === "collapsed";
 
   return (
@@ -354,6 +356,25 @@ export function AppSidebar() {
                     </CollapsibleContent>
                   </Collapsible>
                 )}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+        {/* License Generator (superadmin only) */}
+        {isSuperadmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Superadmin</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => navigate('/admin/license-generator')}
+                    className={isActive('/admin/license-generator') ? "bg-accent" : ""}
+                  >
+                    <KeyRound className="h-4 w-4" />
+                    {!isCollapsed && <span>License Generator</span>}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

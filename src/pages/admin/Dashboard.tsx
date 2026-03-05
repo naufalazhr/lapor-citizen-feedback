@@ -104,6 +104,38 @@ const Dashboard = ({ children }: DashboardProps) => {
   };
 
   const checkUserRole = async (userId: string) => {
+    // Step 0: Check role first — superadmin may not have a tenant_id
+    const { data: roleData, error: roleError } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (roleError) {
+      console.error("Error fetching role:", roleError);
+      setHasRole(false);
+      navigate("/profile-setup");
+      return;
+    }
+
+    // Superadmin without tenant_id: allow access, skip tenant checks
+    if (roleData?.role === 'superadmin') {
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("full_name, email")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (profileData?.full_name) {
+        setUserFullName(profileData.full_name);
+      } else if (profileData?.email) {
+        setUserFullName(profileData.email.split('@')[0]);
+      }
+
+      setHasRole(true);
+      return;
+    }
+
     // Step 1: Get profile with tenant_id and full_name
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
@@ -132,10 +164,9 @@ const Dashboard = ({ children }: DashboardProps) => {
     }
 
     // Steps 2, 3, 4: run in parallel — tenant name, login logo, user role
-    const [tenantResult, loginConfigResult, roleResult] = await Promise.all([
+    const [tenantResult, loginConfigResult] = await Promise.all([
       supabase.from('tenants').select('name').eq('id', profileData.tenant_id).single(),
       supabase.from('login_config').select('logo_url').limit(1).maybeSingle(),
-      supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
     ]);
 
     if (tenantResult.data?.name) {
@@ -144,15 +175,6 @@ const Dashboard = ({ children }: DashboardProps) => {
 
     if (loginConfigResult.data?.logo_url) {
       setTenantLogoUrl(loginConfigResult.data.logo_url);
-    }
-
-    const { data: roleData, error: roleError } = roleResult;
-
-    if (roleError) {
-      console.error("Error fetching role:", roleError);
-      setHasRole(false);
-      navigate("/profile-setup");
-      return;
     }
 
     if (roleData) {

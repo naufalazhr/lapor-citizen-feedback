@@ -15,32 +15,17 @@ UI is in Bahasa Indonesia. "OPD" = Organisasi Perangkat Daerah (government depar
 
 ---
 
-## Two-Codebase Architecture (CRITICAL)
+## Architecture & Deployment
 
-This SaaS product is split across **two separate codebases** that share the same Supabase database:
-
-### 1. `lapor-citizen-feedback` (THIS REPO)
-**Path**: `C:\Users\yugie\lapor ai\lapor-citizen-feedback`
-
-This is the **primary codebase** and the **source of truth** for:
+This repo (`lapor-citizen-feedback`) is the **single codebase** for the entire Lapor platform:
 - Citizen-facing pages (`/lapor`, `/lacak`)
 - Tenant admin/member dashboard (`/admin/*`) — used by government staff (admins, OPDs, members)
+- License management and tenant configuration (merged from former `citizen-admin-hub`)
 - WhatsApp integration (Fonnte, Edge Functions, AI chatbot)
 - **ALL Supabase migrations** — this is the ONLY place migrations should be written and run
 - All Supabase Edge Functions (`supabase/functions/`)
 
-### 2. `citizen-admin-hub` (SEPARATE REPO)
-**Path**: `C:\Users\yugie\superadmin\citizen-admin-hub`
-
-This is the **SaaS owner/superadmin dashboard** for us (the product builders) to manage the multi-tenant platform:
-- Manage tenants (create, suspend, configure)
-- Cross-tenant visibility and settings
-- Consumes the **same Supabase database** as lapor-citizen-feedback
-
-⚠️ **CRITICAL RULE — MIGRATIONS**:
-- **NEVER write or run Supabase migrations from `citizen-admin-hub`**
-- All schema changes MUST be written as migration files in `lapor-citizen-feedback/supabase/migrations/`
-- Past mistake: migrations were accidentally authored from `citizen-admin-hub` — this caused schema drift confusion. Always check which repo you are in before creating migrations.
+> **Note:** A separate `citizen-admin-hub` repo exists (`C:\Users\yugie\superadmin\citizen-admin-hub`) for SaaS owner/superadmin features, but it is **no longer deployed separately** for client deployments. License generation was merged into this codebase.
 
 ---
 
@@ -120,11 +105,11 @@ node deployment/scripts/apply-migrations.mjs --url http://<HOST>:8000 --key <SER
 # Deploy edge functions to remote VPS via SSH (deployment/ folder, gitignored)
 ./deployment/scripts/deploy-functions.sh --host <VPS_IP> --user root --path /root/supabase/docker
 
-# Build both frontends for client (deployment/ folder, gitignored)
-bash deployment/scripts/build-frontends.sh client
+# Build frontend for client (deployment/ folder, gitignored)
+bash deployment/scripts/build-frontend.sh client
 
-# Deploy both frontends to client VPS (deployment/ folder, gitignored)
-./deployment/scripts/deploy-frontends.sh --host <VPS_IP> --user root --path /opt/lapor
+# Deploy frontend to client VPS (deployment/ folder, gitignored)
+./deployment/scripts/deploy-frontend.sh --host <VPS_IP> --user root --path /opt/lapor
 ```
 
 ---
@@ -160,17 +145,16 @@ scripts/                               # Local dev scripts (tracked in git)
 
 deployment/                            # ALL deployment content (gitignored)
 ├── scripts/
-│   ├── build-frontends.sh            # Build both SPAs for a given mode
-│   ├── deploy-frontends.sh           # SSH: build + scp dist/ + docker compose up
+│   ├── build-frontend.sh            # Build the SPA for a given mode
+│   ├── deploy-frontend.sh           # SSH: build + scp dist/ + docker compose up
 │   ├── deploy-frontends-to-local.ps1 # PowerShell: build + Docker Compose up (local)
 │   ├── deploy-functions.sh           # SSH: scp functions + restart container
 │   └── apply-migrations.mjs          # Parameterized migration script (any target)
 ├── docker/frontend/
-│   ├── docker-compose.frontend.yml   # Two Nginx containers (port 3000, 3001)
-│   ├── .env.frontend.example         # Template for dist paths
+│   ├── docker-compose.frontend.yml   # Nginx container (port 3000)
+│   ├── .env.frontend.example         # Template for dist path
 │   └── nginx/
-│       ├── lapor.conf                # Nginx SPA config for lapor
-│       └── superadmin.conf           # Nginx SPA config for superadmin
+│       └── lapor.conf                # Nginx SPA config for lapor
 └── docs/
     ├── README.md                     # Landing page — choose Option A or B
     ├── OPTION-A-SELF-HOSTED.md       # Full self-hosted deployment guide
