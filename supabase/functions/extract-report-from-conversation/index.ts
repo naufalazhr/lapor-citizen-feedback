@@ -20,15 +20,6 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const openRouterApiKey = Deno.env.get('pimpinan-insight');
-
-    if (!openRouterApiKey) {
-      console.error('OpenRouter API key (pimpinan-insight) not configured');
-      return new Response(
-        JSON.stringify({ error: 'AI service configuration error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
     // 1. Verify JWT
     const authHeader = req.headers.get('Authorization');
@@ -67,7 +58,48 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 3. Parse request body
+    // 3. Load OpenRouter config from DB (per-tenant), fall back to env var
+    let openRouterApiKey = Deno.env.get('pimpinan-insight') || '';
+    let openRouterBaseUrl = 'https://openrouter.ai/api/v1';
+    let openRouterModel = 'google/gemini-2.5-flash';
+
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('tenant_id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (profile?.tenant_id) {
+        const { data: orConfig } = await supabase
+          .from('openrouter_config')
+          .select('api_key, base_url, default_model')
+          .eq('tenant_id', profile.tenant_id)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (orConfig?.api_key) {
+          openRouterApiKey = orConfig.api_key;
+          openRouterBaseUrl = orConfig.base_url || openRouterBaseUrl;
+          openRouterModel = orConfig.default_model || openRouterModel;
+          console.log('Loaded OpenRouter config from DB for tenant:', profile.tenant_id);
+        } else {
+          console.log('No active openrouter_config in DB for tenant, using secret fallback');
+        }
+      }
+    } catch (configError) {
+      console.warn('Failed to load openrouter_config from DB, using secret fallback:', configError);
+    }
+
+    if (!openRouterApiKey) {
+      console.error('OpenRouter API key not found in DB config or secrets');
+      return new Response(
+        JSON.stringify({ error: 'AI service configuration error - no OpenRouter API key configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 4. Parse request body
     const { conversationId } = await req.json();
 
     if (!conversationId) {
@@ -77,7 +109,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 4. Fetch all messages from the conversation
+    // 5. Fetch all messages from the conversation
     const { data: messages, error: msgError } = await supabase
       .from('messages')
       .select('role, content, sent_by_human, message_index')
@@ -107,7 +139,7 @@ Deno.serve(async (req: Request) => {
       .eq('id', conversationId)
       .single();
 
-    // 5. Build conversation transcript for the AI prompt
+    // 6. Build conversation transcript for the AI prompt
     const transcript = messages.map(msg => {
       const speaker = msg.role === 'user'
         ? 'Warga'
@@ -144,9 +176,9 @@ Aturan:
 4. Output HANYA JSON valid, tanpa teks lain di luar JSON
 5. Untuk geo_location: jika ada baris "[Lokasi: lat, lng]" atau koordinat GPS eksplisit dalam percakapan, ekstrak sebagai objek { "lat": angka, "lng": angka }. Jika tidak ada koordinat GPS, gunakan null`;
 
-    // 6. Call OpenRouter API
-    console.log('Calling OpenRouter API for conversation extraction...');
-    const aiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    // 7. Call OpenRouter API
+    console.log('Calling OpenRouter API for conversation extraction, model:', openRouterModel);
+    const aiResponse = await fetch(`${openRouterBaseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openRouterApiKey}`,
@@ -155,7 +187,7 @@ Aturan:
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: openRouterModel,
         messages: [{ role: 'user', content: extractionPrompt }],
         temperature: 0.1, // Low temperature for consistent structured output
         max_tokens: 800
@@ -182,7 +214,7 @@ Aturan:
       );
     }
 
-    // 7. Parse JSON from AI response
+    // 8. Parse JSON from AI response
     let extractedData: {
       reporter_name: string;
       phone: string;
@@ -214,12 +246,12 @@ Aturan:
       };
     }
 
-    // 8. Validate and sanitize the type field
+    // 9. Validate and sanitize the type field
     if (extractedData.type !== 'lapor' && extractedData.type !== 'aspirasi') {
       extractedData.type = 'lapor'; // Default to lapor
     }
 
-    // 9. Validate geo_location shape — coerce strings to numbers, discard if malformed.
+    // 10. Validate geo_location shape — coerce strings to numbers, discard if malformed.
     // AI models sometimes return coordinates as strings ("lat": "-6.93") instead of
     // numbers ("lat": -6.93). Accept both and normalise to float.
     if (extractedData.geo_location) {

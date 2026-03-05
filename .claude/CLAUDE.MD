@@ -25,7 +25,7 @@ This repo (`lapor-citizen-feedback`) is the **single codebase** for the entire L
 - **ALL Supabase migrations** — this is the ONLY place migrations should be written and run
 - All Supabase Edge Functions (`supabase/functions/`)
 
-> **Note:** A separate `citizen-admin-hub` repo exists (`C:\Users\yugie\superadmin\citizen-admin-hub`) for SaaS owner/superadmin features, but it is **no longer deployed separately** for client deployments. License generation was merged into this codebase.
+> **Note:** A separate `citizen-admin-hub` repo exists for SaaS owner/superadmin features, but it is **no longer deployed separately** for client deployments. License generation was merged into this codebase. Never apply migrations from citizen-admin-hub directly.
 
 ---
 
@@ -196,6 +196,7 @@ Routes are defined in `src/App.tsx`. Admin routes (`/admin/*`) are NOT wrapped i
 | `/admin/integration/channel/ai-insight` | Admin+ | AI insight config |
 | `/admin/tenant/login-config` | Admin+ | Tenant login page config |
 | `/admin/tenant/config` | Admin+ | Tenant settings |
+| `/admin/license-generator` | Superadmin | License token generator |
 | `/admin/users` | Admin+ | User management |
 | `/admin/opds` | Admin+ | OPD management |
 
@@ -231,7 +232,9 @@ Eleven deployed Deno Edge Functions in `supabase/functions/`:
 | `send-human-reply` | Yes | Admin sends WhatsApp reply during human takeover |
 | `admin-submit-report` | Yes | Admin submits report on behalf of citizen from conversation |
 | `extract-report-from-conversation` | Yes | AI extracts structured report from human-handled conversation |
-| `redeem-license` | No | Validates Ed25519-signed license tokens, stores activation |
+| `redeem-license` | Yes* | Validates Ed25519-signed license tokens, stores activation |
+
+*Note: Functions not listed in `supabase/config.toml` (send-human-reply, admin-submit-report, extract-report-from-conversation, redeem-license) rely on Supabase's default JWT verification behavior. On hosted Supabase, the default is `verify_jwt = true`. For self-hosted Docker, ensure these are configured if needed.
 
 All three webhook functions (`fonnte-webhook`, `whatsapp-cloud-webhook`, `infobip-webhook`) share the same core modules in `fonnte-webhook/`:
 - `conversation-manager.ts` — conversation CRUD, `saveMessage()` (includes `tenant_id`), deduplication
@@ -274,6 +277,17 @@ Reports contain citizen PII (name, phone, address). Access is role-gated:
 ### OPD Disposition Workflow
 
 Reports flow: `pending → in_progress → resolved/rejected`. Admins assign reports to OPDs via `report_dispositions` (full audit trail with `status_before/status_after`). OPD members can request re-assignment via `report_return_requests` which admins must approve.
+
+### License System
+
+Ed25519-signed license tokens for tenant activation. Two-part system:
+
+- **Generation** (`src/pages/admin/LicenseGenerator.tsx` + `src/utils/license-token-generator.ts`): Superadmin creates tokens client-side using `VITE_LICENSE_PRIVATE_KEY`. Token format: 84 bytes (20-byte payload + 64-byte Ed25519 signature), Base32-Crockford encoded.
+- **Redemption** (`supabase/functions/redeem-license/`): Tenant admin/owner submits token; edge function verifies signature with `LICENSE_PUBLIC_KEY`, checks anti-reuse hash, activates license in `tenants` table.
+
+Key tables: `license_activations` (anti-reuse via SHA-256 token hash), `license_issued_tokens` (vendor-side tracking), `tenants` (license_status, license_expires_at, etc.)
+
+Keypair utility: `node scripts/get-license-public-key.mjs` derives public key from private key.
 
 ### Database Migrations
 
