@@ -70,7 +70,8 @@ const Integration = () => {
   const [flowiseOpen, setFlowiseOpen] = useState(false);
   const [fonnteOpen, setFonnteOpen] = useState(false);
 
-  const apiEndpoint = "https://ykaawgnggvwleiyzvilf.supabase.co/functions/v1/submit-report";
+  const webhookBaseUrl = (import.meta.env.VITE_WEBHOOK_BASE_URL || import.meta.env.VITE_SUPABASE_URL) as string;
+  const apiEndpoint = `${webhookBaseUrl}/functions/v1/submit-report`;
   
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);

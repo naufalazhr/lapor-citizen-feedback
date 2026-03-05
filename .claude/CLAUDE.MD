@@ -48,10 +48,12 @@ This is the **SaaS owner/superadmin dashboard** for us (the product builders) to
 
 Configured in `supabase/config.toml`:
 
-| Environment | Project ID | Git Branch |
-|-------------|-----------|------------|
-| **Production** | `ykaawgnggvwleiyzvilf` | `main` |
-| **Staging** | `cxauavfcyfscjnatxino` | `staging` |
+| Environment | Project ID / Host | Git Branch | Deployment |
+|-------------|-------------------|------------|------------|
+| **Production** | `ykaawgnggvwleiyzvilf` | `main` | Vercel auto-deploy |
+| **Staging** | `cxauavfcyfscjnatxino` | `staging` | Vercel auto-deploy |
+| **Local** | `http://192.168.1.19:8000` (self-hosted Docker) | — | Manual (see Local Dev) |
+| **Client** | `http://<CLIENT_VPS_IP>:8000` (self-hosted Docker on client VPS) | — | Manual (see `deployment/docs/`) |
 
 ⚠️ **CRITICAL RULES**:
 - Always confirm which environment you are targeting before running `supabase db push`, `supabase functions deploy`, or any Supabase CLI command that mutates remote state.
@@ -59,17 +61,22 @@ Configured in `supabase/config.toml`:
 - **NEVER deploy to production without explicit confirmation from the user.**
 - When on the `staging` git branch, default all Supabase CLI operations to the **staging** project unless the user explicitly says otherwise.
 - Migrations tested on staging MUST be verified before being promoted to production.
+- **Local Supabase** is a self-hosted Docker instance. Edge functions are deployed by copying to Docker volumes (`scripts/deploy-functions-to-local.ps1`), NOT via `supabase functions deploy`.
+- **Client VPS Supabase** — same as local but on a remote VPS accessed via VPN. Use `deployment/scripts/deploy-functions.sh` (SSH-based) for edge functions, `deployment/scripts/apply-migrations.mjs` (parameterized) for migrations. See `deployment/docs/README.md` for full guide. The `deployment/` folder is gitignored.
 
 ---
 
 ## Commands
 
 ```bash
-npm run dev              # Start dev server (port 8080, default .env)
+npm run dev              # Start dev server (port 3000, default .env)
 npm run dev:staging      # Dev with .env.staging vars (Supabase staging project)
 npm run dev:production   # Dev with .env.production vars (Supabase production project)
+npm run dev:local        # Dev with .env.local-network vars (self-hosted local Supabase)
+npm run dev:client       # Dev with .env.client vars (client VPS Supabase)
 npm run build            # Production build
 npm run build:staging    # Staging build
+npm run build:client     # Client VPS build
 npm run lint             # ESLint
 npx tsc --noEmit         # Typecheck (no typecheck script in package.json)
 ```
@@ -78,11 +85,19 @@ No test suite exists.
 
 ### Environment Files
 
-Vite uses `--mode` to select env file. Three env files exist:
-- `.env.staging` → points to staging Supabase project (`cxauavfcyfscjnatxino`)
-- `.env.production` → points to production Supabase project (`ykaawgnggvwleiyzvilf`)
+Vite uses `--mode` to select env file:
 
-Both define `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. Never commit real keys.
+| File | Target | Key Variables |
+|------|--------|--------------|
+| `.env.staging` | Staging Supabase (`cxauavfcyfscjnatxino`) | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` |
+| `.env.production` | Production Supabase (`ykaawgnggvwleiyzvilf`) | Same |
+| `.env.local-network` | Self-hosted Docker (`http://192.168.1.19:8000`) | Same + `VITE_WEBHOOK_BASE_URL` |
+| `.env.client` | Client VPS Docker (`http://<CLIENT_VPS_IP>:8000`) | Same + `VITE_WEBHOOK_BASE_URL` |
+| `.env.functions` | Edge function secrets for self-hosted Docker | `pimpinan-insight`, `LICENSE_PUBLIC_KEY`, `SUPABASE_PUBLIC_URL`, etc. |
+
+`VITE_WEBHOOK_BASE_URL` is an optional override for webhook display URLs in admin UI. When set (e.g., to a Cloudflare tunnel URL), admin config pages show the tunnel URL instead of `VITE_SUPABASE_URL`. Used for local webhook testing with external services (Meta WhatsApp Cloud API, Fonnte, Infobip).
+
+Never commit real keys. `.env.functions`, `.env.local-network`, and `.env.client` are gitignored.
 
 ### Deploying Edge Functions
 
@@ -98,6 +113,18 @@ supabase db push --project-ref cxauavfcyfscjnatxino
 
 # Push DB migrations to production (confirm with user first)
 supabase db push --project-ref ykaawgnggvwleiyzvilf
+
+# Apply migrations to client VPS (deployment/ folder, gitignored)
+node deployment/scripts/apply-migrations.mjs --url http://<HOST>:8000 --key <SERVICE_ROLE_KEY>
+
+# Deploy edge functions to remote VPS via SSH (deployment/ folder, gitignored)
+./deployment/scripts/deploy-functions.sh --host <VPS_IP> --user root --path /root/supabase/docker
+
+# Build both frontends for client (deployment/ folder, gitignored)
+bash deployment/scripts/build-frontends.sh client
+
+# Deploy both frontends to client VPS (deployment/ folder, gitignored)
+./deployment/scripts/deploy-frontends.sh --host <VPS_IP> --user root --path /opt/lapor
 ```
 
 ---
@@ -126,9 +153,35 @@ src/
 ├── utils/                  # invitation token helpers, PDF export
 └── lib/utils.ts            # cn() (clsx + tailwind-merge)
 
+scripts/                               # Local dev scripts (tracked in git)
+├── deploy-functions-to-local.ps1      # PowerShell: copy functions to local Docker
+├── apply-migrations-local.mjs         # Apply migrations to local Docker Supabase
+└── get-license-public-key.mjs         # Utility: derive Ed25519 public key
+
+deployment/                            # ALL deployment content (gitignored)
+├── scripts/
+│   ├── build-frontends.sh            # Build both SPAs for a given mode
+│   ├── deploy-frontends.sh           # SSH: build + scp dist/ + docker compose up
+│   ├── deploy-frontends-to-local.ps1 # PowerShell: build + Docker Compose up (local)
+│   ├── deploy-functions.sh           # SSH: scp functions + restart container
+│   └── apply-migrations.mjs          # Parameterized migration script (any target)
+├── docker/frontend/
+│   ├── docker-compose.frontend.yml   # Two Nginx containers (port 3000, 3001)
+│   ├── .env.frontend.example         # Template for dist paths
+│   └── nginx/
+│       ├── lapor.conf                # Nginx SPA config for lapor
+│       └── superadmin.conf           # Nginx SPA config for superadmin
+└── docs/
+    ├── README.md                     # Landing page — choose Option A or B
+    ├── OPTION-A-SELF-HOSTED.md       # Full self-hosted deployment guide
+    ├── OPTION-B-VERCEL-HYBRID.md     # Vercel frontend + self-hosted backend guide
+    ├── CHECKLIST-A.md                # Checklist for Option A
+    ├── CHECKLIST-B.md                # Checklist for Option B
+    └── ENVIRONMENT_ARCHITECTURE.md   # 4-environment architecture overview
+
 supabase/
-├── migrations/             # 50+ idempotent SQL migration files
-├── functions/              # Deno Edge Functions (generate-api-key)
+├── migrations/             # 68+ idempotent SQL migration files
+├── functions/              # Deno Edge Functions (11 functions + _shared)
 └── diagnostics/            # Debug SQL scripts (not migrations)
 ```
 
@@ -138,18 +191,27 @@ Routes are defined in `src/App.tsx`. Admin routes (`/admin/*`) are NOT wrapped i
 
 | Route | Access | Page |
 |---|---|---|
-| `/` | Public | Auth |
+| `/`, `/auth` | Public | Auth |
 | `/lapor` | Public | Submit report |
 | `/lacak`, `/lacak/:ticketId` | Public | Track ticket |
 | `/profile-setup` | Authenticated | Profile setup |
 | `/pending-approval` | Authenticated | Approval wait screen |
 | `/invite/:token` | Public | Accept invitation |
-| `/admin` | Admin+ | Redirect to dashboard |
-| `/admin/dashboard` | Admin+ | Overview dashboard |
+| `/admin`, `/admin/dashboard` | Admin+ | Overview dashboard |
 | `/admin/reports` | Admin+ | Reports list |
 | `/admin/reports/:id` | Admin+ | Report detail |
+| `/admin/recent-reports` | Admin+ | Recent reports |
 | `/admin/conversations` | Admin+ | WhatsApp conversations |
-| `/admin/integration` | Admin+ | API / integration config |
+| `/admin/integration` | Admin+ | Integration hub |
+| `/admin/integration/login` | Admin+ | Login config |
+| `/admin/integration/ai` | Admin+ | Flowise AI config |
+| `/admin/integration/api` | Admin+ | API key management |
+| `/admin/integration/channel` | Admin+ | Channel config hub |
+| `/admin/integration/channel/whatsapp` | Admin+ | WhatsApp provider config |
+| `/admin/integration/channel/ai-agent` | Admin+ | AI agent (chatbot) config |
+| `/admin/integration/channel/ai-insight` | Admin+ | AI insight config |
+| `/admin/tenant/login-config` | Admin+ | Tenant login page config |
+| `/admin/tenant/config` | Admin+ | Tenant settings |
 | `/admin/users` | Admin+ | User management |
 | `/admin/opds` | Admin+ | OPD management |
 
@@ -171,33 +233,43 @@ TanStack Query is installed but **not consistently used**. Most data fetching us
 
 ### Edge Functions
 
-Five deployed Deno Edge Functions in `supabase/functions/`:
+Eleven deployed Deno Edge Functions in `supabase/functions/`:
 
-| Function | JWT Required | Purpose |
+| Function | JWT | Purpose |
 |---|---|---|
-| `submit-report` | No | Public endpoint — citizen submits a report |
-| `fonnte-webhook` | No | WhatsApp webhook receiver; routes messages through AI (Flowise) or human handoff |
+| `submit-report` | No | Public — citizen submits a report |
+| `fonnte-webhook` | No | Fonnte WhatsApp webhook; AI (Flowise) or human handoff |
+| `whatsapp-cloud-webhook` | No | Meta WhatsApp Cloud API webhook; same flow as fonnte-webhook |
+| `infobip-webhook` | No | Infobip WhatsApp webhook; same flow as fonnte-webhook |
 | `get-webhook-errors` | No | Returns webhook error logs for admin debugging |
 | `generate-ai-insight` | No | Triggers AI analysis on a report |
 | `generate-api-key` | Yes | Creates hashed API keys (admin only) |
+| `send-human-reply` | Yes | Admin sends WhatsApp reply during human takeover |
+| `admin-submit-report` | Yes | Admin submits report on behalf of citizen from conversation |
+| `extract-report-from-conversation` | Yes | AI extracts structured report from human-handled conversation |
+| `redeem-license` | No | Validates Ed25519-signed license tokens, stores activation |
 
-**`fonnte-webhook` internals** (most complex function):
-- `index.ts` — entry point, message routing
-- `conversation-manager.ts` — tracks conversation state per device/phone
+All three webhook functions (`fonnte-webhook`, `whatsapp-cloud-webhook`, `infobip-webhook`) share the same core modules in `fonnte-webhook/`:
+- `conversation-manager.ts` — conversation CRUD, `saveMessage()` (includes `tenant_id`), deduplication
 - `flowise-client.ts` — sends messages to Flowise AI chatflow
-- `fonnte-client.ts` — sends outbound WhatsApp messages via Fonnte
 - `attachment-processor.ts` — handles media attachments
-- `providers/` — WhatsApp provider abstraction (see WhatsApp Provider Pattern below)
+- `providers/` — WhatsApp provider abstraction (see below)
 
 ### WhatsApp Provider Pattern
 
 Provider abstraction in `supabase/functions/fonnte-webhook/providers/`:
-- `types.ts` — `IWhatsAppProvider` interface + provider enum
-- `provider-factory.ts` — reads `whatsapp_provider_config` table, instantiates the right provider
-- `fonnte-provider.ts` — Fonnte implementation
-- `twilio-provider.ts` — Twilio implementation (reference)
+- `types.ts` — `IWhatsAppProvider` interface + `WhatsAppProviderType` enum
+- `provider-factory.ts` — reads `whatsapp_provider_config` table, instantiates the right provider (falls back to Fonnte)
+- Four implementations:
 
-To add a new provider (e.g., Infobip): add `infobip-provider.ts`, extend the enum in `types.ts`, add a case in `provider-factory.ts`, add a DB migration for the enum value, and add Supabase secrets for the new provider's credentials.
+| Provider | File | Config Table | Status |
+|----------|------|-------------|--------|
+| Fonnte | `fonnte-provider.ts` | `fonnte_config` | Primary, production |
+| WhatsApp Cloud | `whatsapp-cloud-provider.ts` | `whatsapp_cloud_config` | Official Meta API |
+| Infobip | `infobip-provider.ts` | `infobip_config` | Available |
+| Twilio | `twilio-provider.ts` | Environment secrets | Reference impl |
+
+To add a new provider: add `<name>-provider.ts`, extend enum in `types.ts`, add case in `provider-factory.ts`, add DB migration for config table + enum value, add Supabase secrets.
 
 ### PII Masking (L0–L3)
 
@@ -236,7 +308,22 @@ All migrations under `supabase/migrations/` use `IF NOT EXISTS` and `ON CONFLICT
 - Deployed on **Vercel** via git push integration (`vercel.json` contains an SPA catch-all rewrite to `/index.html`)
 - Push to `staging` branch → auto-deploys to staging Vercel environment
 - Push to `main` branch → auto-deploys to production Vercel environment
-- No GitHub Actions CI exists; Supabase migrations must be applied manually via CLI
+- No GitHub Actions CI exists; Supabase migrations and edge functions must be deployed manually via CLI
+- Edge functions must be deployed separately after code push (Vercel only handles the frontend)
+
+### Local Development (Self-Hosted Supabase)
+
+Self-hosted Supabase runs via Docker at `http://192.168.1.19:8000`.
+
+```bash
+npm run dev:local                           # Start frontend against local Supabase
+node scripts/apply-migrations-local.mjs     # Apply all migrations to local DB
+.\scripts\deploy-functions-to-local.ps1     # Copy edge functions to Docker + restart
+```
+
+**Webhook testing with Cloudflare Tunnel**: Local edge functions aren't reachable from the internet. Use `cloudflared tunnel --url http://192.168.1.19:8000` to get a public HTTPS URL, then set `VITE_WEBHOOK_BASE_URL` in `.env.local-network` to that tunnel URL. Register the tunnel URL with Meta/Fonnte/Infobip dashboards.
+
+**Important**: The tunnel URL changes on every restart. Update both `.env.local-network` and the external provider's webhook config each time.
 
 ### Lovable Integration
 
@@ -251,36 +338,9 @@ This project was bootstrapped on [Lovable](https://lovable.dev) (generative UI p
 
 ---
 
-## Design Thinking
-Before coding, understand the context and commit to a BOLD aesthetic direction:
-- **Purpose**: What problem does this interface solve? Who uses it?
-- **Tone**: Pick an extreme: brutally minimal, maximalist chaos, retro-futuristic, organic/natural, luxury/refined, playful/toy-like, editorial/magazine, brutalist/raw, art deco/geometric, soft/pastel, industrial/utilitarian, etc. There are so many flavors to choose from. Use these for inspiration but design one that is true to the aesthetic direction.
-- **Constraints**: Technical requirements (framework, performance, accessibility).
-- **Differentiation**: What makes this UNFORGETTABLE? What's the one thing someone will remember?
+## Design Guidelines
 
-**CRITICAL**: Choose a clear conceptual direction and execute it with precision. Bold maximalism and refined minimalism both work - the key is intentionality, not intensity.
-
-Then implement working code (HTML/CSS/JS, React, Vue, etc.) that is:
-- Production-grade and functional
-- Visually striking and memorable
-- Cohesive with a clear aesthetic point-of-view
-- Meticulously refined in every detail
-
-## Frontend Aesthetics Guidelines
-Focus on:
-- **Typography**: Choose fonts that are beautiful, unique, and interesting. Avoid generic fonts like Arial and Inter; opt instead for distinctive choices that elevate the frontend's aesthetics; unexpected, characterful font choices. Pair a distinctive display font with a refined body font.
-- **Color & Theme**: Commit to a cohesive aesthetic. Use CSS variables for consistency. Dominant colors with sharp accents outperform timid, evenly-distributed palettes.
-- **Motion**: Use animations for effects and micro-interactions. Prioritize CSS-only solutions for HTML. Use Motion library for React when available. Focus on high-impact moments: one well-orchestrated page load with staggered reveals (animation-delay) creates more delight than scattered micro-interactions. Use scroll-triggering and hover states that surprise.
-- **Spatial Composition**: Unexpected layouts. Asymmetry. Overlap. Diagonal flow. Grid-breaking elements. Generous negative space OR controlled density.
-- **Backgrounds & Visual Details**: Create atmosphere and depth rather than defaulting to solid colors. Add contextual effects and textures that match the overall aesthetic. Apply creative forms like gradient meshes, noise textures, geometric patterns, layered transparencies, dramatic shadows, decorative borders, custom cursors, and grain overlays.
-
-NEVER use generic AI-generated aesthetics like overused font families (Inter, Roboto, Arial, system fonts), cliched color schemes (particularly purple gradients on white backgrounds), predictable layouts and component patterns, and cookie-cutter design that lacks context-specific character.
-
-Interpret creatively and make unexpected choices that feel genuinely designed for the context. No design should be the same. Vary between light and dark themes, different fonts, different aesthetics. NEVER converge on common choices (Space Grotesk, for example) across generations.
-
-**IMPORTANT**: Match implementation complexity to the aesthetic vision. Maximalist designs need elaborate code with extensive animations and effects. Minimalist or refined designs need restraint, precision, and careful attention to spacing, typography, and subtle details. Elegance comes from executing the vision well.
-
-Remember: Claude is capable of extraordinary creative work. Don't hold back, show what can truly be created when thinking outside the box and committing fully to a distinctive vision.
+See `.claude/DESIGN.md` for full design thinking and frontend aesthetics guidelines. Apply when creating new UI components or pages.
 
 ## DOCUMENTATION
 For every project, write a detailed FORJOBMATCH.md file that explains the whole project in plain language.

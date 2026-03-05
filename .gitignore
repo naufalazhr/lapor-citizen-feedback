@@ -29,6 +29,10 @@ dist-ssr
 .env.production
 .env.staging
 .env.local
+.env.local-network
+.env.client
+.env.client.*
+.env.functions
 .env.*.local
 
 # Bun (using npm instead)
@@ -38,6 +42,9 @@ bun.lockb
 **/temp_*
 *.tmp
 docs/
+
+# Deployment folder — scripts, docs, docker configs, guides (not tracked)
+deployment/
 
 # Supabase CLI runtime cache
 supabase/.temp/

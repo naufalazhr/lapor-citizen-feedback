@@ -40,8 +40,8 @@ export const WhatsAppCloudConfigManager = ({ onSaved }: { onSaved?: () => void }
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-  const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-cloud-webhook`;
+  const webhookBaseUrl = (import.meta.env.VITE_WEBHOOK_BASE_URL || import.meta.env.VITE_SUPABASE_URL) as string;
+  const webhookUrl = `${webhookBaseUrl}/functions/v1/whatsapp-cloud-webhook`;
 
   useEffect(() => {
     fetchConfig();
