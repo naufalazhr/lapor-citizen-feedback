@@ -12,6 +12,7 @@ import fonnteLogo    from "@/assets/fonnte.png";
 import cekatLogo     from "@/assets/cekat_logo.B7S8vS79.png";
 import infobipLogo   from "@/assets/Infobip-Logo.wine.png";
 import twilioLogo    from "@/assets/Twilio_logo.png";
+import byteplusLogo  from "@/assets/byteplus-logo.png";
 
 /** Flowise — white-background wordmark logo */
 export const FlowiseLogo = () => (
@@ -66,6 +67,13 @@ export const InfobipLogo = () => (
 export const TwilioLogo = () => (
   <div className="w-full h-full bg-white flex items-center justify-center p-1">
     <img src={twilioLogo} alt="Twilio" className="w-full h-full object-contain" />
+  </div>
+);
+
+/** BytePlus — white-background blue zigzag + wordmark */
+export const BytePlusLogo = () => (
+  <div className="w-full h-full bg-white flex items-center justify-center p-1.5">
+    <img src={byteplusLogo} alt="BytePlus" className="w-full h-full object-contain" />
   </div>
 );
 
