@@ -177,6 +177,13 @@ const Conversations = () => {
     selectedConversation?.status === 'active' &&
     !!lastMsg && lastMsg.role === 'user' && !lastMsg.sent_by_human;
 
+  // For historical (non-active) conversations: did the citizen have an unanswered
+  // message when the conversation ended? If the last message was from the system
+  // (AI/human), the citizen's message was already answered → no SLA breach.
+  const citizenWasWaitingAtEnd =
+    selectedConversation?.status !== 'active' &&
+    !!lastMsg && lastMsg.role === 'user' && !lastMsg.sent_by_human;
+
   // Last citizen message time — the accurate start-of-wait reference for SLA.
   const lastCitizenMsg = citizenIsWaiting
     ? lastMsg
@@ -187,9 +194,16 @@ const Conversations = () => {
     ? { ...selectedConversation, last_message_at: lastCitizenMsg.created_at }
     : selectedConversation;
 
+  // For historical SLA: patch last_message_at to citizen's last msg time
+  // so we measure actual citizen wait time, not time since last AI reply.
+  const historicalSlaConv = selectedConversation && citizenWasWaitingAtEnd && lastCitizenMsg
+    ? { ...selectedConversation, last_message_at: lastCitizenMsg.created_at }
+    : selectedConversation;
+
   // Pre-compute both states once per tick (getSLAState updates every second).
   const sessionState = selectedConversation ? getSLAState(selectedConversation) : null;
   const slaRespState  = slaRespConv         ? getSLAState(slaRespConv)         : null;
+  const historicalSlaState = historicalSlaConv ? getSLAState(historicalSlaConv) : null;
 
   // Urgency → progress bar color (local map, no extra import needed)
   const SLA_BAR_COLOR: Record<string, string> = {
@@ -1269,23 +1283,37 @@ const Conversations = () => {
                       </Tooltip>
                     </div>
                     {selectedConversation.status !== 'active' ? (
-                      /* Historical SLA — frozen at completed_at */
-                      sessionState ? (
+                      /* Historical SLA — frozen at completed_at.
+                         Only show "Melampaui SLA" if the citizen was actually waiting
+                         for a response. If the system (AI/human) already replied and
+                         the citizen went silent (→ abandoned), that's NOT an SLA breach. */
+                      !citizenWasWaitingAtEnd ? (
+                        /* Last msg was from system — citizen's message was answered */
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border bg-green-50 border-green-200 text-green-700">
+                            <CheckCircle2 className="h-3 w-3 flex-shrink-0" />Dalam SLA
+                          </span>
+                          <span className="text-xs text-muted-foreground font-mono">
+                            sudah direspons
+                          </span>
+                        </div>
+                      ) : historicalSlaState ? (
+                        /* Last msg was from citizen — system never responded */
                         <div className="flex flex-col items-end gap-0.5">
                           <span className={cn(
                             "inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border",
-                            sessionState.slaPercent < 100
+                            historicalSlaState.slaPercent < 100
                               ? "bg-green-50 border-green-200 text-green-700"
                               : "bg-red-50 border-red-200 text-red-700"
                           )}>
-                            {sessionState.slaPercent < 100 ? (
+                            {historicalSlaState.slaPercent < 100 ? (
                               <><CheckCircle2 className="h-3 w-3 flex-shrink-0" />Dalam SLA</>
                             ) : (
                               <><X className="h-3 w-3 flex-shrink-0" />Melampaui SLA</>
                             )}
                           </span>
                           <span className="text-xs text-muted-foreground font-mono">
-                            tunggu: {sessionState.idleFormatted}
+                            tunggu: {historicalSlaState.idleFormatted}
                           </span>
                         </div>
                       ) : (
