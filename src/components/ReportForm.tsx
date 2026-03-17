@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,21 @@ const ReportForm = () => {
   const [photoPreview, setPhotoPreview] = useState<string>("");
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [showMap, setShowMap] = useState(false);
+  const [tenantId, setTenantId] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Fetch default tenant_id for this deployment (defense-in-depth; DB trigger also handles this)
+  useEffect(() => {
+    const fetchTenantId = async () => {
+      try {
+        const { data } = await supabase.rpc('get_default_tenant_id');
+        if (data) setTenantId(data);
+      } catch (err) {
+        console.warn('Could not fetch default tenant_id:', err);
+      }
+    };
+    fetchTenantId();
+  }, []);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -67,7 +81,7 @@ const ReportForm = () => {
         photoUrl = publicUrl;
       }
 
-      // Insert report
+      // Insert report (tenant_id is also enforced by DB trigger as safety net)
       const { error } = await supabase.from('reports').insert({
         reporter_name: data.reporter_name,
         phone: data.phone,
@@ -76,6 +90,7 @@ const ReportForm = () => {
         type: data.type,
         photo_url: photoUrl,
         geo_location: location || null,
+        ...(tenantId ? { tenant_id: tenantId } : {}),
       });
 
       if (error) throw error;
