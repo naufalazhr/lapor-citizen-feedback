@@ -49,6 +49,79 @@ interface AIInsightResponse {
   classification?: ClassificationResult
 }
 
+/**
+ * Parse JSON from AI response text, handling common issues:
+ * - Markdown code blocks (```json ... ```)
+ * - Truncated responses (incomplete JSON due to max_tokens)
+ * - Extra whitespace/text around JSON
+ */
+function parseAIJsonResponse(raw: string): any {
+  let jsonString = raw.trim()
+
+  // Strip markdown code fences
+  if (jsonString.includes('```json')) {
+    jsonString = jsonString.replace(/```json\n?/g, '').replace(/```\n?/g, '')
+  } else if (jsonString.includes('```')) {
+    jsonString = jsonString.replace(/```\n?/g, '')
+  }
+  jsonString = jsonString.trim()
+
+  // Try direct parse first
+  try {
+    return JSON.parse(jsonString)
+  } catch (_) {
+    // continue to repair strategies
+  }
+
+  // Strategy: extract the first JSON object from the text
+  const firstBrace = jsonString.indexOf('{')
+  if (firstBrace > 0) {
+    jsonString = jsonString.substring(firstBrace)
+  }
+
+  // Try again after trimming prefix
+  try {
+    return JSON.parse(jsonString)
+  } catch (_) {
+    // continue to truncation repair
+  }
+
+  // Strategy: repair truncated JSON by closing open braces/brackets
+  // This handles the common case where max_tokens cuts off the response mid-JSON
+  let repaired = jsonString
+  // Remove trailing incomplete string value (ends mid-string without closing quote)
+  repaired = repaired.replace(/,?\s*"[^"]*$/g, '')
+  // Remove trailing incomplete key-value (key without value)
+  repaired = repaired.replace(/,?\s*"[^"]*":\s*$/g, '')
+  // Remove trailing comma
+  repaired = repaired.replace(/,\s*$/, '')
+
+  // Count open/close braces and brackets
+  let openBraces = 0, openBrackets = 0
+  let inString = false, escape = false
+  for (const ch of repaired) {
+    if (escape) { escape = false; continue }
+    if (ch === '\\' && inString) { escape = true; continue }
+    if (ch === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (ch === '{') openBraces++
+    if (ch === '}') openBraces--
+    if (ch === '[') openBrackets++
+    if (ch === ']') openBrackets--
+  }
+
+  // Close unclosed brackets/braces
+  while (openBrackets > 0) { repaired += ']'; openBrackets-- }
+  while (openBraces > 0) { repaired += '}'; openBraces-- }
+
+  try {
+    return JSON.parse(repaired)
+  } catch (finalError) {
+    // All strategies failed
+    throw new Error(`Cannot parse AI JSON response: ${(finalError as Error).message}`)
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -211,11 +284,58 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Helper: extract text content from any AI provider response (provider-agnostic)
+    const extractTextFromResponse = (result: any): string | null => {
+      // Strategy 1: OpenAI Chat Completions format (OpenRouter, OpenAI, etc.)
+      // { choices: [{ message: { content: "..." } }] }
+      if (result.choices?.[0]?.message?.content) {
+        return result.choices[0].message.content
+      }
+
+      // Strategy 2: OpenAI Responses API format (BytePlus ARK, newer OpenAI)
+      // { output: [{ type: "message", content: [{ type: "output_text", text: "..." }] }] }
+      if (Array.isArray(result.output)) {
+        for (const item of result.output) {
+          // Check content array for output_text items
+          if (Array.isArray(item.content)) {
+            for (const c of item.content) {
+              if (c.type === 'output_text' && c.text) return c.text
+              if (typeof c.text === 'string' && c.text) return c.text
+            }
+          }
+          // Some providers put text directly in content as a string
+          if (typeof item.content === 'string' && item.content) return item.content
+          // Check summary array (seen in some BytePlus responses)
+          if (Array.isArray(item.summary)) {
+            for (const s of item.summary) {
+              if (s.type === 'summary_text' && s.text) return s.text
+              if (typeof s.text === 'string' && s.text) return s.text
+            }
+          }
+          // summary as string
+          if (typeof item.summary === 'string' && item.summary) return item.summary
+          // text directly on item
+          if (typeof item.text === 'string' && item.text) return item.text
+        }
+      }
+
+      // Strategy 3: Simple top-level fields
+      if (typeof result.output_text === 'string') return result.output_text
+      if (typeof result.content === 'string') return result.content
+      if (typeof result.text === 'string') return result.text
+
+      return null
+    }
+
     // Helper: call the AI provider with a prompt and return the text content
     const callAI = async (prompt: string, maxTokens: number): Promise<{ content: string | null, error: string | null }> => {
+      let response: Response
+      let result: any
+
       if (aiProvider === 'byteplus') {
-        // BytePlus ARK API uses /responses endpoint with input array
-        const response = await fetch(`${aiBaseUrl}/responses`, {
+        // BytePlus ARK API uses /chat/completions (OpenAI-compatible)
+        // Use chat completions format for maximum compatibility
+        response = await fetch(`${aiBaseUrl}/chat/completions`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${aiApiKey}`,
@@ -224,51 +344,19 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             model: aiModel,
             stream: false,
-            input: [
+            messages: [
               {
                 role: 'user',
-                content: [
-                  {
-                    type: 'input_text',
-                    text: prompt
-                  }
-                ]
+                content: prompt
               }
             ],
             temperature: aiTemperature,
-            max_output_tokens: aiMaxTokens || maxTokens
+            max_tokens: aiMaxTokens || maxTokens
           })
         })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          console.error('BytePlus API error:', response.status, errorText)
-          return { content: null, error: errorText }
-        }
-
-        const result = await response.json()
-        console.log('BytePlus raw response structure:', JSON.stringify(result).substring(0, 500))
-
-        // BytePlus /responses API format (OpenAI Responses API compatible):
-        // { output: [{ type: "message", content: [{ type: "output_text", text: "..." }] }] }
-        // Also try: output_text at top level, choices (chat completions fallback)
-        const outputContent = result.output?.[0]?.content?.[0]?.text
-          || result.output?.find((o: any) => o.type === 'message')?.content?.find((c: any) => c.type === 'output_text')?.text
-          || result.choices?.[0]?.message?.content
-          || result.output_text
-          || null
-
-        if (!outputContent) {
-          console.error('BytePlus response had no extractable text. Full keys:', Object.keys(result), 'output type:', typeof result.output, 'output length:', result.output?.length)
-          if (result.output?.[0]) {
-            console.error('output[0] keys:', Object.keys(result.output[0]), 'output[0].content:', JSON.stringify(result.output[0].content)?.substring(0, 300))
-          }
-        }
-
-        return { content: outputContent, error: null }
       } else {
-        // OpenRouter uses standard OpenAI /chat/completions format
-        const response = await fetch(`${aiBaseUrl}/chat/completions`, {
+        // OpenRouter / OpenAI standard chat completions
+        response = await fetch(`${aiBaseUrl}/chat/completions`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${aiApiKey}`,
@@ -288,17 +376,27 @@ Deno.serve(async (req) => {
             max_tokens: aiMaxTokens || maxTokens
           })
         })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          console.error('OpenRouter API error:', response.status, errorText)
-          return { content: null, error: errorText }
-        }
-
-        const result = await response.json()
-        const content = result.choices?.[0]?.message?.content || null
-        return { content, error: null }
       }
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`${aiProvider} API error:`, response.status, errorText)
+        return { content: null, error: errorText }
+      }
+
+      result = await response.json()
+
+      // Use provider-agnostic text extraction
+      const content = extractTextFromResponse(result)
+
+      if (!content) {
+        // Log detailed debug info for troubleshooting
+        console.error(`${aiProvider} response had no extractable text.`,
+          'Top-level keys:', Object.keys(result),
+          'Raw response (first 1000 chars):', JSON.stringify(result).substring(0, 1000))
+      }
+
+      return { content, error: null }
     }
 
     // Parse request body
@@ -436,16 +534,9 @@ PANDUAN OUTPUT:
       // Parse AI response
       let parsedDashboardInsight
       try {
-        let jsonString = aiContent
-        if (jsonString.includes('```json')) {
-          jsonString = jsonString.replace(/```json\n?/g, '').replace(/```\n?/g, '')
-        } else if (jsonString.includes('```')) {
-          jsonString = jsonString.replace(/```\n?/g, '')
-        }
-        jsonString = jsonString.trim()
-        parsedDashboardInsight = JSON.parse(jsonString)
+        parsedDashboardInsight = parseAIJsonResponse(aiContent)
       } catch (parseError) {
-        console.error('Failed to parse dashboard AI response as JSON:', aiContent)
+        console.error('Failed to parse dashboard AI response as JSON:', aiContent.substring(0, 500))
         // Fallback response
         parsedDashboardInsight = {
           executive_summary: 'Analisis AI tidak dapat diproses. Silakan coba lagi.',
@@ -579,21 +670,12 @@ PANDUAN KLASIFIKASI:
       )
     }
 
-    // Extract JSON from response (handle potential markdown code blocks)
+    // Extract JSON from response (handle potential markdown code blocks and truncation)
     let parsedInsight: AIInsightResponse
     try {
-      // Remove markdown code blocks if present
-      let jsonString = aiContent
-      if (jsonString.includes('```json')) {
-        jsonString = jsonString.replace(/```json\n?/g, '').replace(/```\n?/g, '')
-      } else if (jsonString.includes('```')) {
-        jsonString = jsonString.replace(/```\n?/g, '')
-      }
-      jsonString = jsonString.trim()
-
-      parsedInsight = JSON.parse(jsonString)
+      parsedInsight = parseAIJsonResponse(aiContent) as AIInsightResponse
     } catch (parseError) {
-      console.error('Failed to parse AI response as JSON:', aiContent)
+      console.error('Failed to parse AI response as JSON:', aiContent.substring(0, 500))
       // Fallback: create structured response from raw text
       parsedInsight = {
         summary_analysis: aiContent.substring(0, 500),

@@ -1,6 +1,31 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "./use-user-role";
+
+// Helper to fetch all rows from a Supabase table (bypasses 1000-row default limit)
+const fetchAllRows = async <T,>(
+  buildQuery: (from: number, to: number) => any,
+  pageSize = 1000
+): Promise<T[]> => {
+  const allRows: T[] = [];
+  let from = 0;
+  let hasMore = true;
+  while (hasMore) {
+    const { data, error } = await buildQuery(from, from + pageSize - 1);
+    if (error) throw error;
+    if (data && data.length > 0) {
+      allRows.push(...data);
+      if (data.length < pageSize) {
+        hasMore = false;
+      } else {
+        from += pageSize;
+      }
+    } else {
+      hasMore = false;
+    }
+  }
+  return allRows;
+};
 
 export interface DashboardReport {
   id: string;
@@ -79,16 +104,8 @@ export const useDashboardData = () => {
         return;
       }
 
-      // Base query for reports
-      let reportsQuery = supabase
-        .from("reports")
-        .select(`
-          *,
-          opds!reports_assigned_opd_id_fkey (id, name, code)
-        `)
-        .eq('tenant_id', profile.tenant_id);
-
       // Role-based filtering for OPD members
+      let opdIds: string[] | null = null;
       if (role === 'opd_member') {
         const { data: assignments } = await supabase
           .from('user_opd_assignments')
@@ -97,8 +114,7 @@ export const useDashboardData = () => {
           .eq('is_active', true);
 
         if (assignments && assignments.length > 0) {
-          const opdIds = assignments.map(a => a.opd_id);
-          reportsQuery = reportsQuery.in('assigned_opd_id', opdIds);
+          opdIds = assignments.map(a => a.opd_id);
         } else {
           // OPD member with no assignments sees nothing
           setData({
@@ -111,40 +127,39 @@ export const useDashboardData = () => {
         }
       }
 
-      const { data: reports, error: reportsError } = await reportsQuery;
-      
-      if (reportsError) throw reportsError;
+      const tenantId = profile.tenant_id;
 
-      // Fetch dispositions
-      let dispositionsQuery = supabase
-        .from('report_dispositions')
-        .select(`
-          *,
-          opds!report_dispositions_opd_id_fkey (id, name, code)
-        `)
-        .eq('tenant_id', profile.tenant_id);
-
-      // Filter dispositions for OPD members
-      if (role === 'opd_member') {
-        const { data: assignments } = await supabase
-          .from('user_opd_assignments')
-          .select('opd_id')
-          .eq('user_id', session.user.id)
-          .eq('is_active', true);
-
-        if (assignments && assignments.length > 0) {
-          const opdIds = assignments.map(a => a.opd_id);
-          dispositionsQuery = dispositionsQuery.in('opd_id', opdIds);
-        }
-      }
-
-      const { data: dispositions, error: dispositionsError } = await dispositionsQuery;
-      
-      if (dispositionsError) throw dispositionsError;
+      // Fetch ALL reports and dispositions (paginated to bypass 1000-row limit)
+      const [reports, dispositions] = await Promise.all([
+        fetchAllRows<DashboardReport>((from, to) => {
+          let q = supabase
+            .from("reports")
+            .select(`
+              *,
+              opds!reports_assigned_opd_id_fkey (id, name, code)
+            `)
+            .eq('tenant_id', tenantId)
+            .range(from, to);
+          if (opdIds) q = q.in('assigned_opd_id', opdIds);
+          return q;
+        }),
+        fetchAllRows<DashboardDisposition>((from, to) => {
+          let q = supabase
+            .from('report_dispositions')
+            .select(`
+              *,
+              opds!report_dispositions_opd_id_fkey (id, name, code)
+            `)
+            .eq('tenant_id', tenantId)
+            .range(from, to);
+          if (opdIds) q = q.in('opd_id', opdIds);
+          return q;
+        }),
+      ]);
 
       setData({
-        reports: (reports || []) as DashboardReport[],
-        dispositions: (dispositions || []) as DashboardDisposition[],
+        reports,
+        dispositions,
         loading: false,
         error: null,
       });

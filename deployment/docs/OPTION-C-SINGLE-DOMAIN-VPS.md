@@ -536,6 +536,92 @@ Run through all of these to confirm the deployment is working:
 
 ---
 
+## Redeployment — Updating Code on VPS
+
+When you make code changes locally and need to update the deployed frontend:
+
+### Frontend Update (Most Common)
+
+**1. Build locally:**
+```bash
+npm run build:client
+```
+
+**2. Upload the new `dist/` folder to VPS:**
+
+**Option A — SCP** (if SSH key auth is set up):
+```bash
+scp -P <SSH_PORT> -r dist/* <USER>@<VPS_IP>:/opt/lapor/lapor-citizen-feedback/dist/
+```
+
+**Option B — SFTP via Termius**:
+1. Open SFTP tab in Termius
+2. Local side: navigate to `<project>/dist/`
+3. Remote side: navigate to `/opt/lapor/lapor-citizen-feedback/dist/`
+4. Delete old files on remote, then upload all new files (including `assets/` folder)
+
+**3. Restart the frontend container on VPS:**
+```bash
+docker restart lapor-frontend
+```
+
+> **Note**: The frontend container mounts `dist/` as a volume, so you only need to replace the files and restart — no Docker image rebuild needed.
+
+### Edge Function Update
+
+When you modify edge functions in `supabase/functions/`:
+
+**Option A — SSH-based script** (recommended):
+```bash
+./deployment/scripts/deploy-functions.sh \
+  --host <VPS_INTERNAL_IP> \
+  --user <SSH_USER> \
+  --port <SSH_PORT> \
+  --path <SUPABASE_DOCKER_PATH>
+```
+
+**Option B — Manual SFTP**:
+1. Upload the modified function folder(s) from `supabase/functions/<function-name>/` to the VPS
+2. Copy into the Supabase Docker volumes directory
+3. Restart the edge functions container:
+   ```bash
+   cd <SUPABASE_DOCKER_PATH>
+   docker compose up -d --force-recreate functions
+   ```
+
+### Database Migration Update
+
+When you add new SQL migrations in `supabase/migrations/`:
+
+```bash
+# From VPS
+node deployment/scripts/apply-migrations.mjs \
+  --url http://localhost:8000 \
+  --key <SERVICE_ROLE_KEY>
+```
+
+Or from your local machine (if VPS is reachable):
+```bash
+node deployment/scripts/apply-migrations.mjs \
+  --url https://<your-domain> \
+  --key <SERVICE_ROLE_KEY>
+```
+
+### Full Redeployment Checklist
+
+Use this when doing a major update that touches multiple areas:
+
+- [ ] Build frontend: `npm run build:client`
+- [ ] Upload `dist/` to VPS
+- [ ] Restart frontend: `docker restart lapor-frontend`
+- [ ] Upload modified edge functions to VPS
+- [ ] Restart edge functions: `docker compose up -d --force-recreate functions`
+- [ ] Apply new migrations: `node deployment/scripts/apply-migrations.mjs --url ... --key ...`
+- [ ] Restart Supabase (if `.env` changed): `docker compose down && docker compose up -d`
+- [ ] Verify: login, submit report, check WhatsApp webhook, check storage images
+
+---
+
 ## Troubleshooting
 
 ### curl from VPS hangs when testing public domain
