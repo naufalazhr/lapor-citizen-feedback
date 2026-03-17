@@ -594,18 +594,15 @@ When you modify edge functions in `supabase/functions/`:
 When you add new SQL migrations in `supabase/migrations/`:
 
 ```bash
-# From VPS
+# From your local machine via VPN (recommended):
 node deployment/scripts/apply-migrations.mjs \
-  --url http://localhost:8000 \
+  --url http://<VPS_INTERNAL_IP>:8000 \
   --key <SERVICE_ROLE_KEY>
 ```
 
-Or from your local machine (if VPS is reachable):
-```bash
-node deployment/scripts/apply-migrations.mjs \
-  --url https://<your-domain> \
-  --key <SERVICE_ROLE_KEY>
-```
+> **Important**: Use the VPN/internal IP (`http://10.87.0.145:8000`), NOT the public domain. The `/pg/query` endpoint (used by the migration script) is intentionally NOT exposed via NPM — this keeps the postgres-meta API off the public internet for security. You must be connected to VPN to run migrations.
+>
+> The script reads migration files from your local `supabase/migrations/` folder, checks which ones are already applied, and only runs new ones. No need to upload migration files to the VPS.
 
 ### Full Redeployment Checklist
 
