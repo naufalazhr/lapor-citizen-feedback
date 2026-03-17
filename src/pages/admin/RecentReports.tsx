@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { parseISO } from "date-fns";
 import Dashboard from "./Dashboard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,7 @@ import { OPDProgressChart } from "@/components/admin/dashboard/OPDProgressChart"
 import { DispositionTimelineChart } from "@/components/admin/dashboard/DispositionTimelineChart";
 import { OPDResponseTimeChart } from "@/components/admin/dashboard/OPDResponseTimeChart";
 import { TopOPDsCard } from "@/components/admin/dashboard/TopOPDsCard";
+import { DateRangeFilter } from "@/components/admin/dashboard/executive";
 import { usePIIMasking } from "@/hooks/use-pii-masking";
 import { maskName } from "@/utils/pii-masking";
 
@@ -30,8 +31,6 @@ type DashboardStats = {
   in_progress_reports: number;
   resolved_reports: number;
   rejected_reports: number;
-  reports_this_month: number;
-  resolved_this_month: number;
   lapor_count: number;
   aspirasi_count: number;
 };
@@ -49,83 +48,61 @@ const RecentReports = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { role } = useUserRole();
-  const { reports, dispositions, loading: dashboardLoading, error: dashboardError } = useDashboardData();
+  const { reports: dashboardReports, dispositions, loading: dashboardLoading, error: dashboardError } = useDashboardData();
   const { level: maskingLevel } = usePIIMasking();
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
 
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [recentReports, setRecentReports] = useState<Report[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Filter reports by date range
+  const filteredReports = useMemo(() => {
+    if (!dashboardReports) return [];
+    if (!dateRange.from && !dateRange.to) return dashboardReports;
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    return dashboardReports.filter(report => {
+      const reportDate = parseISO(report.created_at);
+      if (dateRange.from && dateRange.to) {
+        return reportDate >= dateRange.from && reportDate <= dateRange.to;
+      } else if (dateRange.from) {
+        return reportDate >= dateRange.from;
+      } else if (dateRange.to) {
+        return reportDate <= dateRange.to;
+      }
+      return true;
+    });
+  }, [dashboardReports, dateRange]);
 
-  const fetchDashboardData = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      navigate('/auth');
-      return;
-    }
+  // Derive stats from the filtered data source to ensure consistency
+  const stats = useMemo((): DashboardStats | null => {
+    if (dashboardLoading || !filteredReports) return null;
 
-    // TENANT ISOLATION: get current user's tenant_id
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('tenant_id')
-      .eq('id', session.user.id)
-      .maybeSingle();
+    return {
+      total_reports: filteredReports.length,
+      pending_reports: filteredReports.filter(r => r.status === "pending").length,
+      in_progress_reports: filteredReports.filter(r => r.status === "in_progress").length,
+      resolved_reports: filteredReports.filter(r => r.status === "resolved").length,
+      rejected_reports: filteredReports.filter(r => r.status === "rejected").length,
+      lapor_count: filteredReports.filter(r => r.type === "lapor").length,
+      aspirasi_count: filteredReports.filter(r => r.type === "aspirasi").length,
+    };
+  }, [filteredReports, dashboardLoading]);
 
-    const tenantId = profileData?.tenant_id;
+  // Derive recent reports from the filtered data source
+  const recentReports = useMemo((): Report[] => {
+    if (!filteredReports) return [];
+    return [...filteredReports]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 10)
+      .map(r => ({
+        id: r.id,
+        ticket_id: r.ticket_id,
+        reporter_name: r.reporter_name,
+        type: r.type,
+        status: r.status,
+        created_at: r.created_at,
+      }));
+  }, [filteredReports]);
 
-    setLoading(true);
-    try {
-      let reportsQuery = supabase.from("reports").select("*");
-      if (tenantId) reportsQuery = reportsQuery.eq('tenant_id', tenantId);
-
-      const { data: reportsData, error: reportsError } = await reportsQuery;
-
-      if (reportsError) throw reportsError;
-
-      const allReports = reportsData || [];
-      const now = new Date();
-      const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-      const calculatedStats: DashboardStats = {
-        total_reports: allReports.length,
-        pending_reports: allReports.filter((r: any) => r.status === "pending").length,
-        in_progress_reports: allReports.filter((r: any) => r.status === "in_progress").length,
-        resolved_reports: allReports.filter((r: any) => r.status === "resolved").length,
-        rejected_reports: allReports.filter((r: any) => r.status === "rejected").length,
-        reports_this_month: allReports.filter((r: any) => new Date(r.created_at) >= thisMonth).length,
-        resolved_this_month: allReports.filter(
-          (r: any) => r.status === "resolved" && new Date(r.updated_at) >= thisMonth
-        ).length,
-        lapor_count: allReports.filter((r: any) => r.type === "lapor").length,
-        aspirasi_count: allReports.filter((r: any) => r.type === "aspirasi").length,
-      };
-
-      setStats(calculatedStats);
-
-      let recentQuery = supabase
-        .from("reports")
-        .select("id, ticket_id, reporter_name, type, status, created_at")
-        .order("created_at", { ascending: false })
-        .limit(10);
-      if (tenantId) recentQuery = recentQuery.eq('tenant_id', tenantId);
-
-      const { data: recent, error: recentError } = await recentQuery;
-
-      if (recentError) throw recentError;
-      setRecentReports((recent || []) as Report[]);
-    } catch (error: any) {
-      toast({
-        title: "Error mengambil data",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Use filtered reports as the single source for OPD charts
+  const reports = filteredReports;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -146,7 +123,7 @@ const RecentReports = () => {
     return type === "lapor" ? "bg-primary/10 text-primary" : "bg-accent text-accent-foreground";
   };
 
-  if (loading || dashboardLoading) {
+  if (dashboardLoading) {
     return (
       <Dashboard>
         <div className="flex items-center justify-center h-64">
@@ -170,9 +147,15 @@ const RecentReports = () => {
   return (
     <Dashboard>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Statistik &amp; Analitik</h1>
-          <p className="text-muted-foreground">Ringkasan statistik laporan dan analitik performa OPD</p>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold">Statistik &amp; Analitik</h1>
+            <p className="text-muted-foreground">Ringkasan statistik laporan dan analitik performa OPD</p>
+          </div>
+          <DateRangeFilter
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+          />
         </div>
 
         {/* Stats Cards */}
@@ -207,13 +190,13 @@ const RecentReports = () => {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Terselesaikan Bulan Ini</CardTitle>
+              <CardTitle className="text-sm font-medium">Terselesaikan</CardTitle>
               <CheckCircle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-success">{stats?.resolved_this_month || 0}</div>
+              <div className="text-2xl font-bold text-success">{stats?.resolved_reports || 0}</div>
               <p className="text-xs text-muted-foreground">
-                Dari {stats?.reports_this_month || 0} laporan bulan ini
+                {stats?.rejected_reports || 0} Ditolak
               </p>
             </CardContent>
           </Card>

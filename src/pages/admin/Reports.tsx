@@ -208,17 +208,60 @@ const Reports = () => {
 
   const fetchReports = async () => {
     setLoading(true);
-    
-    let query = supabase
-      .from("reports")
-      .select("*");
 
-    // Filter for OPD members - only show reports assigned to their OPD(s)
-    if (isOPDMember && userOpdIds.length > 0) {
-      query = query.in("assigned_opd_id", userOpdIds);
+    // Get user's tenant_id for consistent filtering
+    const { data: { session } } = await supabase.auth.getSession();
+    let tenantId: string | null = null;
+    if (session) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('tenant_id')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      tenantId = profile?.tenant_id || null;
     }
 
-    const { data, error } = await query.order("created_at", { ascending: false });
+    // Fetch ALL reports with pagination (bypasses Supabase 1000-row default limit)
+    const pageSize = 1000;
+    let allData: any[] = [];
+    let from = 0;
+    let hasMore = true;
+    let fetchError: any = null;
+
+    while (hasMore) {
+      let query = supabase
+        .from("reports")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .range(from, from + pageSize - 1);
+
+      // Filter by tenant_id for consistency with other dashboard pages
+      if (tenantId) {
+        query = query.eq("tenant_id", tenantId);
+      }
+
+      // Filter for OPD members - only show reports assigned to their OPD(s)
+      if (isOPDMember && userOpdIds.length > 0) {
+        query = query.in("assigned_opd_id", userOpdIds);
+      }
+
+      const { data: pageData, error: pageError } = await query;
+
+      if (pageError) {
+        fetchError = pageError;
+        break;
+      }
+      if (pageData && pageData.length > 0) {
+        allData.push(...pageData);
+        hasMore = pageData.length === pageSize;
+        from += pageSize;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    const data = allData;
+    const error = fetchError;
 
     if (error) {
       toast({

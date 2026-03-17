@@ -151,63 +151,84 @@ export const useExecutiveDashboard = () => {
         .eq('id', session.user.id)
         .single();
 
-      // Build reports + dispositions queries — both only need tenant_id
-      let reportsQuery = supabase
-        .from("reports")
-        .select(`
-          id, ticket_id, reporter_name, type, status, created_at, updated_at,
-          assigned_opd_id, description, geo_location,
-          opds!reports_assigned_opd_id_fkey (id, name, code)
-        `);
+      // Helper to fetch all rows from a Supabase table (bypasses 1000-row default limit)
+      const fetchAllRows = async <T,>(
+        buildQuery: (from: number, to: number) => any,
+        pageSize = 1000
+      ): Promise<T[]> => {
+        const allRows: T[] = [];
+        let from = 0;
+        let hasMore = true;
+        while (hasMore) {
+          const { data, error } = await buildQuery(from, from + pageSize - 1);
+          if (error) throw error;
+          if (data && data.length > 0) {
+            allRows.push(...data);
+            if (data.length < pageSize) {
+              hasMore = false;
+            } else {
+              from += pageSize;
+            }
+          } else {
+            hasMore = false;
+          }
+        }
+        return allRows;
+      };
 
-      let dispositionsQuery = supabase
-        .from('report_dispositions')
-        .select('id, report_id, opd_id, assigned_at, action_type');
+      const tenantId = profile?.tenant_id;
 
-      // Apply tenant filter only if user has a tenant_id (not superadmin without tenant)
-      if (profile?.tenant_id) {
-        reportsQuery = reportsQuery.eq('tenant_id', profile.tenant_id);
-        dispositionsQuery = dispositionsQuery.eq('tenant_id', profile.tenant_id);
-      }
+      // Fetch ALL reports and dispositions in parallel (paginated to bypass 1000-row limit)
+      const [reportsData, dispositionsData] = await Promise.all([
+        fetchAllRows<ReportWithLocation>((from, to) => {
+          let q = supabase
+            .from("reports")
+            .select(`
+              id, ticket_id, reporter_name, type, status, created_at, updated_at,
+              assigned_opd_id, description, geo_location,
+              opds!reports_assigned_opd_id_fkey (id, name, code)
+            `)
+            .range(from, to);
+          if (tenantId) q = q.eq('tenant_id', tenantId);
+          return q;
+        }),
+        fetchAllRows<DispositionData>((from, to) => {
+          let q = supabase
+            .from('report_dispositions')
+            .select('id, report_id, opd_id, assigned_at, action_type')
+            .range(from, to);
+          if (tenantId) q = q.eq('tenant_id', tenantId);
+          return q;
+        }),
+      ]);
 
-      // Run reports + dispositions in parallel (both only need tenant_id from profile)
-      const [
-        { data: reportsData, error: reportsError },
-        { data: dispositionsData, error: dispositionsError },
-      ] = await Promise.all([reportsQuery, dispositionsQuery]);
-
-      if (reportsError) {
-        console.error('Reports query error:', reportsError);
-        throw reportsError;
-      }
-
-      if (dispositionsError) {
-        console.error('Dispositions query error:', dispositionsError);
-      }
-
-      console.log('Fetched reports:', reportsData?.length || 0);
+      console.log('Fetched reports:', reportsData.length);
 
       // Fetch AI insights after reports — needs reportIds
-      const reportIds = (reportsData || []).map(r => r.id);
+      const reportIds = reportsData.map(r => r.id);
       let aiData: AIInsightData[] = [];
 
       if (reportIds.length > 0) {
-        const { data: insights, error: insightsError } = await supabase
-          .from('report_ai_insights')
-          .select('id, report_id, urgency, urgency_reason, sentiment, sentiment_reason, recommended_actions, suggested_opd_name, suggested_opd_confidence')
-          .in('report_id', reportIds);
-
-        if (insightsError) {
-          console.error('AI insights fetch error:', insightsError);
-        } else if (insights) {
-          aiData = insights as AIInsightData[];
-          console.log('Fetched AI insights:', aiData.length, '| critical:', aiData.filter(i => i.urgency === 'critical').length);
+        // AI insights may also exceed 1000 rows — fetch paginated
+        // Supabase .in() has a practical limit, so batch reportIds in chunks
+        const chunkSize = 500;
+        for (let i = 0; i < reportIds.length; i += chunkSize) {
+          const chunk = reportIds.slice(i, i + chunkSize);
+          const insightsChunk = await fetchAllRows<AIInsightData>((from, to) =>
+            supabase
+              .from('report_ai_insights')
+              .select('id, report_id, urgency, urgency_reason, sentiment, sentiment_reason, recommended_actions, suggested_opd_name, suggested_opd_confidence')
+              .in('report_id', chunk)
+              .range(from, to)
+          );
+          aiData.push(...insightsChunk);
         }
+        console.log('Fetched AI insights:', aiData.length, '| critical:', aiData.filter(i => i.urgency === 'critical').length);
       }
 
-      setAllReportsData((reportsData || []) as ReportWithLocation[]);
+      setAllReportsData(reportsData);
       setAiInsights(aiData);
-      setDispositions((dispositionsData || []) as DispositionData[]);
+      setDispositions(dispositionsData);
     } catch (err: any) {
       console.error('Error fetching executive dashboard data:', err);
       setError(err.message || "Failed to fetch data");
@@ -526,7 +547,7 @@ export const useExecutiveDashboard = () => {
       .map(ai => {
         const report = allReportsData.find(r => r.id === ai.report_id);
         if (!report) return null;
-        if (report.status === 'resolved' || report.status === 'selesai') return null;
+        if (report.status === 'resolved') return null;
         return {
           report_id: report.id,
           ticket_id: report.ticket_id,

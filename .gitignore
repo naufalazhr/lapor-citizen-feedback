@@ -43,8 +43,11 @@ bun.lockb
 *.tmp
 docs/
 
-# Deployment folder — scripts, docs, docker configs, guides (not tracked)
-deployment/
+# Deployment folder — scripts, docker configs, secrets (not tracked)
+deployment/*
+!deployment/docs/
+deployment/docs/*
+!deployment/docs/*.md
 
 # Supabase CLI runtime cache
 supabase/.temp/
