@@ -28,7 +28,6 @@ import TenantLoginConfig from "./pages/admin/tenant/TenantLoginConfig";
 import TenantConfig from "./pages/admin/tenant/TenantConfig";
 import LicenseGenerator from "./pages/admin/LicenseGenerator";
 import NotFound from "./pages/NotFound";
-import { Analytics } from "@vercel/analytics/react";
 
 const queryClient = new QueryClient();
 
@@ -70,7 +69,6 @@ const App = () => (
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
-      <Analytics />
     </TooltipProvider>
   </QueryClientProvider>
 );
