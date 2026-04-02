@@ -62,8 +62,12 @@ export function ProfileMenu() {
         description: "Anda telah keluar dari sistem",
       });
     } finally {
-      // Always clear localStorage and navigate, regardless of API result
-      localStorage.clear();
+      // Clear only auth-related localStorage keys, preserve app data (AI insights, etc.)
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith('sb-') || key.startsWith('supabase.auth.')) {
+          localStorage.removeItem(key);
+        }
+      });
       navigate("/auth", { replace: true });
     }
   };
