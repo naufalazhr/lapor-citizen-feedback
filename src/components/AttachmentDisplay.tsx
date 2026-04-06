@@ -177,6 +177,40 @@ const AttachmentDisplay = ({ attachment, compact = false }: AttachmentDisplayPro
     );
   }
 
+  // Full view for video — native controls include fullscreen, no dialog needed
+  if (isVideo) {
+    return (
+      <div className="mt-2 space-y-2">
+        <div className="rounded-lg overflow-hidden border bg-black">
+          <video
+            src={attachment.storage_url}
+            controls
+            preload="metadata"
+            className="w-full max-w-md"
+            style={{ maxHeight: '300px' }}
+          >
+            Browser Anda tidak mendukung pemutaran video.
+          </video>
+        </div>
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span className="truncate flex items-center gap-1">
+            {getFileIcon()}
+            {attachment.filename}
+          </span>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleDownload}
+            className="h-6 px-2 gap-1"
+          >
+            <Download className="h-3 w-3" />
+            Download
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // Full view for other file types
   return (
     <div className="border rounded-lg p-3 bg-muted/50 mt-2">

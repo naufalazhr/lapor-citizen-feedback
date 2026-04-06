@@ -256,9 +256,10 @@ export async function processAttachment(
     // 4. Upload to Supabase Storage
     const { storagePath, storageUrl } = await uploadToStorage(data, filename, mimeType);
 
-    // 5. Convert to base64 for Flowise
-    debugLog('[Attachment] Converting to base64...');
-    const base64DataUri = convertToBase64DataUri(data, mimeType);
+    // 5. Convert to base64 for Flowise (skip for video — too large for DB storage)
+    const isVideo = mimeType.startsWith('video/');
+    debugLog(`[Attachment] ${isVideo ? 'Skipping base64 for video' : 'Converting to base64'}...`);
+    const base64DataUri = isVideo ? '' : convertToBase64DataUri(data, mimeType);
 
     // 6. Save metadata
     const attachmentId = await saveAttachmentMetadata({

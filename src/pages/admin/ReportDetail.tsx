@@ -376,16 +376,14 @@ const ReportDetail = () => {
     });
   };
 
-  const downloadImage = async () => {
-    if (!report?.photo_url) return;
-
+  const downloadMedia = async (mediaUrl: string, ext: string, label: string) => {
     try {
-      const response = await fetch(report.photo_url);
+      const response = await fetch(mediaUrl);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `laporan-${report.ticket_id}.jpg`;
+      a.download = `laporan-${report?.ticket_id}.${ext}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -393,15 +391,19 @@ const ReportDetail = () => {
 
       toast({
         title: "Berhasil",
-        description: "Foto berhasil diunduh",
+        description: `${label} berhasil diunduh`,
       });
     } catch (error) {
       toast({
-        title: "Gagal mengunduh foto",
-        description: "Terjadi kesalahan saat mengunduh foto",
+        title: `Gagal mengunduh ${label.toLowerCase()}`,
+        description: `Terjadi kesalahan saat mengunduh ${label.toLowerCase()}`,
         variant: "destructive",
       });
     }
+  };
+
+  const downloadImage = () => {
+    if (report?.photo_url) downloadMedia(report.photo_url, 'jpg', 'Foto');
   };
 
   const getStatusColor = (status: string) => {
@@ -669,6 +671,35 @@ const ReportDetail = () => {
                   >
                     <Download className="h-4 w-4 mr-2" />
                     Unduh Foto
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Video Card */}
+            {report.video_url && (
+              <Card className="overflow-hidden">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Video Laporan</CardTitle>
+                </CardHeader>
+                <CardContent className="p-3">
+                  <video
+                    src={report.video_url}
+                    controls
+                    preload="metadata"
+                    className="w-full rounded-lg"
+                    style={{ maxHeight: '300px' }}
+                  >
+                    Browser Anda tidak mendukung pemutaran video.
+                  </video>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-2"
+                    onClick={() => downloadMedia(report.video_url, 'mp4', 'Video')}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Unduh Video
                   </Button>
                 </CardContent>
               </Card>

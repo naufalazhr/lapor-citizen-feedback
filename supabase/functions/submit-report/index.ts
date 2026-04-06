@@ -12,11 +12,20 @@ interface ReportPayload {
   description: string
   type: 'lapor' | 'aspirasi'
   photo_url?: string | null
+  video_url?: string | null
+  photo_video_url?: string | null  // Combined field from Flowise (auto-detected as photo or video)
   geo_location?: {
     lat: number
     lng: number
   } | null
   session_id?: string | null  // NEW: Optional session_id from Flowise
+}
+
+// Detect if a URL points to a video file based on extension
+function isVideoUrl(url: string): boolean {
+  const videoExtensions = ['.mp4', '.3gp', '.mov', '.avi', '.webm']
+  const lowerUrl = url.toLowerCase().split('?')[0] // strip query params
+  return videoExtensions.some(ext => lowerUrl.endsWith(ext))
 }
 
 // Status translation map (English to Indonesian)
@@ -179,6 +188,21 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Resolve photo_video_url (from Flowise) into the correct column
+    // Flowise sends a single URL — it cannot distinguish photo vs video
+    let resolvedPhotoUrl = payload.photo_url || null
+    let resolvedVideoUrl = payload.video_url || null
+
+    if (payload.photo_video_url) {
+      if (isVideoUrl(payload.photo_video_url)) {
+        resolvedVideoUrl = resolvedVideoUrl || payload.photo_video_url
+        console.log('🎬 photo_video_url detected as video:', payload.photo_video_url)
+      } else {
+        resolvedPhotoUrl = resolvedPhotoUrl || payload.photo_video_url
+        console.log('📷 photo_video_url detected as photo:', payload.photo_video_url)
+      }
+    }
+
     // Insert report into database (supabase client already initialized above)
     const insertData = {
       reporter_name: payload.reporter_name,
@@ -186,7 +210,8 @@ Deno.serve(async (req) => {
       address: payload.address,
       description: payload.description,
       type: payload.type,
-      photo_url: payload.photo_url || null,
+      photo_url: resolvedPhotoUrl,
+      video_url: resolvedVideoUrl,
       geo_location: payload.geo_location || null,
       session_id: payload.session_id || null,  // Store session_id for exact matching
       status: 'pending',
