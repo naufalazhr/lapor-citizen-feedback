@@ -17,6 +17,9 @@ verify_jwt = true
 [functions.fonnte-webhook]
 verify_jwt = false
 
+[functions.whatsapp-cloud-webhook]
+verify_jwt = false
+
 [functions.get-webhook-errors]
 verify_jwt = false
 

@@ -28,6 +28,8 @@ const ReportForm = () => {
   const [loading, setLoading] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>("");
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoPreview, setVideoPreview] = useState<string>("");
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [showMap, setShowMap] = useState(false);
   const [tenantId, setTenantId] = useState<string | null>(null);
@@ -46,15 +48,29 @@ const ReportForm = () => {
     fetchTenantId();
   }, []);
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (!file) return;
+
+    if (file.type.startsWith('video/')) {
+      // Video file selected
+      setVideoFile(file);
+      setVideoPreview(URL.createObjectURL(file));
+      // Clear photo if previously selected
+      setPhotoFile(null);
+      setPhotoPreview("");
+    } else {
+      // Image file selected
       setPhotoFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setPhotoPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
+      // Clear video if previously selected
+      setVideoFile(null);
+      if (videoPreview) URL.revokeObjectURL(videoPreview);
+      setVideoPreview("");
     }
   };
 
@@ -62,24 +78,21 @@ const ReportForm = () => {
     setLoading(true);
 
     try {
-      let photoUrl = null;
-
-      // Upload photo if exists
-      if (photoFile) {
-        const fileExt = photoFile.name.split('.').pop();
-        const fileName = `${Math.random()}.${fileExt}`;
+      const uploadFile = async (file: File, pathPrefix = ''): Promise<string> => {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${pathPrefix}${Math.random()}.${fileExt}`;
         const { error: uploadError } = await supabase.storage
           .from('report-photos')
-          .upload(fileName, photoFile);
-
+          .upload(fileName, file);
         if (uploadError) throw uploadError;
-
         const { data: { publicUrl } } = supabase.storage
           .from('report-photos')
           .getPublicUrl(fileName);
+        return publicUrl;
+      };
 
-        photoUrl = publicUrl;
-      }
+      const photoUrl = photoFile ? await uploadFile(photoFile) : null;
+      const videoUrl = videoFile ? await uploadFile(videoFile, 'videos/') : null;
 
       // Insert report (tenant_id is also enforced by DB trigger as safety net)
       const { error } = await supabase.from('reports').insert({
@@ -89,6 +102,7 @@ const ReportForm = () => {
         description: data.description,
         type: data.type,
         photo_url: photoUrl,
+        video_url: videoUrl,
         geo_location: location || null,
         ...(tenantId ? { tenant_id: tenantId } : {}),
       });
@@ -103,6 +117,9 @@ const ReportForm = () => {
       reset();
       setPhotoFile(null);
       setPhotoPreview("");
+      setVideoFile(null);
+      if (videoPreview) URL.revokeObjectURL(videoPreview);
+      setVideoPreview("");
       setLocation(null);
     } catch (error: any) {
       toast({
@@ -204,13 +221,13 @@ const ReportForm = () => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="photo">Supporting Photo</Label>
+            <Label htmlFor="media">Supporting Photo / Video</Label>
             <div className="flex items-center gap-4">
               <Input
-                id="photo"
+                id="media"
                 type="file"
-                accept="image/*"
-                onChange={handlePhotoChange}
+                accept="image/*,video/mp4,video/quicktime"
+                onChange={handleFileChange}
                 disabled={loading}
                 className="cursor-pointer"
               />
@@ -218,6 +235,14 @@ const ReportForm = () => {
             </div>
             {photoPreview && (
               <img src={photoPreview} alt="Preview" className="mt-2 h-32 w-32 object-cover rounded-lg border" />
+            )}
+            {videoPreview && (
+              <video
+                src={videoPreview}
+                controls
+                preload="metadata"
+                className="mt-2 h-32 w-auto rounded-lg border"
+              />
             )}
           </div>
 

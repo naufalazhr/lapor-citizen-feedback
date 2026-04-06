@@ -199,7 +199,7 @@ export const ALLOWED_FILE_EXTENSIONS = {
   audio: ['mp3']
 } as const;
 
-export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
+export const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB in bytes (increased for video support)
 
 export const MIME_TYPE_MAP: Record<string, string> = {
   'png': 'image/png',

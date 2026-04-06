@@ -54,6 +54,7 @@ Deno.serve(async (req: Request) => {
       description,
       type,
       photo_url,
+      video_url,
       geo_location
     } = await req.json();
 
@@ -140,6 +141,7 @@ Deno.serve(async (req: Request) => {
         tenant_id: tenantId || conversation.tenant_id || null,
         session_id: conversation.session_id || null,
         photo_url: photo_url || null,
+        video_url: video_url || null,
         geo_location: geo_location || null
       })
       .select('id, ticket_id, status, created_at')

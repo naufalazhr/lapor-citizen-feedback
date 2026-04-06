@@ -45,7 +45,7 @@ interface MetaTextMessage {
   body: string;
 }
 
-interface MetaImageMessage {
+interface MetaMediaMessage {
   id: string;          // media ID (use to resolve CDN URL)
   caption?: string;
   mime_type?: string;
@@ -65,7 +65,8 @@ interface MetaMessage {
   timestamp: string;
   type: 'text' | 'image' | 'location' | 'audio' | 'video' | 'document' | 'sticker' | string;
   text?: MetaTextMessage;
-  image?: MetaImageMessage;
+  image?: MetaMediaMessage;
+  video?: MetaMediaMessage;
   location?: MetaLocationMessage;
 }
 
@@ -151,6 +152,16 @@ function normalizeMessage(msg: MetaMessage): {
         skip: false
       };
 
+    case 'video':
+      return {
+        messageContent: msg.video?.caption || '[Video]',
+        hasAttachment: true,
+        mediaId: msg.video?.id || null,
+        mimeType: msg.video?.mime_type || null,
+        location: undefined,
+        skip: false
+      };
+
     case 'location': {
       const lat = msg.location?.latitude ?? 0;
       const lng = msg.location?.longitude ?? 0;
@@ -166,7 +177,6 @@ function normalizeMessage(msg: MetaMessage): {
     }
 
     case 'audio':
-    case 'video':
     case 'document':
     case 'sticker':
       console.log(`[WhatsApp Cloud] Skipping unsupported message type: ${msg.type}`);
@@ -278,7 +288,7 @@ async function processMessage(
     has_attachment: normalized.hasAttachment
   });
 
-  // 6. Process image attachment if present (two-step Meta download, non-fatal)
+  // 6. Process attachment if present (image/video — two-step Meta download, non-fatal)
   let attachmentResult = null;
   if (normalized.hasAttachment && normalized.mediaId) {
     attachmentResult = await processMetaAttachment(

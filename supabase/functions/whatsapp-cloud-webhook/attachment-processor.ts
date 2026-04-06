@@ -1,9 +1,9 @@
 // =============================================================================
 // WhatsApp Cloud (Meta) Attachment Processor
-// Handles image downloads from Meta Graph API (two-step process):
+// Handles image and video downloads from Meta Graph API (two-step process):
 //   Step 1: GET graph.facebook.com/v19.0/{mediaId} with Bearer → { url }
 //   Step 2: GET {url} with Authorization: Bearer {accessToken} → binary
-// Scope: images only. Video, document, audio are skipped at the webhook level.
+// Scope: images and video. Document, audio are skipped at the webhook level.
 // =============================================================================
 
 import {
@@ -15,13 +15,14 @@ import {
 import type { AttachmentResult } from '../fonnte-webhook/types.ts';
 
 const GRAPH_API_VERSION = 'v19.0';
-const DOWNLOAD_TIMEOUT = 30000; // 30 seconds
+const DOWNLOAD_TIMEOUT_IMAGE = 30000; // 30 seconds for images
+const DOWNLOAD_TIMEOUT_VIDEO = 60000; // 60 seconds for video (larger files)
 
 // -----------------------------------------------------------------------------
 // Step 1: Resolve the CDN URL from a Meta media ID
 // Returns the download URL or throws on failure
 // -----------------------------------------------------------------------------
-async function resolveMetaMediaUrl(mediaId: string, accessToken: string): Promise<string> {
+async function resolveMetaMediaUrl(mediaId: string, accessToken: string, timeout: number = DOWNLOAD_TIMEOUT_IMAGE): Promise<string> {
   const metaUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${mediaId}`;
 
   const response = await fetch(metaUrl, {
@@ -29,7 +30,7 @@ async function resolveMetaMediaUrl(mediaId: string, accessToken: string): Promis
     headers: {
       'Authorization': `Bearer ${accessToken}`
     },
-    signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT)
+    signal: AbortSignal.timeout(timeout)
   });
 
   if (!response.ok) {
@@ -49,7 +50,7 @@ async function resolveMetaMediaUrl(mediaId: string, accessToken: string): Promis
 // Step 2: Download binary from Meta CDN (requires Bearer auth)
 // Returns raw bytes and content type
 // -----------------------------------------------------------------------------
-async function downloadFromMeta(url: string, accessToken: string): Promise<{
+async function downloadFromMeta(url: string, accessToken: string, timeout: number = DOWNLOAD_TIMEOUT_IMAGE): Promise<{
   data: Uint8Array;
   contentType: string;
 }> {
@@ -59,7 +60,7 @@ async function downloadFromMeta(url: string, accessToken: string): Promise<{
       'Authorization': `Bearer ${accessToken}`,
       'User-Agent': 'Supabase-Edge-Function/1.0'
     },
-    signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT)
+    signal: AbortSignal.timeout(timeout)
   });
 
   if (!response.ok) {
@@ -85,10 +86,15 @@ function resolveExtensionFromMimeType(mimeType: string): string {
     'image/gif': 'gif',
     'image/webp': 'webp',
     'image/heic': 'heic',
-    'image/heif': 'heif'
+    'image/heif': 'heif',
+    'video/mp4': 'mp4',
+    'video/3gpp': '3gp',
   };
   const baseType = mimeType.split(';')[0].trim().toLowerCase();
-  return mimeMap[baseType] || 'jpg';
+  if (mimeMap[baseType]) return mimeMap[baseType];
+  // Sensible default based on media type prefix
+  if (baseType.startsWith('video/')) return 'mp4';
+  return 'jpg';
 }
 
 // -----------------------------------------------------------------------------
@@ -103,13 +109,15 @@ export async function processMetaAttachment(
   tenantId?: string
 ): Promise<AttachmentResult | null> {
   try {
-    console.log('[Meta Attachment] Processing image, mediaId:', mediaId);
+    const isVideo = (mimeType || '').startsWith('video/');
+    const timeout = isVideo ? DOWNLOAD_TIMEOUT_VIDEO : DOWNLOAD_TIMEOUT_IMAGE;
+    console.log(`[Meta Attachment] Processing ${isVideo ? 'video' : 'image'}, mediaId:`, mediaId);
 
     // 1. Resolve CDN URL from Media ID
-    const mediaUrl = await resolveMetaMediaUrl(mediaId, accessToken);
+    const mediaUrl = await resolveMetaMediaUrl(mediaId, accessToken, timeout);
 
     // 2. Download binary from Meta CDN
-    const { data, contentType } = await downloadFromMeta(mediaUrl, accessToken);
+    const { data, contentType } = await downloadFromMeta(mediaUrl, accessToken, timeout);
 
     // 3. Resolve extension — prefer mime_type from webhook payload (more reliable)
     const extension = resolveExtensionFromMimeType(mimeType || contentType);
@@ -121,8 +129,8 @@ export async function processMetaAttachment(
     // 5. Upload to Supabase Storage (shared utility)
     const { storagePath, storageUrl } = await uploadToStorage(data, filename, resolvedMimeType);
 
-    // 6. Convert to base64 for Flowise (shared utility)
-    const base64DataUri = convertToBase64DataUri(data, resolvedMimeType);
+    // 6. Convert to base64 for Flowise (skip for video — too large for DB storage)
+    const base64DataUri = isVideo ? '' : convertToBase64DataUri(data, resolvedMimeType);
 
     // 7. Save metadata (shared utility)
     const attachmentId = await saveAttachmentMetadata({

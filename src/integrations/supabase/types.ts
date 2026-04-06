@@ -941,6 +941,7 @@ export type Database = {
           ticket_id: string | null
           type: Database["public"]["Enums"]["report_type"]
           updated_at: string
+          video_url: string | null
         }
         Insert: {
           address: string
@@ -959,6 +960,7 @@ export type Database = {
           ticket_id?: string | null
           type: Database["public"]["Enums"]["report_type"]
           updated_at?: string
+          video_url?: string | null
         }
         Update: {
           address?: string
@@ -977,6 +979,7 @@ export type Database = {
           ticket_id?: string | null
           type?: Database["public"]["Enums"]["report_type"]
           updated_at?: string
+          video_url?: string | null
         }
         Relationships: [
           {
