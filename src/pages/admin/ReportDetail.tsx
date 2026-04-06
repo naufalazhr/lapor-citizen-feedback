@@ -54,6 +54,8 @@ type Conversation = {
   device_number: string | null; // User's actual phone number
 };
 
+const isVideoUrl = (url: string) => /\.(mp4|3gp|mov|webm)(\?|$)/i.test(url);
+
 const ReportDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -638,8 +640,8 @@ const ReportDetail = () => {
               </Card>
             )}
 
-            {/* Photo Thumbnail Card */}
-            {report.photo_url && (
+            {/* Photo Thumbnail Card — only if photo_url is actually an image */}
+            {report.photo_url && !isVideoUrl(report.photo_url) && (
               <Card className="overflow-hidden">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm">Foto Laporan</CardTitle>
@@ -676,15 +678,15 @@ const ReportDetail = () => {
               </Card>
             )}
 
-            {/* Video Card */}
-            {report.video_url && (
+            {/* Video Card — from video_url OR video URL that landed in photo_url */}
+            {(report.video_url || (report.photo_url && isVideoUrl(report.photo_url))) && (
               <Card className="overflow-hidden">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm">Video Laporan</CardTitle>
                 </CardHeader>
                 <CardContent className="p-3">
                   <video
-                    src={report.video_url}
+                    src={report.video_url || report.photo_url}
                     controls
                     preload="metadata"
                     className="w-full rounded-lg"
@@ -696,7 +698,7 @@ const ReportDetail = () => {
                     variant="outline"
                     size="sm"
                     className="w-full mt-2"
-                    onClick={() => downloadMedia(report.video_url, 'mp4', 'Video')}
+                    onClick={() => downloadMedia(report.video_url || report.photo_url, 'mp4', 'Video')}
                   >
                     <Download className="h-4 w-4 mr-2" />
                     Unduh Video
@@ -852,26 +854,28 @@ const ReportDetail = () => {
       </div>
 
       {/* Image Modal Dialog */}
-      <Dialog open={showImageModal} onOpenChange={setShowImageModal}>
-        <DialogContent className="max-w-[95vw] max-h-[95vh] p-4">
-          <DialogHeader>
-            <DialogTitle>Foto Laporan</DialogTitle>
-          </DialogHeader>
-          <div className="flex items-center justify-center">
-            <img
-              src={report.photo_url || ""}
-              alt="Report Full Size"
-              className="max-w-full max-h-[calc(95vh-10rem)] object-contain rounded-lg"
-            />
-          </div>
-          <div className="flex justify-end mt-4">
-            <Button onClick={downloadImage} variant="secondary" size="sm">
-              <Download className="h-4 w-4 mr-2" />
-              Unduh Foto
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {report.photo_url && !isVideoUrl(report.photo_url) && (
+        <Dialog open={showImageModal} onOpenChange={setShowImageModal}>
+          <DialogContent className="max-w-[95vw] max-h-[95vh] p-4">
+            <DialogHeader>
+              <DialogTitle>Foto Laporan</DialogTitle>
+            </DialogHeader>
+            <div className="flex items-center justify-center">
+              <img
+                src={report.photo_url || ""}
+                alt="Report Full Size"
+                className="max-w-full max-h-[calc(95vh-10rem)] object-contain rounded-lg"
+              />
+            </div>
+            <div className="flex justify-end mt-4">
+              <Button onClick={downloadImage} variant="secondary" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Unduh Foto
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Disposition Dialog */}
       {!isOPDMember && (
