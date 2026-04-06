@@ -237,7 +237,7 @@ const Conversations = () => {
     }
   }, [messages]);
 
-  // Realtime subscription: listen for new messages on selected conversation
+  // Realtime subscription: append new messages on selected conversation (no flicker)
   useEffect(() => {
     if (!selectedConversation) return;
     const convId = selectedConversation.id;
@@ -253,21 +253,51 @@ const Conversations = () => {
           // No server-side filter — column-level filters require REPLICA IDENTITY FULL
           // and can silently fail. Check conversation_id client-side instead.
         },
-        (payload) => {
-          if (payload.new?.conversation_id === convId) {
-            fetchMessages(convId);
-            // Keep last_message_at fresh so the SLA idle timer resets on new messages
-            const msgCreatedAt: string = payload.new?.created_at;
-            if (msgCreatedAt) {
-              setConversations(prev =>
-                prev.map(c =>
-                  c.id === convId ? { ...c, last_message_at: msgCreatedAt } : c
-                )
-              );
-              setSelectedConversation(prev =>
-                prev ? { ...prev, last_message_at: msgCreatedAt } : prev
-              );
-            }
+        async (payload) => {
+          if (payload.new?.conversation_id !== convId) return;
+
+          const newMsg = payload.new as any;
+
+          // Fetch attachment if needed
+          let attachments: Attachment[] = [];
+          if (newMsg.has_attachment) {
+            const { data } = await supabase
+              .from('attachments')
+              .select('*')
+              .eq('message_id', newMsg.id);
+            attachments = (data || []) as Attachment[];
+          }
+
+          const messageWithAttachments: Message = {
+            id: newMsg.id,
+            role: newMsg.role,
+            content: newMsg.content,
+            message_index: newMsg.message_index,
+            has_attachment: newMsg.has_attachment || false,
+            created_at: newMsg.created_at,
+            agent_flow_data: newMsg.agent_flow_data,
+            sent_by_human: newMsg.sent_by_human || false,
+            human_sender_id: newMsg.human_sender_id || null,
+            attachments,
+          };
+
+          // Append to state (deduplicate in case of race with own send)
+          setMessages(prev => {
+            if (prev.some(m => m.id === newMsg.id)) return prev;
+            return [...prev, messageWithAttachments];
+          });
+
+          // Keep last_message_at fresh so the SLA idle timer resets
+          const msgCreatedAt: string = newMsg.created_at;
+          if (msgCreatedAt) {
+            setConversations(prev =>
+              prev.map(c =>
+                c.id === convId ? { ...c, last_message_at: msgCreatedAt } : c
+              )
+            );
+            setSelectedConversation(prev =>
+              prev ? { ...prev, last_message_at: msgCreatedAt } : prev
+            );
           }
         }
       )
@@ -659,6 +689,30 @@ const Conversations = () => {
   useEffect(() => {
     fetchConversations();
   }, [currentPage, statusFilter, dateFrom, dateTo, currentTenantId]);
+
+  // Realtime subscription: auto-update conversation list on new/updated conversations & messages
+  useEffect(() => {
+    if (!currentTenantId) return;
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedRefetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        fetchConversations();
+      }, 1500);
+    };
+
+    const channel = supabase
+      .channel('conversations-list-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, debouncedRefetch)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, debouncedRefetch)
+      .subscribe();
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
+  }, [currentTenantId, currentPage, statusFilter, dateFrom, dateTo]);
 
   // ── Auto-expire stale active conversations ─────────────────────────────────
   // The fonnte-webhook marks conversations 'abandoned' lazily (only when a new
