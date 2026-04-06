@@ -55,6 +55,8 @@ type Conversation = {
 };
 
 const isVideoUrl = (url: string) => /\.(mp4|3gp|mov|webm)(\?|$)/i.test(url);
+const isValidMediaUrl = (url: string | null | undefined): url is string =>
+  !!url && url !== '' && !url.includes('example.com/');
 
 const ReportDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -640,8 +642,8 @@ const ReportDetail = () => {
               </Card>
             )}
 
-            {/* Photo Thumbnail Card — only if photo_url is actually an image */}
-            {report.photo_url && !isVideoUrl(report.photo_url) && (
+            {/* Photo Thumbnail Card */}
+            {isValidMediaUrl(report.photo_url) && !isVideoUrl(report.photo_url) && (
               <Card className="overflow-hidden">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm">Foto Laporan</CardTitle>
@@ -679,7 +681,7 @@ const ReportDetail = () => {
             )}
 
             {/* Video Card — from video_url OR video URL that landed in photo_url */}
-            {(report.video_url || (report.photo_url && isVideoUrl(report.photo_url))) && (
+            {(isValidMediaUrl(report.video_url) || (isValidMediaUrl(report.photo_url) && isVideoUrl(report.photo_url))) && (
               <Card className="overflow-hidden">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm">Video Laporan</CardTitle>
@@ -854,7 +856,7 @@ const ReportDetail = () => {
       </div>
 
       {/* Image Modal Dialog */}
-      {report.photo_url && !isVideoUrl(report.photo_url) && (
+      {isValidMediaUrl(report.photo_url) && !isVideoUrl(report.photo_url) && (
         <Dialog open={showImageModal} onOpenChange={setShowImageModal}>
           <DialogContent className="max-w-[95vw] max-h-[95vh] p-4">
             <DialogHeader>
