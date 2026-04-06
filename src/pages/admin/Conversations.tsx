@@ -308,9 +308,9 @@ const Conversations = () => {
     };
   }, [selectedConversation?.id]);
 
-  const fetchConversations = async () => {
+  const fetchConversations = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
 
       const from = (currentPage - 1) * pageSize;
       const to = from + pageSize - 1;
@@ -698,7 +698,7 @@ const Conversations = () => {
     const debouncedRefetch = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
-        fetchConversations();
+        fetchConversations(true);
       }, 1500);
     };
 
