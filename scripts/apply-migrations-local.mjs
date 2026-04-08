@@ -15,7 +15,7 @@ const PROJECT_ROOT = join(__dirname, "..");
 
 const SERVICE_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE3NzIwODI2NDIsImV4cCI6MTkyOTc2MjY0Mn0.p2TH23_L0Y7G5qK4rQo2RiVxk5yvsBncfExPeXqtfo0";
-const BASE_URL = "http://192.168.1.19:8000";
+const BASE_URL = "http://10.87.0.145:8000";
 const MIGRATIONS_DIR = join(PROJECT_ROOT, "supabase", "migrations");
 
 async function runSQL(sql, filename) {
