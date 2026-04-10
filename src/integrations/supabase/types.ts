@@ -644,6 +644,7 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          is_active: boolean
           last_login_at: string | null
           organization: string | null
           position: string | null
@@ -657,6 +658,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id: string
+          is_active?: boolean
           last_login_at?: string | null
           organization?: string | null
           position?: string | null
@@ -670,6 +672,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          is_active?: boolean
           last_login_at?: string | null
           organization?: string | null
           position?: string | null
@@ -1314,6 +1317,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      update_last_login: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       update_report_status: {
         Args: {

@@ -77,6 +77,9 @@ const Auth = () => {
 
       if (error) throw error;
 
+      // Track last login time (fire-and-forget, don't block login)
+      supabase.rpc('update_last_login').then(() => {}).catch(() => {});
+
       toast({
         title: "Login berhasil",
         description: "Selamat datang kembali!",
