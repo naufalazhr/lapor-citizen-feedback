@@ -5,13 +5,20 @@ import Dashboard from "./Dashboard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserRoleManager } from "@/components/admin/UserRoleManager";
 import { UserOPDAssignmentDialog } from "@/components/admin/UserOPDAssignmentDialog";
-import { InvitationManager } from "@/components/admin/InvitationManager";
-import { PendingUserCard } from "@/components/admin/PendingUserCard";
+import { CreateUserDialog } from "@/components/admin/CreateUserDialog";
+import { EditUserDialog } from "@/components/admin/EditUserDialog";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Search, UserCog, Building2, UserPlus, Clock } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Search, UserPlus, MoreHorizontal, UserCog, Building2, KeyRound, Copy, CheckCircle2, Pencil, Ban, UserCheck } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 
 interface UserProfile {
   id: string;
@@ -22,22 +29,19 @@ interface UserProfile {
   position: string | null;
   role: string | null;
   opd_name: string | null;
+  created_at: string;
+  last_login_at: string | null;
+  is_active: boolean;
 }
 
-interface PendingApproval {
-  id: string;
-  user_id: string;
-  requested_role: string;
-  status: string;
-  organization: string | null;
-  department: string | null;
-  position: string | null;
-  requested_at: string;
-  user?: {
-    email: string;
-    full_name?: string;
-  };
-}
+const generatePassword = (): string => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let result = '';
+  for (let i = 0; i < 10; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
 
 const Users = () => {
   const navigate = useNavigate();
@@ -50,8 +54,14 @@ const Users = () => {
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [showRoleManager, setShowRoleManager] = useState(false);
   const [showOPDAssignment, setShowOPDAssignment] = useState(false);
-  const [showInvitationManager, setShowInvitationManager] = useState(false);
-  const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([]);
+  const [showCreateUser, setShowCreateUser] = useState(false);
+  const [resetPasswordUser, setResetPasswordUser] = useState<UserProfile | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState<{ email: string; password: string } | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [editUser, setEditUser] = useState<UserProfile | null>(null);
+  const [suspendingUserId, setSuspendingUserId] = useState<string | null>(null);
 
   useEffect(() => {
     checkAccess();
@@ -76,11 +86,13 @@ const Users = () => {
 
   const checkAccess = async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    
+
     if (!session) {
       navigate('/auth');
       return;
     }
+
+    setCurrentUserId(session.user.id);
 
     const { data: roleData } = await supabase
       .from('user_roles')
@@ -101,91 +113,6 @@ const Users = () => {
 
     setIsAdmin(true);
     fetchUsers();
-    fetchPendingApprovals();
-  };
-
-  const fetchPendingApprovals = async () => {
-    try {
-      // TENANT ISOLATION: Get current user's profile and role
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        return;
-      }
-
-      const { data: currentUserProfile, error: profileError } = await supabase
-        .from('profiles')
-        .select('tenant_id')
-        .eq('id', session.user.id)
-        .single();
-
-      if (profileError) {
-        console.error('Error fetching current user profile:', profileError);
-        return;
-      }
-
-      // Check if user is superadmin
-      const { data: roleData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', session.user.id)
-        .single();
-
-      const isSuperadmin = roleData?.role === 'superadmin';
-
-      // Build query with tenant filtering
-      // NOTE: user_approvals.user_id FK points to auth.users, not public.profiles
-      // → PostgREST cannot resolve the cross-schema join; use 2-step query instead
-      let approvalsQuery = supabase
-        .from('user_approvals')
-        .select(`
-          id,
-          user_id,
-          tenant_id,
-          requested_role,
-          status,
-          organization,
-          department,
-          position,
-          requested_at,
-          tenant:tenants(id, name, slug)
-        `)
-        .eq('status', 'pending')
-        .order('requested_at', { ascending: false });
-
-      // If not superadmin, filter by tenant_id
-      if (!isSuperadmin && currentUserProfile?.tenant_id) {
-        approvalsQuery = approvalsQuery.eq('tenant_id', currentUserProfile.tenant_id);
-      }
-
-      const { data, error } = await approvalsQuery;
-
-      if (error) {
-        console.error('Error fetching pending approvals:', error);
-        return;
-      }
-
-      const approvals = data || [];
-
-      // Step 2: fetch profiles separately to get email + full_name
-      const userIds = [...new Set(approvals.map((a) => a.user_id).filter(Boolean))];
-      const profileMap = new Map<string, { email: string; full_name?: string }>();
-      if (userIds.length > 0) {
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('id, email, full_name')
-          .in('id', userIds);
-        (profilesData || []).forEach((p) => profileMap.set(p.id, { email: p.email, full_name: p.full_name }));
-      }
-
-      setPendingApprovals(
-        approvals.map((approval) => ({
-          ...approval,
-          user: profileMap.get(approval.user_id) || { email: 'Unknown' },
-        }))
-      );
-    } catch (error) {
-      console.error('Error in fetchPendingApprovals:', error);
-    }
   };
 
   const fetchUsers = async () => {
@@ -208,18 +135,14 @@ const Users = () => {
         throw profileError;
       }
 
-      // If current user has no tenant_id, they might be superadmin (show all)
-      // Otherwise, only show users from the same tenant
+      // Filter by tenant. Superadmins are excluded via role-based filter below.
       let profilesQuery = supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (currentUserProfile?.tenant_id) {
-        // TENANT ISOLATION: Filter by tenant_id and exclude superadmins
-        profilesQuery = profilesQuery
-          .eq('tenant_id', currentUserProfile.tenant_id)
-          .not('tenant_id', 'is', null);
+        profilesQuery = profilesQuery.eq('tenant_id', currentUserProfile.tenant_id);
       }
 
       const { data: profiles, error: profilesError } = await profilesQuery;
@@ -243,17 +166,24 @@ const Users = () => {
         .select('user_id, opd:opds(name)')
         .eq('is_active', true);
 
+      // Exclude superadmin users — they are managed via dedicated superadmin routes
+      const superadminIds = new Set(
+        (roles || []).filter(r => r.role === 'superadmin').map(r => r.user_id)
+      );
+
       const roleMap = new Map(roles?.map(r => [r.user_id, r.role]) || []);
 
       const opdMap = new Map(
         (opdAssignments || []).map(a => [a.user_id, (a.opd as { name: string } | null)?.name ?? null])
       );
 
-      const usersWithRoles = profiles?.map(profile => ({
-        ...profile,
-        role: roleMap.get(profile.id) || null,
-        opd_name: opdMap.get(profile.id) ?? null,
-      })) || [];
+      const usersWithRoles = (profiles || [])
+        .filter(profile => !superadminIds.has(profile.id))
+        .map(profile => ({
+          ...profile,
+          role: roleMap.get(profile.id) || null,
+          opd_name: opdMap.get(profile.id) ?? null,
+        }));
 
       setUsers(usersWithRoles);
       setFilteredUsers(usersWithRoles);
@@ -289,6 +219,85 @@ const Users = () => {
     fetchUsers();
     setShowOPDAssignment(false);
     setSelectedUser(null);
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPasswordUser || !newPassword) return;
+    if (newPassword.length < 6) {
+      toast({ title: "Password minimal 6 karakter", variant: "destructive" });
+      return;
+    }
+
+    setResettingPassword(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Sesi tidak ditemukan");
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/create-user`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          action: "reset_password",
+          user_id: resetPasswordUser.id,
+          new_password: newPassword,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Gagal mereset password");
+
+      setResetSuccess({ email: resetPasswordUser.email, password: newPassword });
+      setNewPassword("");
+    } catch (error: any) {
+      toast({ title: "Gagal mereset password", description: error.message, variant: "destructive" });
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
+  const handleSetActiveStatus = async (user: UserProfile, isActive: boolean) => {
+    setSuspendingUserId(user.id);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Sesi tidak ditemukan");
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(`${supabaseUrl}/functions/v1/create-user`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          action: "set_active_status",
+          user_id: user.id,
+          is_active: isActive,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Gagal mengubah status");
+
+      toast({
+        title: isActive ? "Pengguna diaktifkan" : "Pengguna ditangguhkan",
+        description: `${user.full_name || user.email} ${isActive ? 'dapat login kembali' : 'tidak dapat login'}`,
+      });
+      fetchUsers();
+    } catch (error: any) {
+      toast({ title: "Gagal mengubah status", description: error.message, variant: "destructive" });
+    } finally {
+      setSuspendingUserId(null);
+    }
+  };
+
+  const getStatusBadge = (user: UserProfile) => {
+    if (!user.is_active) return <Badge variant="destructive">Ditangguhkan</Badge>;
+    if (user.last_login_at) return <Badge variant="default">Aktif</Badge>;
+    return <Badge variant="outline">Belum Login</Badge>;
   };
 
   const getRoleBadge = (role: string | null) => {
@@ -331,46 +340,11 @@ const Users = () => {
               Kelola pengguna dan tetapkan role akses
             </p>
           </div>
-          <Button onClick={() => setShowInvitationManager(true)}>
+          <Button onClick={() => setShowCreateUser(true)}>
             <UserPlus className="h-4 w-4 mr-2" />
-            Invite User
+            Tambah Pengguna
           </Button>
         </div>
-
-        {/* Pending Approvals Section */}
-        {pendingApprovals.length > 0 && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Clock className="h-5 w-5" />
-                    Pending Approvals
-                  </CardTitle>
-                  <CardDescription>
-                    Users waiting for access approval
-                  </CardDescription>
-                </div>
-                <Badge variant="secondary">{pendingApprovals.length}</Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {pendingApprovals.map((approval) => (
-                  <PendingUserCard
-                    key={approval.id}
-                    approval={approval}
-                    onApproved={() => {
-                      fetchPendingApprovals();
-                      fetchUsers();
-                    }}
-                    onRejected={fetchPendingApprovals}
-                  />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         <div className="flex items-center gap-4">
           <div className="relative flex-1 max-w-md">
@@ -389,13 +363,13 @@ const Users = () => {
             <table className="w-full">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="text-left p-4 font-medium">Nama</th>
                   <th className="text-left p-4 font-medium">Email</th>
-                  <th className="text-left p-4 font-medium">Organisasi</th>
-                  <th className="text-left p-4 font-medium">Departemen</th>
-                  <th className="text-left p-4 font-medium">Posisi</th>
-                  <th className="text-left p-4 font-medium">OPD</th>
+                  <th className="text-left p-4 font-medium">Nama</th>
                   <th className="text-left p-4 font-medium">Role</th>
+                  <th className="text-left p-4 font-medium">OPD</th>
+                  <th className="text-left p-4 font-medium">Status</th>
+                  <th className="text-left p-4 font-medium">Dibuat</th>
+                  <th className="text-left p-4 font-medium">Login Terakhir</th>
                   <th className="text-left p-4 font-medium">Aksi</th>
                 </tr>
               </thead>
@@ -409,34 +383,71 @@ const Users = () => {
                 ) : (
                   filteredUsers.map((user) => (
                     <tr key={user.id} className="border-t hover:bg-muted/30">
+                      <td className="p-4 text-sm">{user.email || "-"}</td>
                       <td className="p-4">{user.full_name || "-"}</td>
-                      <td className="p-4">{user.email || "-"}</td>
-                      <td className="p-4">{user.organization || "-"}</td>
-                      <td className="p-4">{user.department || "-"}</td>
-                      <td className="p-4">{user.position || "-"}</td>
-                      <td className="p-4">{user.opd_name || "-"}</td>
                       <td className="p-4">{getRoleBadge(user.role)}</td>
+                      <td className="p-4">{user.opd_name || "-"}</td>
                       <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleAssignRole(user)}
-                          >
-                            <UserCog className="h-4 w-4 mr-2" />
-                            Atur Role
-                          </Button>
-                          {user.role === 'opd_member' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleAssignOPD(user)}
-                            >
-                              <Building2 className="h-4 w-4 mr-2" />
-                              Tugaskan OPD
+                        {getStatusBadge(user)}
+                      </td>
+                      <td className="p-4 text-sm text-muted-foreground">
+                        {user.created_at ? new Date(user.created_at).toLocaleDateString("id-ID") : "-"}
+                      </td>
+                      <td className="p-4 text-sm text-muted-foreground">
+                        {user.last_login_at
+                          ? formatDistanceToNow(new Date(user.last_login_at), { addSuffix: true })
+                          : "-"}
+                      </td>
+                      <td className="p-4">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreHorizontal className="h-4 w-4" />
                             </Button>
-                          )}
-                        </div>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => setEditUser(user)}>
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Edit Pengguna
+                            </DropdownMenuItem>
+                            {user.id !== currentUserId && (
+                              <DropdownMenuItem onClick={() => handleAssignRole(user)}>
+                                <UserCog className="h-4 w-4 mr-2" />
+                                Atur Role
+                              </DropdownMenuItem>
+                            )}
+                            {user.role === 'opd_member' && (
+                              <DropdownMenuItem onClick={() => handleAssignOPD(user)}>
+                                <Building2 className="h-4 w-4 mr-2" />
+                                Tugaskan OPD
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onClick={() => { setResetPasswordUser(user); setNewPassword(""); }}>
+                              <KeyRound className="h-4 w-4 mr-2" />
+                              Reset Password
+                            </DropdownMenuItem>
+                            {user.id !== currentUserId && (
+                              user.is_active ? (
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  disabled={suspendingUserId === user.id}
+                                  onClick={() => handleSetActiveStatus(user, false)}
+                                >
+                                  <Ban className="h-4 w-4 mr-2" />
+                                  {suspendingUserId === user.id ? "Memproses..." : "Tangguhkan"}
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem
+                                  disabled={suspendingUserId === user.id}
+                                  onClick={() => handleSetActiveStatus(user, true)}
+                                >
+                                  <UserCheck className="h-4 w-4 mr-2" />
+                                  {suspendingUserId === user.id ? "Memproses..." : "Aktifkan Kembali"}
+                                </DropdownMenuItem>
+                              )
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </td>
                     </tr>
                   ))
@@ -464,10 +475,107 @@ const Users = () => {
         </>
       )}
 
-      <InvitationManager
-        open={showInvitationManager}
-        onOpenChange={setShowInvitationManager}
+      <CreateUserDialog
+        open={showCreateUser}
+        onOpenChange={setShowCreateUser}
+        onUserCreated={fetchUsers}
       />
+
+      <EditUserDialog
+        user={editUser}
+        open={!!editUser}
+        onOpenChange={(open) => { if (!open) setEditUser(null); }}
+        onUserUpdated={fetchUsers}
+      />
+
+      {/* Reset Password Dialog */}
+      <Dialog open={!!resetPasswordUser} onOpenChange={(open) => { if (!open) { setResetPasswordUser(null); setResetSuccess(null); setNewPassword(""); } }}>
+        <DialogContent className="sm:max-w-sm">
+          {resetSuccess ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Password Berhasil Direset</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-green-600">
+                  <CheckCircle2 className="h-5 w-5" />
+                  <span className="font-medium">Password telah diperbarui</span>
+                </div>
+                <div className="bg-muted rounded-lg p-4 space-y-2 font-mono text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Email: </span>
+                    <span className="font-medium">{resetSuccess.email}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Password: </span>
+                    <span className="font-medium">{resetSuccess.password}</span>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Salin dan bagikan kredensial baru ini kepada pengguna.
+                </p>
+                <DialogFooter className="gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`Email: ${resetSuccess.email}\nPassword: ${resetSuccess.password}`);
+                      toast({ title: "Kredensial disalin ke clipboard" });
+                    }}
+                  >
+                    <Copy className="h-4 w-4 mr-2" />
+                    Salin Kredensial
+                  </Button>
+                  <Button onClick={() => { setResetPasswordUser(null); setResetSuccess(null); }}>
+                    Selesai
+                  </Button>
+                </DialogFooter>
+              </div>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Reset Password</DialogTitle>
+                <DialogDescription>
+                  Atur password baru untuk {resetPasswordUser?.email}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="new-password">Password Baru</Label>
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs"
+                      onClick={() => setNewPassword(generatePassword())}
+                      disabled={resettingPassword}
+                    >
+                      Generate Password
+                    </Button>
+                  </div>
+                  <Input
+                    id="new-password"
+                    type="text"
+                    placeholder="Minimal 6 karakter"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    disabled={resettingPassword}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setResetPasswordUser(null)} disabled={resettingPassword}>
+                  Batal
+                </Button>
+                <Button onClick={handleResetPassword} disabled={resettingPassword || !newPassword}>
+                  {resettingPassword ? "Mereset..." : "Reset Password"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </Dashboard>
   );
 };

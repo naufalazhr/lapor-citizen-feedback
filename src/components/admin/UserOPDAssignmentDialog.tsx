@@ -10,10 +10,22 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, X } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Building2, X, Check, ChevronsUpDown } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 interface OPD {
   id: string;
@@ -44,6 +56,7 @@ export function UserOPDAssignmentDialog({
   const [opds, setOpds] = useState<OPD[]>([]);
   const [selectedOPDs, setSelectedOPDs] = useState<Set<string>>(new Set());
   const [currentAssignments, setCurrentAssignments] = useState<Set<string>>(new Set());
+  const [popoverOpen, setPopoverOpen] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -168,6 +181,55 @@ export function UserOPDAssignmentDialog({
         </DialogHeader>
 
         <div className="space-y-4">
+          <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={popoverOpen}
+                className="w-full justify-between font-normal"
+              >
+                {selectedOPDs.size > 0
+                  ? `${selectedOPDs.size} OPD dipilih`
+                  : "Pilih OPD..."}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[10001]" align="start">
+              <Command>
+                <CommandInput placeholder="Cari OPD..." />
+                <CommandList>
+                  <CommandEmpty>Tidak ada OPD ditemukan.</CommandEmpty>
+                  <CommandGroup>
+                    {opds.map((opd) => {
+                      const isSelected = selectedOPDs.has(opd.id);
+                      return (
+                        <CommandItem
+                          key={opd.id}
+                          value={`${opd.name} ${opd.code}`}
+                          onSelect={() => toggleOPD(opd.id)}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              isSelected ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <span className="truncate">{opd.name}</span>
+                            <Badge variant="outline" className="text-xs shrink-0">
+                              {opd.code}
+                            </Badge>
+                          </div>
+                        </CommandItem>
+                      );
+                    })}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+
           {selectedOPDs.size > 0 && (
             <div className="flex flex-wrap gap-2 p-3 bg-muted/50 rounded-lg">
               {Array.from(selectedOPDs).map(opdId => {
@@ -175,10 +237,11 @@ export function UserOPDAssignmentDialog({
                 if (!opd) return null;
                 return (
                   <Badge key={opdId} variant="secondary" className="gap-1">
-                    {opd.code}
+                    {opd.name}
                     <button
                       onClick={() => toggleOPD(opdId)}
                       className="ml-1 hover:bg-destructive/20 rounded-full"
+                      aria-label={`Hapus ${opd.name}`}
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -188,41 +251,9 @@ export function UserOPDAssignmentDialog({
             </div>
           )}
 
-          <ScrollArea className="h-[300px] border rounded-lg p-4">
-            <div className="space-y-3">
-              {opds.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Tidak ada OPD aktif
-                </p>
-              ) : (
-                opds.map((opd) => (
-                  <div
-                    key={opd.id}
-                    className="flex items-start space-x-3 p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
-                    onClick={() => toggleOPD(opd.id)}
-                  >
-                    <Checkbox
-                      checked={selectedOPDs.has(opd.id)}
-                      onCheckedChange={() => toggleOPD(opd.id)}
-                      className="mt-1"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{opd.name}</span>
-                        <Badge variant="outline" className="text-xs">
-                          {opd.code}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </ScrollArea>
-
           <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg text-sm">
             <p className="text-blue-900 dark:text-blue-100">
-              <strong>Info:</strong> User dengan role "OPD Member" hanya dapat melihat 
+              <strong>Info:</strong> User dengan role "OPD Member" hanya dapat melihat
               dan mengelola laporan yang didisposisikan ke OPD mereka.
             </p>
           </div>
