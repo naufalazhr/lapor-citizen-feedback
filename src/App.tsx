@@ -24,6 +24,12 @@ import IntegrationChannel from "./pages/admin/IntegrationChannel";
 import IntegrationChannelAIAgent from "./pages/admin/IntegrationChannelAIAgent";
 import IntegrationChannelWhatsApp from "./pages/admin/IntegrationChannelWhatsApp";
 import IntegrationChannelAIInsight from "./pages/admin/IntegrationChannelAIInsight";
+import NotificationDashboardPage from "./pages/admin/notifications/NotificationDashboard";
+import NotificationSettingsPage from "./pages/admin/notifications/NotificationSettings";
+import NotificationChannelWhatsAppPage from "./pages/admin/notifications/NotificationChannelWhatsApp";
+import NotificationChannelEmailPage from "./pages/admin/notifications/NotificationChannelEmail";
+import NotificationContactsPage from "./pages/admin/notifications/NotificationContacts";
+import NotificationHistoryPage from "./pages/admin/notifications/NotificationHistory";
 import TenantLoginConfig from "./pages/admin/tenant/TenantLoginConfig";
 import TenantConfig from "./pages/admin/tenant/TenantConfig";
 import LicenseGenerator from "./pages/admin/LicenseGenerator";
@@ -55,6 +61,12 @@ const App = () => (
           <Route path="/admin/integration/channel/ai-agent" element={<IntegrationChannelAIAgent />} />
           <Route path="/admin/integration/channel/whatsapp" element={<IntegrationChannelWhatsApp />} />
           <Route path="/admin/integration/channel/ai-insight" element={<IntegrationChannelAIInsight />} />
+          <Route path="/admin/notifications" element={<NotificationDashboardPage />} />
+          <Route path="/admin/notifications/settings" element={<NotificationSettingsPage />} />
+          <Route path="/admin/notifications/channel/whatsapp" element={<NotificationChannelWhatsAppPage />} />
+          <Route path="/admin/notifications/channel/whatsapp/contacts" element={<NotificationContactsPage />} />
+          <Route path="/admin/notifications/channel/email" element={<NotificationChannelEmailPage />} />
+          <Route path="/admin/notifications/history" element={<NotificationHistoryPage />} />
           <Route path="/admin/recent-reports" element={<RecentReports />} />
           <Route path="/admin/tenant/login-config" element={<TenantLoginConfig />} />
           <Route path="/admin/tenant/config" element={<TenantConfig />} />
