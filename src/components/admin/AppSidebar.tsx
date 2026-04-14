@@ -34,6 +34,9 @@ import {
   Cpu,
   ChevronDown,
   Shield,
+  Bell,
+  Mail,
+  History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -42,6 +45,12 @@ const CHANNEL_PATHS = [
   "/admin/integration/channel/ai-agent",
   "/admin/integration/channel/whatsapp",
   "/admin/integration/channel/ai-insight",
+];
+
+const NOTIFICATION_CHANNEL_PATHS = [
+  "/admin/notifications/channel/whatsapp",
+  "/admin/notifications/channel/whatsapp/contacts",
+  "/admin/notifications/channel/email",
 ];
 
 const TENANT_PATHS = [
@@ -57,19 +66,14 @@ export function AppSidebar() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [channelOpen, setChannelOpen] = useState(false);
   const [tenantOpen, setTenantOpen] = useState(false);
+  const [notifChannelOpen, setNotifChannelOpen] = useState(false);
 
-  // Auto-expand Channel sub-menu if a channel sub-path is active
+  // Auto-expand any sub-menu whose path is currently active
   useEffect(() => {
-    if (CHANNEL_PATHS.some((p) => location.pathname.startsWith(p))) {
-      setChannelOpen(true);
-    }
-  }, [location.pathname]);
-
-  // Auto-expand Tenant sub-menu if a tenant sub-path is active
-  useEffect(() => {
-    if (TENANT_PATHS.some((p) => location.pathname.startsWith(p))) {
-      setTenantOpen(true);
-    }
+    const path = location.pathname;
+    if (CHANNEL_PATHS.some((p) => path.startsWith(p))) setChannelOpen(true);
+    if (TENANT_PATHS.some((p) => path.startsWith(p))) setTenantOpen(true);
+    if (NOTIFICATION_CHANNEL_PATHS.some((p) => path.startsWith(p))) setNotifChannelOpen(true);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -118,6 +122,7 @@ export function AppSidebar() {
   const isActive = (path: string) => location.pathname === path;
   const isChannelActive = CHANNEL_PATHS.some((p) => location.pathname.startsWith(p));
   const isTenantActive = TENANT_PATHS.some((p) => location.pathname.startsWith(p));
+  const isNotifChannelActive = NOTIFICATION_CHANNEL_PATHS.some((p) => location.pathname.startsWith(p));
 
   const isAdminUser = userRole !== null && ['admin', 'owner', 'superadmin'].includes(userRole);
   const isSuperadmin = userRole === 'superadmin';
@@ -297,6 +302,104 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* Notifikasi Group (adminOnly) — flat hierarchy with Channel as sole collapsible */}
+        {isAdminUser && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Notifikasi</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {/* Ringkasan — direct link */}
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => navigate('/admin/notifications')}
+                    className={isActive('/admin/notifications') ? "bg-accent" : ""}
+                  >
+                    <Bell className="h-4 w-4" />
+                    {!isCollapsed && <span>Ringkasan</span>}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                {/* Pengaturan — direct link */}
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => navigate('/admin/notifications/settings')}
+                    className={isActive('/admin/notifications/settings') ? "bg-accent" : ""}
+                  >
+                    <Settings className="h-4 w-4" />
+                    {!isCollapsed && <span>Pengaturan</span>}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                {/* Channel — collapsible with WhatsApp / Email */}
+                {isCollapsed ? (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      onClick={() => navigate('/admin/notifications/channel/whatsapp')}
+                      className={isNotifChannelActive ? "bg-accent" : ""}
+                      title="Channel Notifikasi"
+                    >
+                      <Layers className="h-4 w-4" />
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ) : (
+                  <Collapsible open={notifChannelOpen} onOpenChange={setNotifChannelOpen}>
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton className={isNotifChannelActive ? "bg-accent" : ""}>
+                          <Layers className="h-4 w-4" />
+                          <span>Channel</span>
+                          <ChevronDown
+                            className={`ml-auto h-4 w-4 shrink-0 transition-transform duration-200 ${
+                              notifChannelOpen ? "rotate-180" : ""
+                            }`}
+                          />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                    </SidebarMenuItem>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            onClick={() => navigate('/admin/notifications/channel/whatsapp')}
+                            className={
+                              location.pathname.startsWith('/admin/notifications/channel/whatsapp')
+                                ? "bg-accent"
+                                : ""
+                            }
+                          >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            <span>WhatsApp</span>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            onClick={() => navigate('/admin/notifications/channel/email')}
+                            className={isActive('/admin/notifications/channel/email') ? "bg-accent" : ""}
+                          >
+                            <Mail className="h-3.5 w-3.5" />
+                            <span>Email</span>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+
+                {/* Riwayat — direct link */}
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => navigate('/admin/notifications/history')}
+                    className={isActive('/admin/notifications/history') ? "bg-accent" : ""}
+                  >
+                    <History className="h-4 w-4" />
+                    {!isCollapsed && <span>Riwayat</span>}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

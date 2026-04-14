@@ -28,3 +28,9 @@ verify_jwt = false
 
 [functions.create-user]
 verify_jwt = false
+
+[functions.sla-notifications]
+verify_jwt = false
+
+[functions.sync-notification-contact]
+verify_jwt = false
