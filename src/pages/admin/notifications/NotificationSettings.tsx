@@ -8,9 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Bell, Save, Loader2 } from "lucide-react";
+import { Bell, Save, Loader2, Plus, X, Clock } from "lucide-react";
+
+type ScheduleMode = "daily" | "specific_times" | "every_n_hours";
 
 interface NotificationSettingsRow {
   id: string;
@@ -27,22 +30,66 @@ interface NotificationSettingsRow {
   delay_between_sends_ms: number;
   cooldown_hours: number;
   is_enabled: boolean;
+  schedule_mode: ScheduleMode;
+  schedule_times_wib: string[] | null;
+  schedule_interval_hours: number | null;
 }
 
-const FREQUENCY_OPTIONS: { value: string; label: string }[] = [
-  { value: "daily_8am", label: "Harian — 08:00 WIB" },
-  { value: "twice_daily", label: "Dua kali sehari — 08:00 & 14:00 WIB" },
-  { value: "every_6h", label: "Setiap 6 jam" },
-  { value: "every_4h", label: "Setiap 4 jam" },
-  { value: "custom", label: "Kustom (atur via SQL)" },
-];
+const INTERVAL_OPTIONS = [1, 2, 3, 4, 6, 8, 12];
+const DEFAULT_DAILY_TIME = "08:00";
+const DEFAULT_SPECIFIC_TIMES = ["08:00", "14:00"];
+const DEFAULT_INTERVAL_HOURS = 6;
+
+function toHHMM(value: string): string {
+  const match = /^(\d{2}):(\d{2})/.exec(value);
+  return match ? `${match[1]}:${match[2]}` : value;
+}
+
+// Defensive fallback to raw cron if the expression isn't one of the three
+// shapes our RPC emits (shouldn't happen, but avoids misleading output).
+function humanReadableSchedule(cron: string): string {
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length !== 5) return cron;
+  const [minute, hour, dom, month, dow] = parts;
+
+  if (dom !== "*" || month !== "*" || dow !== "*") return cron;
+
+  const intervalMatch = /^\*\/(\d+)$/.exec(hour);
+  if (intervalMatch && minute === "0") {
+    return `Setiap ${intervalMatch[1]} jam`;
+  }
+
+  if (!/^\d+$/.test(minute)) return cron;
+  const hourParts = hour.split(",");
+  if (!hourParts.every((h) => /^\d+$/.test(h))) return cron;
+
+  const utcMinute = Number(minute);
+  const wibTimes = hourParts
+    .map((h) => (Number(h) + 7) % 24)
+    .sort((a, b) => a - b)
+    .map((h) => `${String(h).padStart(2, "0")}:${String(utcMinute).padStart(2, "0")}`);
+
+  if (wibTimes.length === 1) return `Harian pukul ${wibTimes[0]} WIB`;
+  return `Setiap hari pukul ${wibTimes.join(", ")} WIB`;
+}
 
 const NotificationSettingsPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingSchedule, setSavingSchedule] = useState(false);
   const [settings, setSettings] = useState<NotificationSettingsRow | null>(null);
+
+  // Schedule form state lives separately from `settings` because the schedule
+  // is persisted via an RPC (not the table UPDATE that `handleSave` does).
+  const [scheduleMode, setScheduleMode] = useState<ScheduleMode>("daily");
+  const [dailyTime, setDailyTime] = useState(DEFAULT_DAILY_TIME);
+  const [specificTimes, setSpecificTimes] = useState<string[]>(DEFAULT_SPECIFIC_TIMES);
+  const [intervalHours, setIntervalHours] = useState<number>(DEFAULT_INTERVAL_HOURS);
+  const [activeSchedule, setActiveSchedule] = useState<
+    { status: "loading" } | { status: "unscheduled" } | { status: "active"; cron: string }
+  >({ status: "loading" });
 
   useEffect(() => {
     init();
@@ -73,7 +120,7 @@ const NotificationSettingsPage = () => {
       return;
     }
 
-    await fetchSettings();
+    await Promise.all([fetchSettings(), fetchActiveSchedule()]);
     setLoading(false);
   };
 
@@ -93,17 +140,44 @@ const NotificationSettingsPage = () => {
       return;
     }
 
-    if (data) {
-      setSettings(data as unknown as NotificationSettingsRow);
-    } else {
-      // Insert a default row if missing
-      const { data: inserted } = await supabase
+    const row = (data ??
+      (await supabase
         .from("notification_settings" as any)
         .insert({ is_enabled: false })
         .select("*")
-        .single();
-      if (inserted) setSettings(inserted as unknown as NotificationSettingsRow);
+        .single()).data) as unknown as NotificationSettingsRow | null;
+    if (!row) return;
+
+    setSettings(row);
+    setScheduleMode((row.schedule_mode ?? "daily") as ScheduleMode);
+    if (row.schedule_times_wib && row.schedule_times_wib.length > 0) {
+      const normalized = row.schedule_times_wib.map(toHHMM);
+      if (row.schedule_mode === "specific_times") {
+        setSpecificTimes(normalized.length >= 2 ? normalized : DEFAULT_SPECIFIC_TIMES);
+      } else {
+        setDailyTime(normalized[0]);
+      }
     }
+    if (row.schedule_interval_hours) {
+      setIntervalHours(row.schedule_interval_hours);
+    }
+  };
+
+  const fetchActiveSchedule = async () => {
+    const { data, error } = await supabase.rpc("get_active_cron_schedule" as any);
+    const payload = data as
+      | { success: true; scheduled: boolean; schedule?: string }
+      | { success: false; error: string }
+      | null;
+    if (error || !payload?.success) {
+      setActiveSchedule({ status: "unscheduled" });
+      return;
+    }
+    setActiveSchedule(
+      payload.scheduled && payload.schedule
+        ? { status: "active", cron: payload.schedule }
+        : { status: "unscheduled" }
+    );
   };
 
   const handleSave = async () => {
@@ -118,7 +192,6 @@ const NotificationSettingsPage = () => {
           pending_threshold_hours: settings.pending_threshold_hours,
           overdue_threshold_hours: settings.overdue_threshold_hours,
           channel_whatsapp: settings.channel_whatsapp,
-          frequency_label: settings.frequency_label,
           quiet_start: settings.quiet_start,
           quiet_end: settings.quiet_end,
           timezone: settings.timezone,
@@ -144,6 +217,112 @@ const NotificationSettingsPage = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSaveSchedule = async () => {
+    let times: string[] | null = null;
+    let interval: number | null = null;
+
+    if (scheduleMode === "daily") {
+      if (!dailyTime) {
+        toast({ title: "Jam belum dipilih", variant: "destructive" });
+        return;
+      }
+      times = [dailyTime];
+    } else if (scheduleMode === "specific_times") {
+      if (specificTimes.length < 2 || specificTimes.length > 4) {
+        toast({ title: "Pilih 2 sampai 4 jam", variant: "destructive" });
+        return;
+      }
+      const normalized = specificTimes.map(toHHMM);
+      const minute = normalized[0].split(":")[1];
+      if (!normalized.every((t) => t.split(":")[1] === minute)) {
+        toast({
+          title: "Menit harus sama",
+          description: "Semua jam yang dipilih harus memiliki menit yang sama.",
+          variant: "destructive",
+        });
+        return;
+      }
+      times = normalized;
+    } else if (scheduleMode === "every_n_hours") {
+      if (!INTERVAL_OPTIONS.includes(intervalHours)) {
+        toast({ title: "Interval tidak valid", variant: "destructive" });
+        return;
+      }
+      interval = intervalHours;
+    }
+
+    setSavingSchedule(true);
+    try {
+      const { data, error } = await supabase.rpc("set_notification_schedule" as any, {
+        p_mode: scheduleMode,
+        p_times_wib: times,
+        p_interval_hours: interval,
+      });
+
+      if (error) throw error;
+      const payload = data as { success: boolean; error?: string; cron_expression?: string };
+      if (!payload?.success) {
+        throw new Error(payload?.error || "Gagal menyimpan jadwal");
+      }
+
+      toast({
+        title: "Jadwal diperbarui",
+        description: payload.cron_expression
+          ? `Cron aktif: ${payload.cron_expression}`
+          : undefined,
+      });
+      await fetchActiveSchedule();
+    } catch (err: any) {
+      toast({
+        title: "Gagal menyimpan jadwal",
+        description: err.message || "Terjadi kesalahan",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
+  const addSpecificTime = () => {
+    if (specificTimes.length >= 4) return;
+    const firstMinute = specificTimes[0]?.split(":")[1] ?? "00";
+    const usedHours = new Set(specificTimes.map((t) => Number(t.split(":")[0])));
+    let suggested = 0;
+    for (let h = 0; h < 24; h++) {
+      if (!usedHours.has(h)) {
+        suggested = h;
+        break;
+      }
+    }
+    const nextTime = `${String(suggested).padStart(2, "0")}:${firstMinute}`;
+    setSpecificTimes([...specificTimes, nextTime]);
+  };
+
+  const removeSpecificTime = (index: number) => {
+    if (specificTimes.length <= 2) return;
+    setSpecificTimes(specificTimes.filter((_, i) => i !== index));
+  };
+
+  // Minute is pinned to the first entry's minute — that's the invariant the
+  // RPC enforces, and the UI mirrors it so users can't save an invalid combo.
+  const updateSpecificTime = (index: number, value: string) => {
+    const normalized = toHHMM(value);
+    const next = [...specificTimes];
+    if (index === 0) {
+      const minute = normalized.split(":")[1];
+      next[0] = normalized;
+      for (let i = 1; i < next.length; i++) {
+        const [h] = next[i].split(":");
+        next[i] = `${h}:${minute}`;
+      }
+    } else {
+      const firstMinute = next[0].split(":")[1];
+      const [h] = normalized.split(":");
+      next[index] = `${h}:${firstMinute}`;
+    }
+    setSpecificTimes(next);
   };
 
   const update = <K extends keyof NotificationSettingsRow>(
@@ -264,44 +443,174 @@ const NotificationSettingsPage = () => {
           </CardContent>
         </Card>
 
-        {/* Jadwal */}
+        {/* Jadwal pengiriman — structured scheduler */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Jadwal Pengiriman</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Clock className="h-4 w-4 text-primary" />
+              Jadwal Pengiriman
+            </CardTitle>
             <CardDescription>
-              Kapan notifikasi dikirim (jadwal nyata diatur di pg_cron)
+              Pilih kapan pg_cron memicu pengiriman notifikasi (zona waktu: WIB)
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Preset Frekuensi</Label>
-              <Select
-                value={settings.frequency_label}
-                onValueChange={(v) => update("frequency_label", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FREQUENCY_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-sm text-muted-foreground">
-                Label ini hanya untuk UI. Jadwal sebenarnya diatur via SQL
-                <code className="mx-1 px-1 bg-muted rounded">cron.alter_job()</code>
-                — default: setiap hari 08:00 WIB.
-              </p>
-            </div>
+          <CardContent className="space-y-6">
+            <RadioGroup
+              value={scheduleMode}
+              onValueChange={(v) => setScheduleMode(v as ScheduleMode)}
+              className="space-y-3"
+            >
+              <div className="flex items-start gap-3 p-3 rounded-lg border hover:bg-muted/30">
+                <RadioGroupItem value="daily" id="mode-daily" className="mt-1" />
+                <div className="flex-1">
+                  <Label htmlFor="mode-daily" className="font-medium cursor-pointer">
+                    Harian pada jam tertentu
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Satu pengiriman setiap hari di jam yang Anda pilih
+                  </p>
+                  {scheduleMode === "daily" && (
+                    <div className="mt-3">
+                      <Input
+                        type="time"
+                        value={dailyTime}
+                        onChange={(e) => setDailyTime(toHHMM(e.target.value))}
+                        className="w-40"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-3 rounded-lg border hover:bg-muted/30">
+                <RadioGroupItem value="specific_times" id="mode-specific" className="mt-1" />
+                <div className="flex-1">
+                  <Label htmlFor="mode-specific" className="font-medium cursor-pointer">
+                    Beberapa jam tertentu dalam sehari
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    2 sampai 4 jam spesifik — semua jam harus di menit yang sama
+                  </p>
+                  {scheduleMode === "specific_times" && (
+                    <div className="mt-3 space-y-2">
+                      {specificTimes.map((time, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <Input
+                            type="time"
+                            value={time}
+                            onChange={(e) => updateSpecificTime(i, e.target.value)}
+                            className="w-40"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeSpecificTime(i)}
+                            disabled={specificTimes.length <= 2}
+                            aria-label="Hapus jam"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      {specificTimes.length < 4 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={addSpecificTime}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Tambah Jam
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-3 rounded-lg border hover:bg-muted/30">
+                <RadioGroupItem value="every_n_hours" id="mode-interval" className="mt-1" />
+                <div className="flex-1">
+                  <Label htmlFor="mode-interval" className="font-medium cursor-pointer">
+                    Setiap N jam
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Berjalan setiap interval tetap, selalu di menit ke-0
+                  </p>
+                  {scheduleMode === "every_n_hours" && (
+                    <div className="mt-3">
+                      <Select
+                        value={String(intervalHours)}
+                        onValueChange={(v) => setIntervalHours(Number(v))}
+                      >
+                        <SelectTrigger className="w-40">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {INTERVAL_OPTIONS.map((n) => (
+                            <SelectItem key={n} value={String(n)}>
+                              Setiap {n} jam
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </RadioGroup>
 
             <Separator />
 
+            <div className="rounded-lg bg-muted/40 p-3 text-sm">
+              <div className="font-medium mb-1">Jadwal aktif saat ini</div>
+              {activeSchedule.status === "active" ? (
+                <div className="space-y-0.5">
+                  <code className="text-xs bg-background px-1.5 py-0.5 rounded">
+                    {activeSchedule.cron}
+                  </code>
+                  <p className="text-muted-foreground">{humanReadableSchedule(activeSchedule.cron)}</p>
+                </div>
+              ) : activeSchedule.status === "unscheduled" ? (
+                <p className="text-muted-foreground">
+                  Cron job belum dijadwalkan. Hubungi admin infrastruktur untuk menjalankan setup awal.
+                </p>
+              ) : (
+                <p className="text-muted-foreground">Memuat…</p>
+              )}
+            </div>
+
+            <div className="flex justify-end">
+              <Button onClick={handleSaveSchedule} disabled={savingSchedule}>
+                {savingSchedule ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Menyimpan Jadwal…
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Simpan Jadwal
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Jam tenang + zona waktu */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Jam Tenang</CardTitle>
+            <CardDescription>
+              Pesan tidak dikirim dalam rentang ini meski cron fire
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Jam Tenang Mulai</Label>
+                <Label>Mulai</Label>
                 <Input
                   type="time"
                   value={settings.quiet_start ?? ""}
@@ -309,7 +618,7 @@ const NotificationSettingsPage = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Jam Tenang Selesai</Label>
+                <Label>Selesai</Label>
                 <Input
                   type="time"
                   value={settings.quiet_end ?? ""}
@@ -318,9 +627,8 @@ const NotificationSettingsPage = () => {
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              Pesan tidak dikirim antara jam ini (zona waktu: {settings.timezone})
+              Zona waktu: {settings.timezone}
             </p>
-
             <div className="space-y-2">
               <Label>Zona Waktu</Label>
               <Input
@@ -372,7 +680,7 @@ const NotificationSettingsPage = () => {
               </p>
             </div>
             <div className="space-y-2">
-              <Label>Jeda Cooldown Per User (jam)</Label>
+              <Label>Jeda Cooldown Per OPD (jam)</Label>
               <Input
                 type="number"
                 min={0}
@@ -383,7 +691,7 @@ const NotificationSettingsPage = () => {
                 }
               />
               <p className="text-sm text-muted-foreground">
-                Satu OPD user maksimal menerima 1 notifikasi dalam periode ini
+                Satu OPD maksimal menerima 1 notifikasi dalam periode ini
               </p>
             </div>
           </CardContent>
