@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -19,8 +20,12 @@ interface WhatsAppCloudConfig {
   app_secret: string | null;
   auto_reply_enabled: boolean;
   session_timeout_minutes: number;
+  sticker_fallback_text: string | null;
   updated_at: string;
 }
+
+const DEFAULT_STICKER_FALLBACK =
+  "Maaf, stiker belum didukung. Silakan kirim pesan teks atau foto laporan Anda agar kami dapat membantu. 🙏";
 
 export const WhatsAppCloudConfigManager = ({ onSaved }: { onSaved?: () => void } = {}) => {
   const [loading, setLoading] = useState(true);
@@ -36,6 +41,7 @@ export const WhatsAppCloudConfigManager = ({ onSaved }: { onSaved?: () => void }
     app_secret: "",
     auto_reply_enabled: true,
     session_timeout_minutes: 30,
+    sticker_fallback_text: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
@@ -68,6 +74,7 @@ export const WhatsAppCloudConfigManager = ({ onSaved }: { onSaved?: () => void }
           app_secret: configData.app_secret || "",
           auto_reply_enabled: configData.auto_reply_enabled,
           session_timeout_minutes: configData.session_timeout_minutes,
+          sticker_fallback_text: configData.sticker_fallback_text ?? "",
         });
       }
     } catch (error: any) {
@@ -128,6 +135,7 @@ export const WhatsAppCloudConfigManager = ({ onSaved }: { onSaved?: () => void }
         app_secret: formData.app_secret.trim() || null,
         auto_reply_enabled: formData.auto_reply_enabled,
         session_timeout_minutes: Number(formData.session_timeout_minutes),
+        sticker_fallback_text: formData.sticker_fallback_text.trim() || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -441,6 +449,20 @@ export const WhatsAppCloudConfigManager = ({ onSaved }: { onSaved?: () => void }
             )}
             <p className="text-sm text-muted-foreground">
               Time before a conversation session expires (5–1440 minutes)
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="sticker_fallback_text">Balasan Otomatis saat Stiker Diterima</Label>
+            <Textarea
+              id="sticker_fallback_text"
+              rows={3}
+              placeholder={DEFAULT_STICKER_FALLBACK}
+              value={formData.sticker_fallback_text}
+              onChange={(e) => handleInputChange("sticker_fallback_text", e.target.value)}
+            />
+            <p className="text-sm text-muted-foreground">
+              Pesan ini dikirim otomatis ketika pengguna mengirim stiker WhatsApp. Kosongkan untuk menggunakan pesan default.
             </p>
           </div>
         </div>

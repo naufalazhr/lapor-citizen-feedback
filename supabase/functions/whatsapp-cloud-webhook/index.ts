@@ -111,7 +111,11 @@ interface WhatsAppCloudConfig {
   verify_token: string;
   auto_reply_enabled: boolean;
   session_timeout_minutes: number;
+  sticker_fallback_text: string | null;
 }
+
+const DEFAULT_STICKER_FALLBACK =
+  'Maaf, stiker belum didukung. Silakan kirim pesan teks atau foto laporan Anda agar kami dapat membantu. 🙏';
 
 // =============================================================================
 // Supabase client (service role)
@@ -130,6 +134,7 @@ function normalizeMessage(msg: MetaMessage): {
   mimeType: string | null;
   location: { lat: number; lng: number } | undefined;
   skip: boolean;
+  isSticker: boolean;
 } {
   switch (msg.type) {
     case 'text':
@@ -139,7 +144,8 @@ function normalizeMessage(msg: MetaMessage): {
         mediaId: null,
         mimeType: null,
         location: undefined,
-        skip: false
+        skip: false,
+        isSticker: false
       };
 
     case 'image':
@@ -149,7 +155,8 @@ function normalizeMessage(msg: MetaMessage): {
         mediaId: msg.image?.id || null,
         mimeType: msg.image?.mime_type || null,
         location: undefined,
-        skip: false
+        skip: false,
+        isSticker: false
       };
 
     case 'video':
@@ -159,7 +166,8 @@ function normalizeMessage(msg: MetaMessage): {
         mediaId: msg.video?.id || null,
         mimeType: msg.video?.mime_type || null,
         location: undefined,
-        skip: false
+        skip: false,
+        isSticker: false
       };
 
     case 'location': {
@@ -172,13 +180,24 @@ function normalizeMessage(msg: MetaMessage): {
         mediaId: null,
         mimeType: null,
         location: { lat, lng },
-        skip: false
+        skip: false,
+        isSticker: false
       };
     }
 
+    case 'sticker':
+      return {
+        messageContent: '[Stiker]',
+        hasAttachment: false,
+        mediaId: null,
+        mimeType: null,
+        location: undefined,
+        skip: false,
+        isSticker: true
+      };
+
     case 'audio':
     case 'document':
-    case 'sticker':
       console.log(`[WhatsApp Cloud] Skipping unsupported message type: ${msg.type}`);
       return {
         messageContent: '',
@@ -186,7 +205,8 @@ function normalizeMessage(msg: MetaMessage): {
         mediaId: null,
         mimeType: null,
         location: undefined,
-        skip: true
+        skip: true,
+        isSticker: false
       };
 
     default:
@@ -197,7 +217,8 @@ function normalizeMessage(msg: MetaMessage): {
         mediaId: null,
         mimeType: null,
         location: undefined,
-        skip: true
+        skip: true,
+        isSticker: false
       };
   }
 }
@@ -287,6 +308,35 @@ async function processMessage(
     message_index: messageIndex,
     has_attachment: normalized.hasAttachment
   });
+
+  // 5b. Sticker fallback: reply politely, skip AI and attachment download
+  if (normalized.isSticker) {
+    const fallbackText = config.sticker_fallback_text?.trim() || DEFAULT_STICKER_FALLBACK;
+
+    await saveMessage({
+      conversation_id: conversation.id,
+      tenant_id: config.tenant_id,
+      role: 'assistant',
+      content: fallbackText,
+      message_index: messageIndex + 1
+    });
+
+    const stickerSendResult = await provider.sendMessageWithRetry({
+      target: sender,
+      message: fallbackText
+    });
+
+    if (!stickerSendResult.status) {
+      console.error('[WhatsApp Cloud] Failed to send sticker fallback:', stickerSendResult.error);
+      await logWebhookError({
+        source: 'whatsapp-cloud-webhook-send',
+        error_type: 'WhatsAppSendError',
+        error_message: stickerSendResult.error || 'Failed to send sticker fallback',
+        conversation_id: conversation.id
+      });
+    }
+    return;
+  }
 
   // 6. Process attachment if present (image/video — two-step Meta download, non-fatal)
   let attachmentResult = null;
