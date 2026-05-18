@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import Dashboard from "./Dashboard";
 import { ChannelProviderCard } from "@/components/admin/ChannelProviderCard";
 import { FonnteConfigManager } from "@/components/admin/FonnteConfigManager";
 import { InfobipConfigManager } from "@/components/admin/InfobipConfigManager";
@@ -184,16 +183,13 @@ const IntegrationChannelWhatsApp = () => {
 
   if (loading) {
     return (
-      <Dashboard>
         <div className="flex items-center justify-center h-full">
           <div className="text-lg text-muted-foreground">Memuat...</div>
         </div>
-      </Dashboard>
     );
   }
 
   return (
-    <Dashboard>
       <div className="space-y-6">
         {/* Page Header */}
         <div>
@@ -276,8 +272,6 @@ const IntegrationChannelWhatsApp = () => {
                 </div>
               </div>
             )}
-
-
             {/* WhatsApp Cloud API Config Panel */}
             {openPanel === "whatsapp_cloud" && (
               <div className="mt-2">
@@ -294,7 +288,6 @@ const IntegrationChannelWhatsApp = () => {
           </CardContent>
         </Card>
       </div>
-    </Dashboard>
   );
 };
 

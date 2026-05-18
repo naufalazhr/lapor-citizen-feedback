@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import Dashboard from "./Dashboard";
 import { ChannelProviderCard } from "@/components/admin/ChannelProviderCard";
 import { FlowiseConfigManager } from "@/components/admin/FlowiseConfigManager";
 import { AIAssistantConfigManager } from "@/components/admin/AIAssistantConfigManager";
@@ -63,16 +62,13 @@ const IntegrationChannelAIAgent = () => {
 
   if (loading) {
     return (
-      <Dashboard>
         <div className="flex items-center justify-center h-full">
           <div className="text-lg text-muted-foreground">Memuat...</div>
         </div>
-      </Dashboard>
     );
   }
 
   return (
-    <Dashboard>
       <div className="space-y-6">
         {/* Page Header */}
         <div>
@@ -151,7 +147,6 @@ const IntegrationChannelAIAgent = () => {
           </CardContent>
         </Card>
       </div>
-    </Dashboard>
   );
 };
 

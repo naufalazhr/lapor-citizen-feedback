@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import Dashboard from "./Dashboard";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApiKeyManager } from "@/components/admin/ApiKeyManager";
@@ -241,11 +240,9 @@ try {
 
   if (loading) {
     return (
-      <Dashboard>
         <div className="flex items-center justify-center h-full">
           <div className="text-lg">Memuat...</div>
         </div>
-      </Dashboard>
     );
   }
 
@@ -254,7 +251,6 @@ try {
   }
 
   return (
-    <Dashboard>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
@@ -621,7 +617,6 @@ try {
           </Collapsible>
         )}
       </div>
-    </Dashboard>
   );
 };
 

@@ -9,7 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, MapPin, Send } from "lucide-react";
-import MapSelector from "./MapSelector";
+// Map feature disabled temporarily
 
 type ReportFormData = {
   reporter_name: string;
@@ -264,14 +264,14 @@ const ReportForm = () => {
             )}
           </div>
 
-          {showMap && (
+          {/* {showMap && (
             <MapSelector
               onLocationSelect={(lat, lng) => {
                 setLocation({ lat, lng });
                 setShowMap(false);
               }}
             />
-          )}
+          )} */}
 
           <Button type="submit" className="w-full" disabled={loading}>
             <Send className="mr-2 h-4 w-4" />

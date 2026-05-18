@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import Dashboard from "../Dashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -108,11 +107,9 @@ const TenantConfig = () => {
 
   if (loading) {
     return (
-      <Dashboard>
         <div className="flex items-center justify-center h-full">
           <div className="text-lg">Memuat...</div>
         </div>
-      </Dashboard>
     );
   }
 
@@ -122,7 +119,6 @@ const TenantConfig = () => {
   const statusDisplay = statusBadge[tenantStatus] ?? { label: tenantStatus, class: "bg-gray-100 text-gray-600" };
 
   return (
-    <Dashboard>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
@@ -259,7 +255,6 @@ const TenantConfig = () => {
           </TabsContent>
         </Tabs>
       </div>
-    </Dashboard>
   );
 };
 

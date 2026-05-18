@@ -1,0 +1,22 @@
+
+> vite_react_shadcn_ts@0.0.0 dev
+> vite --host 0.0.0.0 --port 3000
+
+
+  VITE v5.4.21  ready in 193 ms
+
+  ➜  Local:   http://localhost:3000/
+  ➜  Network: http://127.0.2.2:3000/
+  ➜  Network: http://127.0.2.3:3000/
+  ➜  Network: http://192.168.1.40:3000/
+1:29:40 PM [vite] .env changed, restarting server...
+1:29:41 PM [vite] .env changed, restarting server...
+1:29:41 PM [vite] server restarted.
+1:29:41 PM [vite] .env changed, restarting server...
+✘ [ERROR] The build was canceled
+
+1:29:41 PM [vite] server restarted.
+1:29:56 PM [vite] .env changed, restarting server...
+1:29:56 PM [vite] server restarted.
+10:00:11 PM [vite] .env changed, restarting server...
+10:00:11 PM [vite] server restarted.

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link, Outlet } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -13,11 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Bell, AlertTriangle, Clock, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface DashboardProps {
-  children: React.ReactNode;
-}
-
-const Dashboard = ({ children }: DashboardProps) => {
+const AdminLayout = () => {
   const [user, setUser] = useState<User | null>(null);
   const [hasRole, setHasRole] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -28,7 +24,6 @@ const Dashboard = ({ children }: DashboardProps) => {
   const { role, loading: roleLoading } = useUserRole();
   const { overdueCount, overdueReports, dismissAll, dismiss } = useCriticalNotifications();
 
-  // Identity state
   const [tenantName, setTenantName] = useState<string>('');
   const [tenantLogoUrl, setTenantLogoUrl] = useState<string | null>(null);
   const [userFullName, setUserFullName] = useState<string>('');
@@ -64,7 +59,6 @@ const Dashboard = ({ children }: DashboardProps) => {
     }
   };
 
-  // Close bell dropdown when clicking outside
   useEffect(() => {
     if (!bellOpen) return;
     const handleClick = (e: MouseEvent) => {
@@ -105,7 +99,6 @@ const Dashboard = ({ children }: DashboardProps) => {
   };
 
   const checkUserRole = async (userId: string) => {
-    // Step 0: Check role first — superadmin may not have a tenant_id
     const { data: roleData, error: roleError } = await supabase
       .from("user_roles")
       .select("role")
@@ -119,7 +112,6 @@ const Dashboard = ({ children }: DashboardProps) => {
       return;
     }
 
-    // Superadmin without tenant_id: allow access, skip tenant checks
     if (roleData?.role === 'superadmin') {
       const { data: profileData } = await supabase
         .from("profiles")
@@ -137,7 +129,6 @@ const Dashboard = ({ children }: DashboardProps) => {
       return;
     }
 
-    // Step 1: Get profile with tenant_id and full_name
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
       .select("tenant_id, full_name, email")
@@ -157,14 +148,12 @@ const Dashboard = ({ children }: DashboardProps) => {
       return;
     }
 
-    // Set user display name
     if (profileData.full_name) {
       setUserFullName(profileData.full_name);
     } else if (profileData.email) {
       setUserFullName(profileData.email.split('@')[0]);
     }
 
-    // Steps 2, 3, 4: run in parallel — tenant name, login logo, user role
     const [tenantResult, loginConfigResult] = await Promise.all([
       supabase.from('tenants').select('name').eq('id', profileData.tenant_id).single(),
       supabase.from('login_config').select('logo_url').limit(1).maybeSingle(),
@@ -183,7 +172,6 @@ const Dashboard = ({ children }: DashboardProps) => {
       return;
     }
 
-    // Step 5: Check pending approval (only if no role found)
     const { data: approvalData } = await supabase
       .from("user_approvals")
       .select("status")
@@ -218,11 +206,9 @@ const Dashboard = ({ children }: DashboardProps) => {
         <header className="sticky top-0 z-[1001] border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex h-16 items-center justify-between px-4 gap-4">
 
-            {/* LEFT: Toggle + Organization Identity + Page Title */}
             <div className="flex items-center gap-3 min-w-0">
               <SidebarTrigger className="shrink-0" />
 
-              {/* Organization identity */}
               <div className="flex items-center gap-2 shrink-0">
                 {tenantLogoUrl ? (
                   <img
@@ -249,13 +235,10 @@ const Dashboard = ({ children }: DashboardProps) => {
               </h1>
             </div>
 
-            {/* CENTER: spacer */}
             <div className="flex-1" />
 
-            {/* RIGHT: User info + actions */}
             <div className="flex items-center gap-2 shrink-0">
 
-              {/* User name + role badge */}
               {userFullName && (
                 <div className="hidden md:flex items-center gap-1.5">
                   <span className="text-sm font-medium text-foreground truncate max-w-[120px]">
@@ -274,7 +257,6 @@ const Dashboard = ({ children }: DashboardProps) => {
 
               <AIStatusIndicator />
 
-              {/* Critical notification bell */}
               <div className="relative" ref={bellRef}>
                 <button
                   onClick={() => setBellOpen(prev => !prev)}
@@ -293,7 +275,6 @@ const Dashboard = ({ children }: DashboardProps) => {
                   )}
                 </button>
 
-                {/* Bell dropdown */}
                 {bellOpen && (
                   <div className="absolute right-0 top-full mt-2 w-80 bg-popover border border-border rounded-lg shadow-lg z-50 overflow-hidden">
                     <div className="px-3 py-2 border-b border-border flex items-center justify-between">
@@ -381,7 +362,7 @@ const Dashboard = ({ children }: DashboardProps) => {
               </div>
             )}
             <div key={location.pathname} className="animate-page-enter">
-              {children}
+              <Outlet />
             </div>
           </main>
         </div>
@@ -390,4 +371,4 @@ const Dashboard = ({ children }: DashboardProps) => {
   );
 };
 
-export default Dashboard;
+export default AdminLayout;

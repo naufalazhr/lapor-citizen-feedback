@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import Dashboard from "./Dashboard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -431,18 +430,15 @@ const ReportDetail = () => {
 
   if (loading) {
     return (
-      <Dashboard>
         <div className="flex justify-center items-center min-h-[400px]">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
         </div>
-      </Dashboard>
     );
   }
 
   if (!report) {
     console.log("⚠️ Rendering 'not found' state. Report is null. ID:", id);
     return (
-      <Dashboard>
         <div className="text-center py-12 space-y-4">
           <p className="text-xl font-semibold text-muted-foreground">Laporan tidak ditemukan</p>
           <p className="text-sm text-muted-foreground">ID: {id}</p>
@@ -453,7 +449,6 @@ const ReportDetail = () => {
             Kembali ke Daftar Laporan
           </Button>
         </div>
-      </Dashboard>
     );
   }
 
@@ -468,7 +463,6 @@ const ReportDetail = () => {
   }[level];
 
   return (
-    <Dashboard>
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -853,7 +847,6 @@ const ReportDetail = () => {
             </Card>
           </div>
         </div>
-      </div>
 
       {/* Image Modal Dialog */}
       {isValidMediaUrl(report.photo_url) && !isVideoUrl(report.photo_url) && (
@@ -918,7 +911,7 @@ const ReportDetail = () => {
           }}
         />
       )}
-    </Dashboard>
+      </div>
   );
 };
 

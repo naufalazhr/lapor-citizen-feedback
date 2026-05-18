@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 import {
   Sidebar,
   SidebarContent,
@@ -127,13 +128,15 @@ export function AppSidebar() {
   const isAdminUser = userRole !== null && ['admin', 'owner', 'superadmin'].includes(userRole);
   const isSuperadmin = userRole === 'superadmin';
   const isCollapsed = state === "collapsed";
+  const labelCls = isCollapsed ? "opacity-0 w-0 overflow-hidden absolute" : "opacity-100";
 
   return (
     <Sidebar className={isCollapsed ? "w-16" : "w-64"}>
       <SidebarHeader className="border-b border-border px-4 py-3">
-        {!isCollapsed && (
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Menu Navigasi</p>
-        )}
+        <p className={cn(
+          "text-xs text-muted-foreground font-medium uppercase tracking-wider transition-opacity duration-200",
+          isCollapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"
+        )}>Menu Navigasi</p>
       </SidebarHeader>
 
       <SidebarContent>
@@ -148,7 +151,7 @@ export function AppSidebar() {
                   className={isActive('/admin/dashboard') ? "bg-accent" : ""}
                 >
                   <LayoutDashboard className="h-4 w-4" />
-                  {!isCollapsed && <span>Ringkasan Eksekutif</span>}
+                  <span className={cn("transition-opacity duration-200", labelCls)}>Ringkasan Eksekutif</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
@@ -157,7 +160,7 @@ export function AppSidebar() {
                   className={isActive('/admin/recent-reports') ? "bg-accent" : ""}
                 >
                   <Clock className="h-4 w-4" />
-                  {!isCollapsed && <span>Statistik &amp; Analitik</span>}
+                  <span className={cn("transition-opacity duration-200", labelCls)}>Statistik &amp; Analitik</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -175,7 +178,7 @@ export function AppSidebar() {
                   className={isActive('/admin/reports') ? "bg-accent" : ""}
                 >
                   <FileText className="h-4 w-4" />
-                  {!isCollapsed && <span>Laporan</span>}
+                  <span className={cn("transition-opacity duration-200", labelCls)}>Laporan</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
@@ -184,7 +187,7 @@ export function AppSidebar() {
                   className={isActive('/admin/conversations') ? "bg-accent" : ""}
                 >
                   <MessageSquare className="h-4 w-4" />
-                  {!isCollapsed && <span>Percakapan</span>}
+                  <span className={cn("transition-opacity duration-200", labelCls)}>Percakapan</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -203,7 +206,7 @@ export function AppSidebar() {
                     className={isActive('/admin/opds') ? "bg-accent" : ""}
                   >
                     <Building2 className="h-4 w-4" />
-                    {!isCollapsed && <span>OPD</span>}
+                    <span className={cn("transition-opacity duration-200", labelCls)}>OPD</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
@@ -212,7 +215,7 @@ export function AppSidebar() {
                     className={isActive('/admin/users') ? "bg-accent" : ""}
                   >
                     <Users className="h-4 w-4" />
-                    {!isCollapsed && <span>User</span>}
+                    <span className={cn("transition-opacity duration-200", labelCls)}>User</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
@@ -298,7 +301,7 @@ export function AppSidebar() {
                     className={isActive('/admin/integration/api') ? "bg-accent" : ""}
                   >
                     <Key className="h-4 w-4" />
-                    {!isCollapsed && <span>API Management</span>}
+                    <span className={cn("transition-opacity duration-200", labelCls)}>API Management</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
@@ -320,7 +323,7 @@ export function AppSidebar() {
                     className={isActive('/admin/notifications') ? "bg-accent" : ""}
                   >
                     <Bell className="h-4 w-4" />
-                    {!isCollapsed && <span>Ringkasan</span>}
+                    <span className={cn("transition-opacity duration-200", labelCls)}>Ringkasan</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
@@ -331,7 +334,7 @@ export function AppSidebar() {
                     className={isActive('/admin/notifications/settings') ? "bg-accent" : ""}
                   >
                     <Settings className="h-4 w-4" />
-                    {!isCollapsed && <span>Pengaturan</span>}
+                    <span className={cn("transition-opacity duration-200", labelCls)}>Pengaturan</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
@@ -397,7 +400,7 @@ export function AppSidebar() {
                     className={isActive('/admin/notifications/history') ? "bg-accent" : ""}
                   >
                     <History className="h-4 w-4" />
-                    {!isCollapsed && <span>Riwayat</span>}
+                    <span className={cn("transition-opacity duration-200", labelCls)}>Riwayat</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
@@ -480,7 +483,7 @@ export function AppSidebar() {
                     className={isActive('/admin/license-generator') ? "bg-accent" : ""}
                   >
                     <KeyRound className="h-4 w-4" />
-                    {!isCollapsed && <span>License Generator</span>}
+                    <span className={cn("transition-opacity duration-200", labelCls)}>License Generator</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
@@ -496,13 +499,14 @@ export function AppSidebar() {
           className="w-full justify-start"
         >
           <LogOut className="h-4 w-4" />
-          {!isCollapsed && <span className="ml-2">Keluar</span>}
+          <span className={cn("ml-2 transition-opacity duration-200", labelCls)}>Keluar</span>
         </Button>
-        {!isCollapsed && (
-          <p className="mt-3 text-center text-[10px] text-muted-foreground/50 tracking-wide select-none">
-            pimpinan.com
-          </p>
-        )}
+        <p className={cn(
+          "mt-3 text-center text-[10px] text-muted-foreground/50 tracking-wide select-none transition-opacity duration-200",
+          isCollapsed ? "opacity-0 h-0 overflow-hidden" : "opacity-100"
+        )}>
+          pimpinan.com
+        </p>
       </SidebarFooter>
     </Sidebar>
   );

@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import Dashboard from "./Dashboard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -783,7 +782,7 @@ const Conversations = () => {
     selectedConversation?.status === 'active';
 
   return (
-    <Dashboard>
+      <>
       {/* Bleed out of Dashboard's p-6 padding to fill the full content area height */}
       <div
         className="-mx-6 -mb-6 flex overflow-hidden border-t"
@@ -1784,7 +1783,7 @@ const Conversations = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Dashboard>
+      </>
   );
 };
 

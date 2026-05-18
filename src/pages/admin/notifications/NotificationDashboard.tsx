@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import Dashboard from "../Dashboard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -261,17 +260,14 @@ const NotificationDashboardPage = () => {
 
   if (loading) {
     return (
-      <Dashboard>
         <div className="flex items-center justify-center h-full">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           <span className="ml-2 text-muted-foreground">Memuat...</span>
         </div>
-      </Dashboard>
     );
   }
 
   return (
-    <Dashboard>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -560,7 +556,6 @@ const NotificationDashboardPage = () => {
           </AlertDialogContent>
         </AlertDialog>
       </div>
-    </Dashboard>
   );
 };
 

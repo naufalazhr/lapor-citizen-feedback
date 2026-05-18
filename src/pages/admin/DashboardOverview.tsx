@@ -1,5 +1,4 @@
 import { useState } from "react";
-import Dashboard from "./Dashboard";
 import { useToast } from "@/hooks/use-toast";
 import { LayoutDashboard, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -70,16 +69,13 @@ const DashboardOverview = () => {
 
   if (executiveLoading) {
     return (
-      <Dashboard>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
         </div>
-      </Dashboard>
     );
   }
 
   return (
-    <Dashboard>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold">Ringkasan Eksekutif</h1>
@@ -170,7 +166,6 @@ const DashboardOverview = () => {
           </div>
         )}
       </div>
-    </Dashboard>
   );
 };
 

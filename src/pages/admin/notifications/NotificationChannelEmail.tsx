@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import Dashboard from "../Dashboard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Mail, Clock } from "lucide-react";
@@ -37,7 +36,6 @@ const NotificationChannelEmailPage = () => {
   }, []);
 
   return (
-    <Dashboard>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -73,7 +71,6 @@ const NotificationChannelEmailPage = () => {
           </CardContent>
         </Card>
       </div>
-    </Dashboard>
   );
 };
 

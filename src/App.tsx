@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import ProfileSetup from "./pages/ProfileSetup";
 import PendingApproval from "./pages/PendingApproval";
 import AcceptInvitation from "./pages/AcceptInvitation";
+import AdminLayout from "./components/admin/AdminLayout";
 import DashboardOverview from "./pages/admin/DashboardOverview";
 import Reports from "./pages/admin/Reports";
 import ReportDetail from "./pages/admin/ReportDetail";
@@ -49,35 +50,36 @@ const App = () => (
           <Route path="/lapor" element={<Report />} />
           <Route path="/lacak" element={<TrackReport />} />
           <Route path="/lacak/:ticketId" element={<TrackReport />} />
-          <Route path="/admin/dashboard" element={<DashboardOverview />} />
-          <Route path="/admin/reports" element={<Reports />} />
-          <Route path="/admin/reports/:id" element={<ReportDetail />} />
-          <Route path="/admin/conversations" element={<Conversations />} />
-          <Route path="/admin/integration" element={<Integration />} />
-          <Route path="/admin/integration/login" element={<IntegrationLogin />} />
-          <Route path="/admin/integration/ai" element={<IntegrationAI />} />
-          <Route path="/admin/integration/api" element={<IntegrationAPI />} />
-          <Route path="/admin/integration/channel" element={<IntegrationChannel />} />
-          <Route path="/admin/integration/channel/ai-agent" element={<IntegrationChannelAIAgent />} />
-          <Route path="/admin/integration/channel/whatsapp" element={<IntegrationChannelWhatsApp />} />
-          <Route path="/admin/integration/channel/ai-insight" element={<IntegrationChannelAIInsight />} />
-          <Route path="/admin/notifications" element={<NotificationDashboardPage />} />
-          <Route path="/admin/notifications/settings" element={<NotificationSettingsPage />} />
-          <Route path="/admin/notifications/channel/whatsapp" element={<NotificationChannelWhatsAppPage />} />
-          <Route path="/admin/notifications/channel/whatsapp/contacts" element={<NotificationContactsPage />} />
-          <Route path="/admin/notifications/channel/email" element={<NotificationChannelEmailPage />} />
-          <Route path="/admin/notifications/history" element={<NotificationHistoryPage />} />
-          <Route path="/admin/recent-reports" element={<RecentReports />} />
-          <Route path="/admin/tenant/login-config" element={<TenantLoginConfig />} />
-          <Route path="/admin/tenant/config" element={<TenantConfig />} />
-          <Route path="/admin/license-generator" element={<LicenseGenerator />} />
-          <Route path="/admin/users" element={<Users />} />
-          <Route path="/admin/opds" element={<OPDs />} />
-          <Route path="/admin" element={<DashboardOverview />} />
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<DashboardOverview />} />
+            <Route path="dashboard" element={<DashboardOverview />} />
+            <Route path="reports" element={<Reports />} />
+            <Route path="reports/:id" element={<ReportDetail />} />
+            <Route path="conversations" element={<Conversations />} />
+            <Route path="integration" element={<Integration />} />
+            <Route path="integration/login" element={<IntegrationLogin />} />
+            <Route path="integration/ai" element={<IntegrationAI />} />
+            <Route path="integration/api" element={<IntegrationAPI />} />
+            <Route path="integration/channel" element={<IntegrationChannel />} />
+            <Route path="integration/channel/ai-agent" element={<IntegrationChannelAIAgent />} />
+            <Route path="integration/channel/whatsapp" element={<IntegrationChannelWhatsApp />} />
+            <Route path="integration/channel/ai-insight" element={<IntegrationChannelAIInsight />} />
+            <Route path="notifications" element={<NotificationDashboardPage />} />
+            <Route path="notifications/settings" element={<NotificationSettingsPage />} />
+            <Route path="notifications/channel/whatsapp" element={<NotificationChannelWhatsAppPage />} />
+            <Route path="notifications/channel/whatsapp/contacts" element={<NotificationContactsPage />} />
+            <Route path="notifications/channel/email" element={<NotificationChannelEmailPage />} />
+            <Route path="notifications/history" element={<NotificationHistoryPage />} />
+            <Route path="recent-reports" element={<RecentReports />} />
+            <Route path="tenant/login-config" element={<TenantLoginConfig />} />
+            <Route path="tenant/config" element={<TenantConfig />} />
+            <Route path="license-generator" element={<LicenseGenerator />} />
+            <Route path="users" element={<Users />} />
+            <Route path="opds" element={<OPDs />} />
+          </Route>
           <Route path="/profile-setup" element={<ProfileSetup />} />
           <Route path="/pending-approval" element={<PendingApproval />} />
           <Route path="/invite/:token" element={<AcceptInvitation />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

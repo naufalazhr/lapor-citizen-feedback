@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import Dashboard from "./Dashboard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -318,11 +317,9 @@ const Users = () => {
 
   if (loading) {
     return (
-      <Dashboard>
         <div className="flex items-center justify-center h-full">
           <div className="text-lg">Memuat...</div>
         </div>
-      </Dashboard>
     );
   }
 
@@ -331,7 +328,6 @@ const Users = () => {
   }
 
   return (
-    <Dashboard>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -456,7 +452,6 @@ const Users = () => {
             </table>
           </div>
         </div>
-      </div>
 
       {selectedUser && (
         <>
@@ -576,7 +571,7 @@ const Users = () => {
           )}
         </DialogContent>
       </Dialog>
-    </Dashboard>
+      </div>
   );
 };
 

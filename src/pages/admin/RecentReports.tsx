@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { parseISO } from "date-fns";
-import Dashboard from "./Dashboard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -125,27 +124,22 @@ const RecentReports = () => {
 
   if (dashboardLoading) {
     return (
-      <Dashboard>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
         </div>
-      </Dashboard>
     );
   }
 
   if (dashboardError) {
     return (
-      <Dashboard>
         <div className="flex items-center justify-center h-64 text-destructive">
           <AlertCircle className="h-5 w-5 mr-2" />
           {dashboardError}
         </div>
-      </Dashboard>
     );
   }
 
   return (
-    <Dashboard>
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -307,7 +301,6 @@ const RecentReports = () => {
           </>
         )}
       </div>
-    </Dashboard>
   );
 };
 

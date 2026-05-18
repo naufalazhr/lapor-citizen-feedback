@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import Dashboard from "./Dashboard";
 import { useUserRole } from "@/hooks/use-user-role";
 import {
   Table,
@@ -599,7 +598,6 @@ const Reports = () => {
   };
 
   return (
-    <Dashboard>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -1219,7 +1217,6 @@ const Reports = () => {
             )}
           </CardContent>
         </Card>
-      </div>
 
       {/* Disposition Dialog */}
       <ReportDispositionDialog
@@ -1449,7 +1446,7 @@ const Reports = () => {
           )}
         </DialogContent>
       </Dialog>
-    </Dashboard>
+    </div>
   );
 };
 

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import Dashboard from "../Dashboard";
 import {
   Card,
   CardContent,
@@ -231,12 +230,10 @@ const NotificationHistoryPage = () => {
 
   if (loading) {
     return (
-      <Dashboard>
         <div className="flex items-center justify-center h-full">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           <span className="ml-2 text-muted-foreground">Memuat...</span>
         </div>
-      </Dashboard>
     );
   }
 
@@ -245,7 +242,6 @@ const NotificationHistoryPage = () => {
   const pageList = buildPageList(page, totalPages);
 
   return (
-    <Dashboard>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -428,7 +424,6 @@ const NotificationHistoryPage = () => {
           </CardContent>
         </Card>
       </div>
-    </Dashboard>
   );
 };
 
